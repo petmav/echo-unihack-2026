@@ -7,26 +7,76 @@ PRIVACY CRITICAL:
 - Only anonymized + humanized output reaches Elasticsearch
 """
 
+import hashlib
 import json
 import random
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
+from middleware.rate_limit import _rate_limiter, get_client_identifier
 from models.thought import (
     ThoughtSubmitRequest,
     ThoughtSubmitResult,
     PaginatedThoughts,
     ThoughtResponse,
+    ThemeAggregateResponse,
 )
 from services import anonymiser as anonymiser_service
 from services import ai
+from services.ai import ClaudeRateLimitError, ClaudeAPIError
 from services import elastic
+from config import config
 
 router = APIRouter(prefix="/thoughts", tags=["thoughts"])
 
 _SENTIMENT_VECTOR_DIMS = 1536
+
+_THOUGHTS_RATE_LIMIT_MAX = config.RATE_LIMIT_THOUGHTS_PER_HOUR
+_THOUGHTS_RATE_LIMIT_WINDOW = 3600  # seconds
+
+
+async def thoughts_rate_limit(request: Request) -> None:
+    """
+    Account-based rate limit dependency for POST /thoughts.
+
+    Identifies the client using their account_id (extracted from the JWT
+    Bearer token without requiring authentication) when present, falling
+    back to a SHA256-hashed IP address for unauthenticated requests.
+
+    Limit: 10 requests per 3600 seconds.
+
+    Raises:
+        HTTPException 429: When the client exceeds the rate limit.
+    """
+    client_key: str
+
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        token = authorization[len("Bearer "):]
+        account_id = auth_service.decode_access_token(token)
+        if account_id:
+            # Hash the account_id for consistency with the privacy model
+            account_hash = hashlib.sha256(account_id.encode()).hexdigest()
+            client_key = f"thoughts:account:{account_hash}"
+        else:
+            # Token present but invalid/expired — fall back to hashed IP
+            client_key = get_client_identifier(request, "thoughts")
+    else:
+        client_key = get_client_identifier(request, "thoughts")
+
+    allowed, retry_after = _rate_limiter.is_allowed(
+        client_key=client_key,
+        max_requests=_THOUGHTS_RATE_LIMIT_MAX,
+        window_seconds=_THOUGHTS_RATE_LIMIT_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please slow down.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 def _generate_sentiment_vector() -> list[float]:
@@ -40,7 +90,7 @@ def _generate_sentiment_vector() -> list[float]:
 
 
 @router.post("", response_model=ThoughtSubmitResult)
-async def submit_thought(request: ThoughtSubmitRequest):
+async def submit_thought(request: ThoughtSubmitRequest, _: None = Depends(thoughts_rate_limit)):
     """
     Submit a new thought for anonymization, humanization, and matching.
 
@@ -52,12 +102,12 @@ async def submit_thought(request: ThoughtSubmitRequest):
     5. Find similar thoughts
     6. Return theme, match count, and first page of results
 
-    PRIVACY: raw_text is discarded after anonymization. Only anonymized
+    PRIVACY: text is discarded after anonymization. Only anonymized
     + humanized text is stored.
     """
     # Step 1: Anonymize raw text — MUST be called first, raw text discarded after
     try:
-        anonymized_text = await anonymiser_service.anonymize_text(request.raw_text)
+        anonymized_text = await anonymiser_service.anonymize_text(request.text)
     except anonymiser_service.OllamaConnectionError:
         raise HTTPException(
             status_code=503,
@@ -77,6 +127,16 @@ async def submit_thought(request: ThoughtSubmitRequest):
     # Step 2: Humanize with Claude — only receives anonymized text
     try:
         humanised_text = await ai.humanize_thought(anonymized_text)
+    except ClaudeRateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Service is temporarily busy. Please try again in a moment.",
+        )
+    except ClaudeAPIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Humanization service failed. Please try again later.",
+        )
     except Exception:
         raise HTTPException(
             status_code=502,
@@ -86,6 +146,16 @@ async def submit_thought(request: ThoughtSubmitRequest):
     # Step 3: Classify emotional theme
     try:
         theme_category = await ai.classify_theme(humanised_text)
+    except ClaudeRateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Service is temporarily busy. Please try again in a moment.",
+        )
+    except ClaudeAPIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Theme classification failed. Please try again later.",
+        )
     except Exception:
         raise HTTPException(
             status_code=502,
@@ -97,19 +167,26 @@ async def submit_thought(request: ThoughtSubmitRequest):
     sentiment_vector = _generate_sentiment_vector()
 
     # Step 5: Index in Elasticsearch (non-fatal if unavailable)
-    await elastic.index_thought(
-        message_id=message_id,
-        humanised_text=humanised_text,
-        theme_category=theme_category,
-        sentiment_vector=sentiment_vector,
-    )
+    try:
+        await elastic.index_thought(
+            message_id=message_id,
+            humanised_text=humanised_text,
+            theme_category=theme_category,
+            sentiment_vector=sentiment_vector,
+        )
+    except Exception:
+        # Indexing failure is non-fatal — the user can still see results
+        pass
 
     # Step 6: Search for similar thoughts
-    search_result = await elastic.search_similar_thoughts(
-        theme_category=theme_category,
-        sentiment_vector=sentiment_vector,
-        limit=20,
-    )
+    try:
+        search_result = await elastic.search_similar_thoughts(
+            theme_category=theme_category,
+            sentiment_vector=sentiment_vector,
+            limit=20,
+        )
+    except Exception:
+        search_result = {"thoughts": [], "total": 0, "search_after": None}
 
     similar_thoughts = [
         ThoughtResponse(
@@ -158,19 +235,26 @@ async def get_similar_thoughts(
                 detail="Invalid search_after cursor: must be a JSON array string.",
             )
 
-    thought_doc = await elastic.get_thought_by_id(message_id)
+    try:
+        thought_doc = await elastic.get_thought_by_id(message_id)
+    except Exception:
+        thought_doc = None
+
     if thought_doc is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Thought {message_id} not found.",
+            detail="Thought not found.",
         )
 
-    search_result = await elastic.search_similar_thoughts(
-        theme_category=thought_doc["theme_category"],
-        sentiment_vector=thought_doc["sentiment_vector"],
-        limit=size,
-        search_after=parsed_cursor,
-    )
+    try:
+        search_result = await elastic.search_similar_thoughts(
+            theme_category=thought_doc["theme_category"],
+            sentiment_vector=thought_doc["sentiment_vector"],
+            limit=size,
+            search_after=parsed_cursor,
+        )
+    except Exception:
+        search_result = {"thoughts": [], "total": 0, "search_after": None}
 
     thoughts = [
         ThoughtResponse(
@@ -204,8 +288,8 @@ _DEMO_AGGREGATES: list[dict] = [
 ]
 
 
-@router.get("/aggregates", response_model=list[dict])
-async def get_theme_aggregates():
+@router.get("/aggregates", response_model=list[ThemeAggregateResponse])
+async def get_theme_aggregates(response: Response):
     """
     Get weekly aggregate counts per theme for "Breathing With Others" feature.
 
@@ -214,6 +298,7 @@ async def get_theme_aggregates():
 
     PRIVACY: Aggregate counts only, no user IDs, no individual tracking.
     """
+    response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
     aggregates = await elastic.get_aggregates()
     if not aggregates:
         return _DEMO_AGGREGATES

@@ -8,14 +8,21 @@ Device-stored data (raw thoughts, history, trends, Future You letters) is cleare
 client-side via localStorage.clear().
 """
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Depends
+from sqlalchemy.orm import Session
 from typing import Optional
+
+from services import auth as auth_service
+from database import get_db, Account, MessageTheme
 
 router = APIRouter(prefix="/account", tags=["account"])
 
 
 @router.delete("", response_model=dict)
-async def delete_account(authorization: Optional[str] = Header(None)):
+async def delete_account(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
     """
     Delete user account and all associated server-side data.
 
@@ -31,4 +38,18 @@ async def delete_account(authorization: Optional[str] = Header(None)):
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-    raise HTTPException(status_code=501, detail="Not implemented")
+
+    token = authorization.removeprefix("Bearer ")
+    user_id = auth_service.decode_access_token(token)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    account = db.query(Account).filter(Account.id == user_id).first()
+    if account is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    db.query(MessageTheme).filter(MessageTheme.account_id == user_id).delete()
+    db.delete(account)
+    db.commit()
+
+    return {"deleted": True, "user_id": user_id}

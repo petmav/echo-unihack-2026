@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Target } from "lucide-react";
 
-import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter } from "@/lib/types";
+import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
@@ -25,9 +25,15 @@ import {
   getFutureLettersForTheme,
   getMostRecentTheme,
   presenceLevelFromCount,
+  getNotificationOptIn,
+  setNotificationOptIn,
+  getNextPromptCandidate,
+  setLastPromptDate,
 } from "@/lib/storage";
+import { initializeKey, clearKey } from "@/lib/crypto";
 import {
   submitThought,
+  getSimilarThoughts,
   submitResolution,
   login,
   register,
@@ -46,12 +52,14 @@ import { HistoryPanel } from "@/components/echo/HistoryPanel";
 import { TrendsPanel } from "@/components/echo/TrendsPanel";
 import { AccountPanel } from "@/components/echo/AccountPanel";
 import { AboutPanel } from "@/components/echo/AboutPanel";
+import { PrivacyPanel } from "@/components/echo/PrivacyPanel";
 import { MenuOverlay } from "@/components/echo/MenuOverlay";
 import { HamburgerButton } from "@/components/echo/HamburgerButton";
 import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
+import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 
 /* ── Demo seed data for when backend is unavailable ── */
 const SEED_THOUGHTS: ThoughtResponse[] = [
@@ -75,10 +83,10 @@ const SEED_MATCH_COUNT = 847;
  * Only writes if no letter for the seed theme already exists,
  * so user-written letters are never overwritten.
  */
-function seedDemoFutureLetter() {
-  const existing = getFutureLettersForTheme(DEMO_FUTURE_LETTER.theme_category);
+async function seedDemoFutureLetter() {
+  const existing = await getFutureLettersForTheme(DEMO_FUTURE_LETTER.theme_category);
   if (existing.length === 0) {
-    saveFutureLetter(
+    await saveFutureLetter(
       DEMO_FUTURE_LETTER.message_id,
       DEMO_FUTURE_LETTER.theme_category,
       DEMO_FUTURE_LETTER.letter_text
@@ -96,18 +104,24 @@ export default function EchoApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [bottomSheetThought, setBottomSheetThought] =
     useState<ThoughtResponse | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => getNotificationOptIn());
+  const [promptThought, setPromptThought] = useState<LocalThought | null>(null);
 
   const [matchCount, setMatchCount] = useState(0);
   const [similarThoughts, setSimilarThoughts] = useState<ThoughtResponse[]>([]);
   const [cardsVisible, setCardsVisible] = useState(0);
   const [countAnimDone, setCountAnimDone] = useState(false);
 
+  const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
+  const [searchAfterCursor, setSearchAfterCursor] = useState<string[] | undefined>(undefined);
+  const [hasMoreThoughts, setHasMoreThoughts] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [userEmail, setUserEmail] = useState("user@example.com");
 
-  const [thoughtHistory, setThoughtHistory] = useState(getThoughtHistory());
+  const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
   const [presenceCount, setPresenceCount] = useState(0);
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
@@ -125,16 +139,15 @@ export default function EchoApp() {
       setScreen("home");
     }
 
-    setThoughtHistory(getThoughtHistory());
+    getThoughtHistory().then(setThoughtHistory);
   }, []);
 
   /* Fetch aggregate theme counts for "Breathing With Others" */
   useEffect(() => {
     if (screen !== "home") return;
 
-    const recentTheme = getMostRecentTheme();
-
     async function fetchPresence() {
+      const recentTheme = await getMostRecentTheme();
       try {
         const aggregates = await getThemeAggregates();
         const match = recentTheme
@@ -155,8 +168,20 @@ export default function EchoApp() {
     fetchPresence();
   }, [screen]);
 
+  /* Check for delayed prompt candidates when the home screen loads */
+  useEffect(() => {
+    if (screen !== "home") return;
+    if (!notificationsEnabled) return;
+
+    const candidate = getNextPromptCandidate();
+    if (candidate) {
+      setPromptThought(candidate);
+      setLastPromptDate(Date.now());
+    }
+  }, [screen, notificationsEnabled]);
+
   const refreshHistory = useCallback(() => {
-    setThoughtHistory(getThoughtHistory());
+    getThoughtHistory().then(setThoughtHistory);
   }, []);
 
   useEffect(() => {
@@ -183,10 +208,10 @@ export default function EchoApp() {
 
     const processingStart = Date.now();
 
-    const showResults = (themeCategory: string) => {
+    const showResults = async (themeCategory: string) => {
       setCurrentThemeCategory(themeCategory);
 
-      const letters = getFutureLettersForTheme(themeCategory);
+      const letters = await getFutureLettersForTheme(themeCategory);
       setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
 
       setCardsVisible(0);
@@ -196,21 +221,28 @@ export default function EchoApp() {
 
     try {
       const result = await submitThought(rawText);
-      saveThought(result.message_id, rawText, result.theme_category);
+      await saveThought(result.message_id, rawText, result.theme_category);
       setMatchCount(result.match_count);
       setSimilarThoughts(result.similar_thoughts);
+      setCurrentMessageId(result.message_id);
+      setSearchAfterCursor(result.search_after);
+      setHasMoreThoughts(result.search_after != null);
 
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
       setTimeout(() => showResults(result.theme_category), remainingDelay);
     } catch {
+      const demoId = "demo-" + Date.now();
       const demoTheme = inferThemeFromText(rawText, "self_worth");
-      saveThought("demo-" + Date.now(), rawText, demoTheme);
+      await saveThought("demo-" + Date.now(), rawText, demoTheme);
       setMatchCount(SEED_MATCH_COUNT);
       setSimilarThoughts(SEED_THOUGHTS);
+      setCurrentMessageId(demoId);
+      setSearchAfterCursor(undefined);
+      setHasMoreThoughts(false);
 
-      seedDemoFutureLetter();
+      await seedDemoFutureLetter();
 
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
@@ -222,6 +254,22 @@ export default function EchoApp() {
     refreshHistory();
   }, [thoughtText, refreshHistory]);
 
+  const loadMoreThoughts = useCallback(async () => {
+    if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
+
+    setIsLoadingMore(true);
+    try {
+      const result = await getSimilarThoughts(currentMessageId, searchAfterCursor);
+      setSimilarThoughts((prev) => [...prev, ...result.thoughts]);
+      setSearchAfterCursor(result.search_after);
+      setHasMoreThoughts(result.search_after != null);
+    } catch {
+      /* Keep existing thoughts on error */
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentMessageId, isLoadingMore, hasMoreThoughts, searchAfterCursor]);
+
   const handleAuth = useCallback(
     async (email: string, password: string, mode: "login" | "signup") => {
       setAuthLoading(true);
@@ -231,11 +279,13 @@ export default function EchoApp() {
         const authFn = mode === "login" ? login : register;
         const result = await authFn({ email, password });
         saveJwt(result.access_token);
+        await initializeKey(password, email);
         setUserEmail(email);
         setScreen("home");
       } catch {
         setUserEmail(email);
         saveJwt("demo-token");
+        await initializeKey(password, email);
         setScreen("home");
       } finally {
         setAuthLoading(false);
@@ -251,7 +301,7 @@ export default function EchoApp() {
 
   const handleResolve = useCallback(
     async (messageId: string, resolutionText: string) => {
-      resolveThoughtLocal(messageId, resolutionText);
+      await resolveThoughtLocal(messageId, resolutionText);
       try {
         await submitResolution({
           message_id: messageId,
@@ -266,8 +316,8 @@ export default function EchoApp() {
   );
 
   const handleSaveFutureLetter = useCallback(
-    (messageId: string, themeCategory: string, text: string) => {
-      saveFutureLetter(messageId, themeCategory, text);
+    async (messageId: string, themeCategory: string, text: string) => {
+      await saveFutureLetter(messageId, themeCategory, text);
       refreshHistory();
     },
     [refreshHistory]
@@ -279,6 +329,7 @@ export default function EchoApp() {
     } catch {
       /* clear local regardless */
     }
+    clearKey();
     clearAllData();
     setScreen("auth");
   }, []);
@@ -290,6 +341,18 @@ export default function EchoApp() {
   const handleBackToHome = useCallback(() => {
     setScreen("home");
   }, []);
+
+  const handlePromptDismiss = useCallback(() => {
+    setPromptThought(null);
+  }, []);
+
+  const handlePromptResolve = useCallback(
+    (messageId: string, resolutionText: string) => {
+      setPromptThought(null);
+      handleResolve(messageId, resolutionText);
+    },
+    [handleResolve]
+  );
 
   const isMainScreen = screen === "home" || screen === "results";
 
@@ -358,6 +421,9 @@ export default function EchoApp() {
                 thoughts={similarThoughts}
                 visibleCount={cardsVisible}
                 onCardTap={setBottomSheetThought}
+                onLoadMore={loadMoreThoughts}
+                hasMore={hasMoreThoughts}
+                isLoadingMore={isLoadingMore}
               />
             )}
           </div>
@@ -396,12 +462,21 @@ export default function EchoApp() {
           email={userEmail}
           onBack={handleBackToHome}
           onDeleteAccount={handleDeleteAccount}
-          onToggleNotifications={setNotificationsEnabled}
+          onToggleNotifications={(enabled) => {
+                setNotificationsEnabled(enabled);
+                setNotificationOptIn(enabled);
+              }}
           notificationsEnabled={notificationsEnabled}
         />
       )}
 
-      {screen === "about" && <AboutPanel onBack={handleBackToHome} />}
+      {screen === "about" && (
+        <AboutPanel onBack={handleBackToHome} onNavigate={handleNavigate} />
+      )}
+
+      {screen === "privacy" && (
+        <PrivacyPanel onBack={() => handleNavigate("about")} />
+      )}
     </>
   );
 
@@ -442,6 +517,13 @@ export default function EchoApp() {
           <BottomSheet
             thought={bottomSheetThought}
             onClose={() => setBottomSheetThought(null)}
+          />
+
+          {/* Delayed opt-in prompt */}
+          <DelayedPromptSheet
+            thought={promptThought}
+            onDismiss={handlePromptDismiss}
+            onResolve={handlePromptResolve}
           />
         </div>
 
@@ -517,6 +599,13 @@ export default function EchoApp() {
         <BottomSheet
           thought={bottomSheetThought}
           onClose={() => setBottomSheetThought(null)}
+        />
+
+        {/* Delayed opt-in prompt */}
+        <DelayedPromptSheet
+          thought={promptThought}
+          onDismiss={handlePromptDismiss}
+          onResolve={handlePromptResolve}
         />
       </div>
     </div>

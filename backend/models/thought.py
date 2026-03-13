@@ -8,9 +8,10 @@ Matches frontend/src/lib/types.ts interfaces:
 
 Additional backend-only models:
 - ThoughtSubmitRequest: Input model for POST /api/v1/thoughts
+- ThemeAggregateResponse: Response model for GET /api/v1/thoughts/aggregates
 
 CRITICAL PRIVACY NOTE:
-ThoughtSubmitRequest.raw_text contains the user's original thought.
+ThoughtSubmitRequest.text contains the user's original thought.
 This text MUST be:
 1. Passed IMMEDIATELY to the anonymizer service
 2. NEVER written to disk, logs, or any persistent storage
@@ -21,23 +22,29 @@ Only the anonymized + humanized output is stored in Elasticsearch.
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ThoughtSubmitRequest(BaseModel):
     """
     Request body for POST /api/v1/thoughts.
 
-    WARNING: raw_text contains PII and sensitive mental health content.
+    WARNING: text contains PII and sensitive mental health content.
     It MUST be anonymized immediately and NEVER persisted.
     """
 
-    raw_text: str = Field(
+    text: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
+        max_length=1000,
         description="Raw user thought text. NEVER persisted. Anonymized immediately.",
     )
+
+    @field_validator("raw_text")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        """Strip leading/trailing whitespace and normalize internal whitespace."""
+        return " ".join(v.split())
 
 
 class ThoughtResponse(BaseModel):
@@ -101,4 +108,21 @@ class PaginatedThoughts(BaseModel):
     )
     total: int = Field(
         ..., description="Total count of matching thoughts (not necessarily all loaded)"
+    )
+
+
+class ThemeAggregateResponse(BaseModel):
+    """
+    Single theme aggregate count for GET /api/v1/thoughts/aggregates.
+
+    Used by the "Breathing With Others" ambient co-presence feature.
+
+    PRIVACY: Aggregate counts only. No user IDs, no individual tracking.
+    """
+
+    theme: str = Field(
+        ..., description="Emotional theme category (e.g., 'work_stress', 'anxiety')"
+    )
+    count: int = Field(
+        ..., description="Number of thoughts submitted in this theme this week"
     )

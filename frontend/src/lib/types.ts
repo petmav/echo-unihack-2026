@@ -69,4 +69,5 @@ export type AppScreen =
   | "thoughts"
   | "trends"
   | "account"
-  | "about";
+  | "about"
+  | "privacy";

@@ -58,6 +58,11 @@ class Config:
     ELASTIC_THOUGHTS_INDEX: str = "echo-thoughts"
     ELASTIC_RESOLUTIONS_INDEX: str = "echo-resolutions"
 
+    # Rate limiting configuration
+    RATE_LIMIT_THOUGHTS_PER_HOUR: int = 10
+    RATE_LIMIT_LOGIN_PER_15MIN: int = 5
+    RATE_LIMIT_RESOLUTION_PER_HOUR: int = 5
+
     @classmethod
     def validate(cls) -> list[str]:
         """

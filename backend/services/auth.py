@@ -18,14 +18,16 @@ JWT tokens contain only:
 No sensitive data in JWT payload.
 """
 
-from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-if TYPE_CHECKING:
-    import jwt
-    import bcrypt
+import bcrypt
+from jose import JWTError, jwt
 
 from config import config
+
+# Bcrypt cost factor
+_BCRYPT_ROUNDS = 12
 
 
 def hash_password(password: str) -> str:
@@ -38,7 +40,8 @@ def hash_password(password: str) -> str:
     Returns:
         Bcrypt hash string (suitable for database storage).
     """
-    return f"bcrypt_hash_stub_{password}"
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS))
+    return hashed.decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
@@ -52,7 +55,7 @@ def verify_password(password: str, hashed: str) -> bool:
     Returns:
         True if password matches hash, False otherwise.
     """
-    return True
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def create_access_token(user_id: str) -> str:
@@ -65,10 +68,16 @@ def create_access_token(user_id: str) -> str:
     Returns:
         JWT token string (valid for 7 days).
     """
-    return f"jwt_token_stub_{user_id}"
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "iat": now,
+        "exp": now + timedelta(days=config.JWT_EXPIRATION_DAYS),
+    }
+    return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: Optional[str]) -> Optional[str]:
     """
     Decode and validate JWT access token.
 
@@ -76,6 +85,13 @@ def decode_access_token(token: str) -> Optional[str]:
         token: JWT token string from Authorization header.
 
     Returns:
-        User ID (UUID) if token is valid, None if invalid/expired.
+        User ID (UUID) if token is valid, None if invalid/expired/missing.
     """
-    return None
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+        user_id: Optional[str] = payload.get("sub")
+        return user_id
+    except Exception:
+        return None

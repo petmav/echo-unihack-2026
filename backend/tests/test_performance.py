@@ -13,12 +13,40 @@ To set up:
 3. Verify model: curl http://localhost:11434/api/tags | grep anonymizer
 """
 
+import asyncio
+
 import pytest
 import time
 import statistics
 from typing import List
 
+import httpx
+
 from services.anonymiser import AnonymiserService
+
+
+# ---------------------------------------------------------------------------
+# Skip helper — tests require Ollama + anonymizer model
+# ---------------------------------------------------------------------------
+
+def _anonymizer_model_available() -> bool:
+    """Return True only if Ollama is running AND the anonymizer model is loaded."""
+    async def _check() -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get("http://localhost:11434/api/tags")
+                if resp.status_code != 200:
+                    return False
+                models = resp.json().get("models", [])
+                return any("anonymizer" in m.get("name", "").lower() for m in models)
+        except Exception:
+            return False
+
+    return asyncio.run(_check())
+
+
+_OLLAMA_MODEL_AVAILABLE = _anonymizer_model_available()
+_SKIP_REASON = "Anonymizer model not available in Ollama (requires: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf)"
 
 
 # Typical thought text samples (< 280 chars each)
@@ -37,6 +65,7 @@ TYPICAL_THOUGHTS = [
 ]
 
 
+@pytest.mark.skipif(not _OLLAMA_MODEL_AVAILABLE, reason=_SKIP_REASON)
 class TestAnonymiserPerformance:
     """
     Performance tests for the Anonymiser Service.
@@ -61,6 +90,7 @@ class TestAnonymiserPerformance:
         await service.close()
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_single_request_performance(self, anonymiser_service):
         """Test that a single anonymisation request completes within 2 seconds."""
         input_text = TYPICAL_THOUGHTS[0]
@@ -80,6 +110,7 @@ class TestAnonymiserPerformance:
         print(f"\n✓ Single request completed in {elapsed_time:.3f}s")
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_ten_requests_performance(self, anonymiser_service):
         """
         Test that 10 consecutive anonymisation requests all complete within 2 seconds.
@@ -183,6 +214,7 @@ class TestAnonymiserPerformance:
         print(f"✓ Average response time: {avg_time:.3f}s")
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_performance_with_various_text_lengths(self, anonymiser_service):
         """
         Test performance across different text lengths.
@@ -217,6 +249,7 @@ class TestAnonymiserPerformance:
         print("="*80)
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_performance_consistency(self, anonymiser_service):
         """
         Test that performance is consistent across multiple runs.

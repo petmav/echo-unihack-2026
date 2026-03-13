@@ -27,26 +27,24 @@ You type a thought. Echo finds everyone who felt the same. No accounts required 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+
-- Python 3.11+
 - Docker + Docker Compose
-- [Ollama](https://ollama.ai) installed
+
+> **Note**: Elasticsearch runs on [Elastic Cloud](https://cloud.elastic.co) — no local Elasticsearch required.
 
 ### Setup
 ```bash
 git clone <repo-url>
 cd echo
 
-# Pull the anonymiser model (one-time, ~400MB)
-ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
-ollama serve
-
-# Configure environment
+# 1. Configure environment
 cp .env.example .env
 # Fill in: ANTHROPIC_API_KEY, ELASTIC_CLOUD_ID, ELASTIC_API_KEY
 
-# Start the app
-docker-compose -f infra/docker-compose.yml up
+# 2. Start all services (backend, frontend, ollama)
+docker-compose -f infra/docker-compose.yml up -d
+
+# 3. Pull the anonymiser model into the ollama container (one-time, ~400MB)
+docker-compose -f infra/docker-compose.yml exec ollama ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
 ```
 
 Frontend: http://localhost:3000

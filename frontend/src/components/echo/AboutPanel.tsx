@@ -2,13 +2,15 @@
 
 import { ChevronLeft } from "lucide-react";
 
+import type { AppScreen } from "@/lib/types";
 import { EchoLogo } from "./EchoLogo";
 
 interface AboutPanelProps {
   onBack: () => void;
+  onNavigate?: (target: AppScreen) => void;
 }
 
-export function AboutPanel({ onBack }: AboutPanelProps) {
+export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       {/* Header */}
@@ -55,6 +57,14 @@ export function AboutPanel({ onBack }: AboutPanelProps) {
             Your raw words never leave your device. The server only sees
             anonymised emotions — no names, no details, no trace.
           </p>
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate("privacy")}
+              className="mt-3 text-[13px] font-medium text-echo-accent underline-offset-2 hover:underline active:opacity-70"
+            >
+              How we protect your data →
+            </button>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">

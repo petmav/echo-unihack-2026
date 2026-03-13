@@ -20,9 +20,14 @@ Privacy guarantee: Raw input text is NEVER logged or stored. It exists only
 in request memory and is discarded after anonymization completes.
 """
 
+import logging
+
 import httpx
+import logging
 
 from config import config
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +77,12 @@ class AnonymiserService:
         self._model = model_name or getattr(config, "OLLAMA_MODEL", "eternisai/anonymizer-0.6b-q4_k_m-gguf")
         self._timeout = timeout_seconds
         self._client: httpx.AsyncClient | None = None
+        logger.info(
+            "AnonymiserService initialized: url=%s model=%s timeout=%.1fs",
+            self._base_url,
+            self._model,
+            self._timeout,
+        )
 
     # ------------------------------------------------------------------
     # Lifecycle helpers

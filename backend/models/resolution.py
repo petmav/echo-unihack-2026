@@ -16,7 +16,7 @@ CRITICAL: We never paraphrase or summarize resolution text with AI, as
 misconstrued advice on mental health issues is a real harm. Typos are not.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ResolutionSubmit(BaseModel):
@@ -34,9 +34,15 @@ class ResolutionSubmit(BaseModel):
     resolution_text: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
+        max_length=1000,
         description="User's advice on what helped. MUST be anonymized before storage.",
     )
+
+    @field_validator("resolution_text")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        """Strip leading/trailing whitespace and normalize internal whitespace."""
+        return " ".join(v.split())
 
 
 class ResolutionResponse(BaseModel):
@@ -52,6 +58,6 @@ class ResolutionResponse(BaseModel):
     resolution_text: str = Field(
         ..., description="Anonymized 'what helped' text (shown verbatim)"
     )
-    timestamp: int = Field(
+    resolved_at: int = Field(
         ..., description="Unix timestamp when resolution was submitted"
     )

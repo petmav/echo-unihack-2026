@@ -15,6 +15,12 @@ export const CARD_STAGGER_DELAY_MS = 80;
 
 export const RESOLUTION_PROMPT_WEEKS = 3;
 
+/**
+ * Minimum days between delayed opt-in prompts to prevent notification
+ * fatigue. No more than one prompt per week is shown to the user.
+ */
+export const PROMPT_COOLDOWN_DAYS = 7;
+
 export const PROCESSING_PHRASES = [
   "finding your people...",
   "you're not alone in this...",

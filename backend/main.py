@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from config import config
 from middleware.cors import get_cors_middleware
 from middleware.logging import setup_application_logging
+from middleware.request_size import add_request_size_middleware
 from routers import thoughts, auth, resolution, account
 from services.elastic import init_elasticsearch, close_elasticsearch
 
@@ -79,6 +80,9 @@ app = FastAPI(
 
 # Configure CORS middleware
 get_cors_middleware(app, config.CORS_ORIGINS)
+
+# Enforce request body size limit (default 10KB)
+add_request_size_middleware(app)
 
 
 # Health check endpoint (no prefix - available at root)
@@ -139,11 +143,38 @@ async def internal_error_handler(request, exc):
     """
     Custom 500 handler.
 
-    NOTE: Error messages should never contain raw thought text since it's
-    discarded before any exception handling occurs.
+    NOTE: Error details are never included in the response body to avoid
+    leaking implementation details. Raw thought text is discarded before
+    any exception handling occurs.
     """
     logger = logging.getLogger("echo")
-    logger.error(f"Internal server error: {exc}", exc_info=True)
+    logger.error("Internal server error (HTTP 500)", exc_info=True)
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """
+    Global catch-all exception handler for any unhandled exceptions.
+
+    Logs the exception type and traceback for debugging, but never includes
+    exception details in the response body to avoid leaking implementation
+    details or any user data.
+
+    NOTE: Raw thought text is discarded before any exception handling occurs,
+    so it will never appear in logs triggered from this handler.
+    """
+    logger = logging.getLogger("echo")
+    logger.error(
+        "Unhandled exception: %s: %s",
+        type(exc).__name__,
+        exc.__class__.__qualname__,
+        exc_info=True,
+    )
 
     return JSONResponse(
         status_code=500,

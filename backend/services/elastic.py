@@ -21,6 +21,7 @@ with no way to link them to users.
 """
 
 import logging
+import time
 from datetime import date
 from typing import Optional, Any
 
@@ -33,6 +34,17 @@ logger = logging.getLogger("echo")
 
 # Global Elasticsearch client (initialized on startup)
 _es_client: Optional[AsyncElasticsearch] = None
+
+# Index mapping for echo-resolutions
+_RESOLUTIONS_INDEX_MAPPING = {
+    "mappings": {
+        "properties": {
+            "message_id": {"type": "keyword"},
+            "anonymised_text": {"type": "text"},
+            "submitted_at": {"type": "date"},
+        }
+    }
+}
 
 # Index mapping for echo-thoughts
 _THOUGHTS_INDEX_MAPPING = {
@@ -67,6 +79,13 @@ async def _ensure_indices_exist(client: AsyncElasticsearch) -> None:
         logger.info(f"Created Elasticsearch index: {thoughts_index}")
     else:
         logger.info(f"Elasticsearch index already exists: {thoughts_index}")
+
+    resolutions_index = config.ELASTIC_RESOLUTIONS_INDEX
+    if not await client.indices.exists(index=resolutions_index):
+        await client.indices.create(index=resolutions_index, body=_RESOLUTIONS_INDEX_MAPPING)
+        logger.info(f"Created Elasticsearch index: {resolutions_index}")
+    else:
+        logger.info(f"Elasticsearch index already exists: {resolutions_index}")
 
 
 async def init_elasticsearch() -> None:
@@ -312,6 +331,125 @@ async def get_thought_by_id(message_id: str) -> Optional[dict[str, Any]]:
         }
     except Exception as exc:
         logger.warning(f"Thought {message_id} not found or retrieval failed: {exc}")
+        return None
+
+
+async def store_resolution(
+    message_id: str,
+    resolution_text: str,
+) -> bool:
+    """
+    Store anonymized 'what helped' advice linked to a message_id.
+
+    Args:
+        message_id: UUID of the original thought this resolution addresses.
+        resolution_text: Anonymized advice text (post-SLM pass, verbatim).
+
+    Returns:
+        True if storage succeeded.
+
+    PRIVACY: This function ONLY receives anonymized content.
+    No raw text, no user IDs, no account linkage.
+    Side effect: updates has_resolution=True on the linked thought document.
+    """
+    if _es_client is None:
+        logger.error("Elasticsearch client not initialized")
+        return False
+
+    document = {
+        "message_id": message_id,
+        "anonymised_text": resolution_text,
+        "submitted_at": date.today().isoformat(),
+    }
+
+    try:
+        await _es_client.index(
+            index=config.ELASTIC_RESOLUTIONS_INDEX,
+            id=message_id,
+            document=document,
+        )
+        # Mark the linked thought as having a resolution
+        await _es_client.update(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            id=message_id,
+            doc={"has_resolution": True},
+        )
+        return True
+    except TransportError as exc:
+        logger.error(f"Failed to store resolution for thought {message_id}: {exc}")
+        return False
+
+
+async def update_thought_resolution(message_id: str) -> bool:
+    """
+    Set has_resolution=True on an echo-thoughts document.
+
+    Args:
+        message_id: UUID of the thought to mark as resolved.
+
+    Returns:
+        True if the update succeeded, False otherwise.
+
+    Note:
+        Called after a resolution is successfully stored to flag the linked
+        thought document so that response cards can show the resolution badge.
+    """
+    if _es_client is None:
+        logger.error("Elasticsearch client not initialized")
+        return False
+
+    try:
+        await _es_client.update(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            id=message_id,
+            doc={"has_resolution": True},
+        )
+        return True
+    except TransportError as exc:
+        logger.error(f"Failed to update resolution flag for thought {message_id}: {exc}")
+        return False
+
+
+async def get_resolution(message_id: str) -> Optional[dict[str, Any]]:
+    """
+    Retrieve a resolution document from Elasticsearch by message_id.
+
+    Args:
+        message_id: UUID of the original thought to retrieve resolution for.
+
+    Returns:
+        Dict with message_id and anonymised_text if found, or None if not found
+        or Elasticsearch is unavailable.
+
+    PRIVACY: Returns only anonymized content. No user IDs, no raw text.
+    """
+    if _es_client is None:
+        logger.error("Elasticsearch client not initialized")
+        return None
+
+    query_body: dict[str, Any] = {
+        "query": {
+            "term": {"message_id": message_id}
+        },
+        "size": 1,
+        "_source": ["message_id", "anonymised_text"],
+    }
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_RESOLUTIONS_INDEX,
+            body=query_body,
+        )
+        hits = response["hits"]["hits"]
+        if not hits:
+            return None
+        source = hits[0]["_source"]
+        return {
+            "message_id": source["message_id"],
+            "anonymised_text": source["anonymised_text"],
+        }
+    except Exception as exc:
+        logger.warning(f"Resolution for thought {message_id} not found or retrieval failed: {exc}")
         return None
 
 

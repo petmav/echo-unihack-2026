@@ -10,7 +10,11 @@ Echo collects ONLY email + bcrypt password hash.
 No name, no DOB, no phone, no profile photo — nothing else.
 """
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
 class AuthCredentials(BaseModel):
@@ -22,6 +26,16 @@ class AuthCredentials(BaseModel):
     """
 
     email: str = Field(..., description="User's email address (only PII we collect)")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_format(cls, v: str) -> str:
+        """Validate email format and normalise to lowercase."""
+        v = v.strip().lower()
+        if not _EMAIL_REGEX.match(v):
+            raise ValueError("Invalid email address format")
+        return v
+
     password: str = Field(
         ...,
         min_length=8,

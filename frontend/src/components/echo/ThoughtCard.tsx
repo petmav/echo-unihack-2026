@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 
 import type { ThoughtResponse } from "@/lib/types";
@@ -64,13 +65,41 @@ interface ThoughtCardListProps {
   thoughts: ThoughtResponse[];
   visibleCount: number;
   onCardTap: (thought: ThoughtResponse) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export function ThoughtCardList({
   thoughts,
   visibleCount,
   onCardTap,
+  onLoadMore,
+  hasMore,
+  isLoadingMore,
 }: ThoughtCardListProps) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!onLoadMore) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && hasMore && !isLoadingMore) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "100px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, isLoadingMore]);
+
   return (
     <div className="px-4 pb-24 pt-5">
       {thoughts.map((thought, index) => (
@@ -82,6 +111,27 @@ export function ThoughtCardList({
           onTap={onCardTap}
         />
       ))}
+
+      {onLoadMore && (
+        <>
+          {isLoadingMore && (
+            <div className="flex justify-center py-6">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-echo-accent/40"
+                    style={{
+                      animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={sentinelRef} aria-hidden="true" className="h-1" />
+        </>
+      )}
     </div>
   );
 }

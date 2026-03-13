@@ -70,6 +70,35 @@ class Account(Base):
         return f"<Account(id={self.id}, email={self.email})>"
 
 
+class MessageTheme(Base):
+    """
+    Links an account's submitted message_id to a theme_category.
+
+    Privacy constraints:
+    - Stores account_id → message_id → theme_category mapping only
+    - No raw thought text ever stored here
+    - message_id references the Elastic document (no direct Elastic linkage to account)
+    - Used solely for account deletion to clean up per-user theme associations
+    """
+    __tablename__ = "message_themes"
+
+    # Use String for UUID in SQLite, PostgreSQL UUID in PostgreSQL
+    if USE_SQLITE:
+        id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+        account_id = Column(String, nullable=False, index=True)
+    else:
+        from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+        id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+        account_id = Column(PG_UUID(as_uuid=True), nullable=False, index=True)
+
+    message_id = Column(String, nullable=False, index=True)
+    theme_category = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<MessageTheme(account_id={self.account_id}, message_id={self.message_id}, theme={self.theme_category})>"
+
+
 def get_db():
     """
     Dependency function for FastAPI routes.
