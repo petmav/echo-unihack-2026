@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 
-import { AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Target } from "lucide-react";
 
 import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
@@ -94,6 +95,13 @@ async function seedDemoFutureLetter() {
   }
 }
 
+async function hapticTap() {
+  if (Capacitor.isNativePlatform()) {
+    const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+    await Haptics.impact({ style: ImpactStyle.Light });
+  }
+}
+
 export default function EchoApp() {
   const deviceType = useDeviceType();
   const isDesktop = deviceType === "desktop";
@@ -142,6 +150,36 @@ export default function EchoApp() {
     getThoughtHistory().then(setThoughtHistory);
   }, []);
 
+  /* Capacitor native platform setup (Android back button, status bar) */
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let cleanup: (() => void) | undefined;
+
+    (async () => {
+      const { App: CapApp } = await import("@capacitor/app");
+      const { StatusBar, Style } = await import("@capacitor/status-bar");
+
+      StatusBar.setStyle({ style: Style.Light });
+      StatusBar.setBackgroundColor({ color: "#FAF7F2" });
+
+      const listener = await CapApp.addListener("backButton", () => {
+        if (screenRef.current !== "home") {
+          setScreen("home");
+        } else {
+          CapApp.minimizeApp();
+        }
+      });
+
+      cleanup = () => listener.remove();
+    })();
+
+    return () => cleanup?.();
+  }, []);
+
   /* Fetch aggregate theme counts for "Breathing With Others" */
   useEffect(() => {
     if (screen !== "home") return;
@@ -173,11 +211,12 @@ export default function EchoApp() {
     if (screen !== "home") return;
     if (!notificationsEnabled) return;
 
-    const candidate = getNextPromptCandidate();
-    if (candidate) {
-      setPromptThought(candidate);
-      setLastPromptDate(Date.now());
-    }
+    getNextPromptCandidate().then((candidate) => {
+      if (candidate) {
+        setPromptThought(candidate);
+        setLastPromptDate(Date.now());
+      }
+    });
   }, [screen, notificationsEnabled]);
 
   const refreshHistory = useCallback(() => {
@@ -202,6 +241,7 @@ export default function EchoApp() {
   const handleSubmitThought = useCallback(async () => {
     if (!thoughtText.trim()) return;
 
+    hapticTap();
     const rawText = thoughtText;
     setInputOpen(false);
     setScreen("processing");
@@ -235,7 +275,7 @@ export default function EchoApp() {
     } catch {
       const demoId = "demo-" + Date.now();
       const demoTheme = inferThemeFromText(rawText, "self_worth");
-      await saveThought("demo-" + Date.now(), rawText, demoTheme);
+      await saveThought(demoId, rawText, demoTheme);
       setMatchCount(SEED_MATCH_COUNT);
       setSimilarThoughts(SEED_THOUGHTS);
       setCurrentMessageId(demoId);
@@ -355,10 +395,20 @@ export default function EchoApp() {
   );
 
   const isMainScreen = screen === "home" || screen === "results";
+  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy"];
+  const isPanel = PANEL_SCREENS.includes(screen);
+
+  const PANEL_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
+  const PANEL_VARIANTS = {
+    initial: { x: "100%" },
+    animate: { x: 0 },
+    exit: { x: "100%" },
+  };
 
   /* ── Shared content renderer ── */
   const renderContent = () => (
     <>
+      {/* ── Full-screen non-panel flows ── */}
       {screen === "onboarding" && (
         <OnboardingScreen
           onComplete={handleOnboardingComplete}
@@ -372,28 +422,6 @@ export default function EchoApp() {
           isLoading={authLoading}
           error={authError}
         />
-      )}
-
-      {screen === "home" && (
-        <div className="flex flex-1 flex-col items-center justify-center">
-          <EchoLogo
-            size={isDesktop ? 200 : 150}
-            animate
-            presenceLevel={presenceLevel}
-            onClick={() => setInputOpen(true)}
-          />
-          <p className="mt-7 animate-[fadeIn_1s_ease_0.6s_both] text-[13.5px] font-light tracking-wide text-echo-text-muted">
-            tap to share what&apos;s on your mind
-          </p>
-          {presenceCount > 0 && (
-            <p
-              className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
-              data-testid="presence-indicator"
-            >
-              {presenceCount} others breathing in this space this week
-            </p>
-          )}
-        </div>
       )}
 
       {screen === "processing" && <ProcessingScreen />}
@@ -444,39 +472,119 @@ export default function EchoApp() {
         </div>
       )}
 
-      {screen === "thoughts" && (
-        <HistoryPanel
-          thoughts={thoughtHistory}
-          onBack={handleBackToHome}
-          onResolve={handleResolve}
-          onSaveFutureLetter={handleSaveFutureLetter}
-        />
+      {/* ── Home — stays rendered behind panel overlays so it's visible on slide-back ── */}
+      {(screen === "home" || isPanel) && (
+        <motion.div
+          className="flex flex-1 flex-col items-center justify-center"
+          animate={{ scale: isPanel ? 0.97 : 1, opacity: isPanel ? 0.65 : 1 }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <EchoLogo
+            size={isDesktop ? 200 : 150}
+            animate
+            presenceLevel={presenceLevel}
+            onClick={() => { hapticTap(); setInputOpen(true); }}
+          />
+          <p className="mt-7 animate-[fadeIn_1s_ease_0.6s_both] text-[13.5px] font-light tracking-wide text-echo-text-muted">
+            tap to share what&apos;s on your mind
+          </p>
+          {presenceCount > 0 && (
+            <p
+              className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
+              data-testid="presence-indicator"
+            >
+              {presenceCount} others breathing in this space this week
+            </p>
+          )}
+        </motion.div>
       )}
 
-      {screen === "trends" && (
-        <TrendsPanel thoughts={thoughtHistory} onBack={handleBackToHome} />
-      )}
+      {/* ── Panel overlays — slide in from right over home ── */}
+      <AnimatePresence>
+        {screen === "thoughts" && (
+          <motion.div
+            key="thoughts"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <HistoryPanel
+              thoughts={thoughtHistory}
+              onBack={handleBackToHome}
+              onResolve={handleResolve}
+              onSaveFutureLetter={handleSaveFutureLetter}
+            />
+          </motion.div>
+        )}
 
-      {screen === "account" && (
-        <AccountPanel
-          email={userEmail}
-          onBack={handleBackToHome}
-          onDeleteAccount={handleDeleteAccount}
-          onToggleNotifications={(enabled) => {
+        {screen === "trends" && (
+          <motion.div
+            key="trends"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <TrendsPanel thoughts={thoughtHistory} onBack={handleBackToHome} />
+          </motion.div>
+        )}
+
+        {screen === "account" && (
+          <motion.div
+            key="account"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <AccountPanel
+              email={userEmail}
+              onBack={handleBackToHome}
+              onDeleteAccount={handleDeleteAccount}
+              onToggleNotifications={(enabled) => {
                 setNotificationsEnabled(enabled);
                 setNotificationOptIn(enabled);
               }}
-          notificationsEnabled={notificationsEnabled}
-        />
-      )}
+              notificationsEnabled={notificationsEnabled}
+            />
+          </motion.div>
+        )}
 
-      {screen === "about" && (
-        <AboutPanel onBack={handleBackToHome} onNavigate={handleNavigate} />
-      )}
+        {screen === "about" && (
+          <motion.div
+            key="about"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <AboutPanel onBack={handleBackToHome} onNavigate={handleNavigate} />
+          </motion.div>
+        )}
 
-      {screen === "privacy" && (
-        <PrivacyPanel onBack={() => handleNavigate("about")} />
-      )}
+        {screen === "privacy" && (
+          <motion.div
+            key="privacy"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <PrivacyPanel onBack={() => handleNavigate("about")} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 
@@ -486,9 +594,9 @@ export default function EchoApp() {
   if (isDesktop) {
     return (
       <div className="flex h-[100dvh] flex-col bg-echo-bg font-sans">
-        {/* Top bar — full width */}
-        {isMainScreen && (
-          <div className="flex items-center px-6 pt-4 pb-1">
+        {/* Top bar — full width. Always in DOM when home/panel to prevent layout shift. */}
+        {(isMainScreen || isPanel) && (
+          <div className={`flex items-center px-6 pt-4 pb-1 transition-opacity duration-300${isPanel ? " invisible pointer-events-none" : ""}`}>
             <HamburgerButton
               isOpen={false}
               onClick={() => setMenuOpen(true)}
@@ -558,9 +666,9 @@ export default function EchoApp() {
           }}
         />
 
-        {/* Top bar */}
-        {isMainScreen && (
-          <div className="z-90 flex items-center px-4 pt-3 pb-1">
+        {/* Top bar — always in DOM when home or panel to prevent layout shift on transition */}
+        {(isMainScreen || isPanel) && (
+          <div className={`flex items-center px-4 pt-3 pb-1 transition-opacity duration-300${isPanel ? " invisible pointer-events-none" : ""}`}>
             <HamburgerButton
               isOpen={menuOpen}
               onClick={() => setMenuOpen((prev) => !prev)}

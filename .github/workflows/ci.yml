@@ -28,7 +28,7 @@ jobs:
     env:
       PYTHONPATH: backend
       JWT_SECRET: test-secret-for-ci
-      ANTHROPIC_API_KEY: ""
+      NANOGPT_API_KEY: ""
       ELASTIC_URL: ""
       ELASTIC_API_KEY: ""
     steps:

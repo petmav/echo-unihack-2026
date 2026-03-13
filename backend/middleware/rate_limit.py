@@ -27,9 +27,9 @@ Usage:
 import hashlib
 import time
 from collections import defaultdict, deque
-from typing import Callable
+from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 
 
 class RateLimiter:
@@ -83,6 +83,10 @@ class RateLimiter:
     def clear(self, client_key: str) -> None:
         """Remove all recorded requests for a given client key."""
         self._requests.pop(client_key, None)
+
+    def clear_all(self) -> None:
+        """Remove all recorded requests for all clients. Use in tests to reset state."""
+        self._requests.clear()
 
 
 # Module-level singleton shared across all dependency instances

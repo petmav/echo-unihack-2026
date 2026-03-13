@@ -15,20 +15,18 @@ path; individual test methods add inner patches to simulate specific failure mod
 PRIVACY NOTE: No raw thought text is asserted to appear in error responses.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
 import services.elastic as elastic_module
-from tests.conftest import SEEDED_MESSAGE_ID
 from services.anonymiser import OllamaConnectionError, OllamaTimeoutError
-
+from tests.conftest import SEEDED_MESSAGE_ID
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _RAW_THOUGHT = "My boss Sarah at DeepMind keeps undermining me in meetings"
-_SUBMIT_PAYLOAD = {"raw_text": _RAW_THOUGHT}
+_SUBMIT_PAYLOAD = {"text": _RAW_THOUGHT}
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +41,7 @@ class TestAnonymiserUnavailable:
         OllamaConnectionError from anonymize_text must surface as HTTP 503.
         """
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaConnectionError(
                 "Could not connect to Ollama. Is it running?"
@@ -60,7 +58,7 @@ class TestAnonymiserUnavailable:
     def test_anonymiser_connection_error_detail_is_user_friendly(self, client):
         """Error detail must be descriptive and mention unavailability."""
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaConnectionError("Could not connect to Ollama."),
         ):
@@ -74,7 +72,7 @@ class TestAnonymiserUnavailable:
     def test_anonymiser_connection_error_no_raw_text_in_response(self, client):
         """CRITICAL PRIVACY: raw input text must NOT appear in the error response."""
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaConnectionError("Could not connect to Ollama."),
         ):
@@ -93,7 +91,7 @@ class TestAnonymiserTimeout:
     def test_anonymiser_timeout_returns_503(self, client):
         """OllamaTimeoutError from anonymize_text must surface as HTTP 503."""
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaTimeoutError("Ollama request timed out."),
         ):
@@ -106,7 +104,7 @@ class TestAnonymiserTimeout:
     def test_anonymiser_timeout_detail_is_user_friendly(self, client):
         """Timeout error detail must mention timeout or service."""
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaTimeoutError("Ollama request timed out."),
         ):
@@ -120,7 +118,7 @@ class TestAnonymiserTimeout:
     def test_anonymiser_timeout_no_raw_text_in_response(self, client):
         """CRITICAL PRIVACY: raw input text must NOT appear in timeout error."""
         with patch(
-            "services.anonymiser.anonymize_text",
+            "routers.thoughts.anonymiser_service.anonymize_text",
             new_callable=AsyncMock,
             side_effect=OllamaTimeoutError("Ollama request timed out."),
         ):
@@ -145,7 +143,7 @@ class TestClaudeAPIFailure:
         An exception from services.ai.humanize_thought must surface as HTTP 502.
         """
         with patch(
-            "services.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_thought",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: 529 overloaded"),
         ):
@@ -160,7 +158,7 @@ class TestClaudeAPIFailure:
     def test_humanize_failure_detail_is_user_friendly(self, client):
         """Humanization error detail must not expose internal exception details."""
         with patch(
-            "services.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_thought",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: 529 overloaded"),
         ):
@@ -176,7 +174,7 @@ class TestClaudeAPIFailure:
         An exception from services.ai.classify_theme must surface as HTTP 502.
         """
         with patch(
-            "services.ai.classify_theme",
+            "routers.thoughts.ai.classify_theme",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: rate limited"),
         ):
@@ -189,7 +187,7 @@ class TestClaudeAPIFailure:
     def test_claude_failure_no_raw_text_in_response(self, client):
         """CRITICAL PRIVACY: raw input text must NOT appear in Claude error response."""
         with patch(
-            "services.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_thought",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error"),
         ):
@@ -229,8 +227,14 @@ class TestElasticsearchUnavailable:
         """
         With ES unavailable, similar_thoughts list should be empty and
         match_count should be 0.
+
+        The client fixture mocks at the function level, so we override the
+        search mock to return the empty-results fallback that the router uses
+        when ES is unavailable (rather than patching _es_client which is
+        bypassed by the function-level mocks).
         """
-        with patch.object(elastic_module, "_es_client", None):
+        empty_result = {"thoughts": [], "total": 0, "search_after": None}
+        with patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock, return_value=empty_result):
             response = client.post("/api/v1/thoughts", json=_SUBMIT_PAYLOAD)
 
         body = response.json()
@@ -341,7 +345,7 @@ class TestMissingThoughtID:
         must respond with HTTP 404.
         """
         with patch(
-            "services.elastic.get_thought_by_id",
+            "routers.thoughts.elastic.get_thought_by_id",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -358,7 +362,7 @@ class TestMissingThoughtID:
         """404 detail must reference the requested thought."""
         target_id = "nonexistent-id-12345"
         with patch(
-            "services.elastic.get_thought_by_id",
+            "routers.thoughts.elastic.get_thought_by_id",
             new_callable=AsyncMock,
             return_value=None,
         ):

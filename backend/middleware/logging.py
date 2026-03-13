@@ -14,15 +14,15 @@ This logging configuration:
 - Logs response status and errors
 - NEVER logs request bodies
 - NEVER logs response bodies (may contain sensitive aggregated data)
-- Does not log IP addresses beyond standard web server access logs
+- NEVER logs IP addresses
 """
 
 import logging
 import sys
-from typing import Dict, Any
+from typing import Any
 
 
-def get_logging_config() -> Dict[str, Any]:
+def get_logging_config() -> dict[str, Any]:
     """
     Get structured logging configuration for uvicorn.
 
@@ -57,7 +57,8 @@ def get_logging_config() -> Dict[str, Any]:
             },
             "access": {
                 # NEVER log request bodies - raw thoughts transit in body
-                "format": '%(asctime)s - %(levelname)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
+                # NEVER log client_addr - IP addresses must not be stored or logged
+                "format": '%(asctime)s - %(levelname)s - "%(request_line)s" %(status_code)s',
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
         },
@@ -123,7 +124,7 @@ def setup_application_logging() -> None:
 
     # Set library log levels to reduce noise
     logging.getLogger("elasticsearch").setLevel(logging.WARNING)
-    logging.getLogger("anthropic").setLevel(logging.WARNING)
+    # anthropic SDK removed — NanoGPT calls go through httpx (already silenced below)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 

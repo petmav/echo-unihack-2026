@@ -21,7 +21,7 @@ This text MUST be:
 Only the anonymized + humanized output is stored in Elasticsearch.
 """
 
-from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -40,7 +40,7 @@ class ThoughtSubmitRequest(BaseModel):
         description="Raw user thought text. NEVER persisted. Anonymized immediately.",
     )
 
-    @field_validator("raw_text")
+    @field_validator("text")
     @classmethod
     def strip_whitespace(cls, v: str) -> str:
         """Strip leading/trailing whitespace and normalize internal whitespace."""
@@ -65,7 +65,7 @@ class ThoughtResponse(BaseModel):
     has_resolution: bool = Field(
         ..., description="Whether this thought has 'what helped' advice attached"
     )
-    resolution_text: Optional[str] = Field(
+    resolution_text: str | None = Field(
         None, description="Verbatim 'what helped' text if has_resolution is True"
     )
 
@@ -89,7 +89,7 @@ class ThoughtSubmitResult(BaseModel):
     similar_thoughts: list[ThoughtResponse] = Field(
         ..., description="First page of similar thoughts (10-20 items)"
     )
-    search_after: Optional[list] = Field(
+    search_after: list | None = Field(
         None,
         description="Elasticsearch search_after cursor for pagination (opaque to frontend)",
     )
@@ -103,7 +103,7 @@ class PaginatedThoughts(BaseModel):
     """
 
     thoughts: list[ThoughtResponse] = Field(..., description="Page of thought results")
-    search_after: Optional[list] = Field(
+    search_after: list | None = Field(
         None, description="Cursor for next page (None if no more results)"
     )
     total: int = Field(

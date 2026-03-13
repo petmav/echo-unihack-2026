@@ -28,17 +28,14 @@ Each step verifies:
 """
 
 import json
-import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 
 from tests.conftest import (
     SEEDED_MESSAGE_ID,
-    SEEDED_HUMANISED_TEXT,
     SEEDED_THEME,
-    SEEDED_RESOLUTION_TEXT,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -147,7 +144,7 @@ class TestSubmitThought:
         """Submitting a valid thought must return HTTP 200."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed at work lately."},
+            json={"text": "I feel overwhelmed at work lately."},
         )
         assert resp.status_code == 200
 
@@ -155,7 +152,7 @@ class TestSubmitThought:
         """Response must contain message_id, theme_category, match_count, similar_thoughts."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed at work lately."},
+            json={"text": "I feel overwhelmed at work lately."},
         )
         data = resp.json()
 
@@ -168,7 +165,7 @@ class TestSubmitThought:
         """message_id must be a non-empty string."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "Feeling isolated from friends."},
+            json={"text": "Feeling isolated from friends."},
         )
         data = resp.json()
         assert isinstance(data["message_id"], str)
@@ -178,7 +175,7 @@ class TestSubmitThought:
         """match_count must be a non-negative integer."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "Struggling with self-doubt."},
+            json={"text": "Struggling with self-doubt."},
         )
         data = resp.json()
         assert isinstance(data["match_count"], int)
@@ -188,7 +185,7 @@ class TestSubmitThought:
         """similar_thoughts must be a list."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I can't stop worrying."},
+            json={"text": "I can't stop worrying."},
         )
         data = resp.json()
         assert isinstance(data["similar_thoughts"], list)
@@ -197,7 +194,7 @@ class TestSubmitThought:
         """Each thought card must have message_id, humanised_text, theme_category, has_resolution."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "Feeling burnt out from too many meetings."},
+            json={"text": "Feeling burnt out from too many meetings."},
         )
         data = resp.json()
         for card in data["similar_thoughts"]:
@@ -211,18 +208,18 @@ class TestSubmitThought:
         """With mocked services, theme_category should match the mocked return value."""
         resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "My boss is undermining me."},
+            json={"text": "My boss is undermining me."},
         )
         data = resp.json()
         assert data["theme_category"] == SEEDED_THEME
 
     def test_submit_thought_empty_text_returns_422(self, client: TestClient):
-        """Submitting an empty raw_text must return HTTP 422 (validation error)."""
-        resp = client.post("/api/v1/thoughts", json={"raw_text": ""})
+        """Submitting an empty text must return HTTP 422 (validation error)."""
+        resp = client.post("/api/v1/thoughts", json={"text": ""})
         assert resp.status_code == 422
 
     def test_submit_thought_missing_field_returns_422(self, client: TestClient):
-        """Submitting without raw_text field must return HTTP 422."""
+        """Submitting without text field must return HTTP 422."""
         resp = client.post("/api/v1/thoughts", json={})
         assert resp.status_code == 422
 
@@ -286,16 +283,19 @@ class TestPaginateSimilarThoughts:
             assert "has_resolution" in card
             assert isinstance(card["has_resolution"], bool)
 
-    def test_paginate_unknown_message_id_returns_404(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
+    def test_paginate_unknown_message_id_returns_404(self, client: TestClient):
         """Requesting pagination for an unknown message_id must return HTTP 404."""
-        # Configure mock to raise so that get_thought_by_id returns None
-        mock_es_client.get.side_effect = Exception("document not found")
-        resp = client.get(
-            "/api/v1/thoughts/similar",
-            params={"message_id": "does-not-exist-xyz"},
-        )
+        # The client fixture mocks get_thought_by_id at the function level;
+        # override it to return None (document not found) for this test.
+        with patch(
+            "routers.thoughts.elastic.get_thought_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            resp = client.get(
+                "/api/v1/thoughts/similar",
+                params={"message_id": "does-not-exist-xyz"},
+            )
         assert resp.status_code == 404
 
     def test_paginate_invalid_search_after_returns_422(self, client: TestClient):
@@ -349,7 +349,7 @@ class TestSubmitResolution:
         assert resp.status_code == 200
 
     def test_submit_resolution_response_has_required_fields(self, client: TestClient):
-        """Resolution response must contain message_id, resolution_text, timestamp."""
+        """Resolution response must contain success and message_id."""
         resp = client.post(
             "/api/v1/resolution",
             json={
@@ -358,9 +358,8 @@ class TestSubmitResolution:
             },
         )
         data = resp.json()
+        assert "success" in data, "Response must include success"
         assert "message_id" in data, "Response must include message_id"
-        assert "resolution_text" in data, "Response must include resolution_text"
-        assert "timestamp" in data, "Response must include timestamp"
 
     def test_submit_resolution_message_id_matches(self, client: TestClient):
         """Response message_id must match the submitted message_id."""
@@ -374,8 +373,8 @@ class TestSubmitResolution:
         data = resp.json()
         assert data["message_id"] == SEEDED_MESSAGE_ID
 
-    def test_submit_resolution_text_is_anonymised(self, client: TestClient):
-        """Returned resolution_text must be the anonymised version (mocked return value)."""
+    def test_submit_resolution_success_is_true(self, client: TestClient):
+        """Returned success flag must be True on successful resolution submission."""
         resp = client.post(
             "/api/v1/resolution",
             json={
@@ -385,22 +384,7 @@ class TestSubmitResolution:
             },
         )
         data = resp.json()
-        # The mock anonymiser returns SEEDED_ANONYMISED_TEXT
-        assert isinstance(data["resolution_text"], str)
-        assert len(data["resolution_text"]) > 0
-
-    def test_submit_resolution_timestamp_is_int(self, client: TestClient):
-        """timestamp in resolution response must be a positive integer."""
-        resp = client.post(
-            "/api/v1/resolution",
-            json={
-                "message_id": SEEDED_MESSAGE_ID,
-                "resolution_text": "Journalling every morning helped.",
-            },
-        )
-        data = resp.json()
-        assert isinstance(data["timestamp"], int)
-        assert data["timestamp"] > 0
+        assert data["success"] is True
 
     def test_submit_resolution_empty_text_returns_422(self, client: TestClient):
         """Submitting an empty resolution_text must return HTTP 422."""
@@ -423,68 +407,48 @@ class TestSubmitResolution:
 class TestGetResolution:
     """Verify GET /api/v1/resolution/{message_id} HTTP status and response shape.
 
-    The conftest mock's ES client returns has_resolution=False by default.
-    Tests that expect HTTP 200 override the mock to return has_resolution=True
-    with a resolution_text so the service layer returns the stored advice.
+    The conftest `client` fixture patches routers.resolution.elastic.get_resolution
+    to return a pre-seeded dict by default.
+    Tests that expect 404 override the patch to return None.
     """
 
     _STORED_RESOLUTION = "I spoke to HR and things improved significantly."
 
-    def _seed_resolution(self, mock_es_client: AsyncMock) -> None:
-        """Configure the ES mock to return a thought with a resolution stored."""
-        mock_es_client.get.return_value = {
-            "_source": {
-                "has_resolution": True,
-                "resolution_text": self._STORED_RESOLUTION,
-            }
-        }
-
-    def test_get_resolution_returns_200_after_submit(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
+    def test_get_resolution_returns_200_after_submit(self, client: TestClient):
         """Retrieving an existing resolution must return HTTP 200."""
-        self._seed_resolution(mock_es_client)
         resp = client.get(f"/api/v1/resolution/{SEEDED_MESSAGE_ID}")
         assert resp.status_code == 200
 
-    def test_get_resolution_response_has_required_fields(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
-        """GET response must contain message_id, resolution_text, timestamp."""
-        self._seed_resolution(mock_es_client)
+    def test_get_resolution_response_has_required_fields(self, client: TestClient):
+        """GET response must contain message_id and resolution_text."""
         resp = client.get(f"/api/v1/resolution/{SEEDED_MESSAGE_ID}")
         data = resp.json()
 
         assert "message_id" in data
         assert "resolution_text" in data
-        assert "timestamp" in data
 
-    def test_get_resolution_message_id_matches(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
+    def test_get_resolution_message_id_matches(self, client: TestClient):
         """GET response message_id must match the path parameter."""
-        self._seed_resolution(mock_es_client)
         resp = client.get(f"/api/v1/resolution/{SEEDED_MESSAGE_ID}")
         data = resp.json()
         assert data["message_id"] == SEEDED_MESSAGE_ID
 
-    def test_get_resolution_resolution_text_is_string(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
+    def test_get_resolution_resolution_text_is_string(self, client: TestClient):
         """resolution_text in GET response must be a non-empty string."""
-        self._seed_resolution(mock_es_client)
         resp = client.get(f"/api/v1/resolution/{SEEDED_MESSAGE_ID}")
         data = resp.json()
         assert isinstance(data["resolution_text"], str)
         assert len(data["resolution_text"]) > 0
 
-    def test_get_resolution_unknown_id_returns_404(
-        self, client: TestClient, mock_es_client: AsyncMock
-    ):
+    def test_get_resolution_unknown_id_returns_404(self, client: TestClient):
         """Retrieving a resolution for an unknown message_id must return HTTP 404."""
-        # Make the mock raise so get_resolution returns None → 404
-        mock_es_client.get.side_effect = Exception("document not found")
-        resp = client.get("/api/v1/resolution/no-such-id-abc123")
+        from unittest.mock import patch as mock_patch
+        with mock_patch(
+            "routers.resolution.elastic.get_resolution",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            resp = client.get("/api/v1/resolution/no-such-id-abc123")
         assert resp.status_code == 404
 
 
@@ -532,7 +496,7 @@ class TestFullHappyPathPipeline:
         # ── Step 3: Submit thought ───────────────────────────────────────────
         thought_resp = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "My boss undermines me at every meeting."},
+            json={"text": "My boss undermines me at every meeting."},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert thought_resp.status_code == 200, f"Submit thought failed: {thought_resp.text}"
@@ -575,21 +539,13 @@ class TestFullHappyPathPipeline:
         assert resolution_resp.status_code == 200, f"Submit resolution failed: {resolution_resp.text}"
         resolution_data = resolution_resp.json()
 
+        assert "success" in resolution_data
         assert "message_id" in resolution_data
-        assert "resolution_text" in resolution_data
-        assert "timestamp" in resolution_data
+        assert resolution_data["success"] is True
         assert resolution_data["message_id"] == SEEDED_MESSAGE_ID
-        assert isinstance(resolution_data["resolution_text"], str)
-        assert isinstance(resolution_data["timestamp"], int)
 
         # ── Step 6: Retrieve resolution ──────────────────────────────────────
-        # Reconfigure ES mock so get_resolution returns the stored advice
-        mock_es_client.get.return_value = {
-            "_source": {
-                "has_resolution": True,
-                "resolution_text": resolution_data["resolution_text"],
-            }
-        }
+        # The conftest client fixture mocks get_resolution to return a pre-seeded doc
         get_resp = client.get(
             f"/api/v1/resolution/{SEEDED_MESSAGE_ID}",
             headers={"Authorization": f"Bearer {token}"},
@@ -599,7 +555,6 @@ class TestFullHappyPathPipeline:
 
         assert "message_id" in get_data
         assert "resolution_text" in get_data
-        assert "timestamp" in get_data
         assert get_data["message_id"] == SEEDED_MESSAGE_ID
         assert isinstance(get_data["resolution_text"], str)
         assert len(get_data["resolution_text"]) > 0

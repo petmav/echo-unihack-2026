@@ -12,14 +12,13 @@ All tests mock elastic service calls — no live Elasticsearch required.
 """
 
 import json
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 import services.elastic as elastic_module
 from main import app
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,7 +36,7 @@ def client():
 
 SAMPLE_MESSAGE_ID = "msg-abc-123"
 SAMPLE_THEME = "work_stress"
-SAMPLE_VECTOR = [0.1] * 1536
+SAMPLE_VECTOR = [0.1] * 384
 
 
 def _make_thought_doc(

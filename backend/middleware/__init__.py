@@ -22,11 +22,18 @@ Logging request bodies anywhere would violate the core privacy model.
 
 from .cors import get_cors_middleware
 from .logging import get_logging_config
-from .rate_limit import RateLimiter, make_rate_limit_dependency
+from .rate_limit import (
+    RateLimiter,
+    _rate_limiter,
+    get_client_identifier,
+    make_rate_limit_dependency,
+)
 
 __all__ = [
     "get_cors_middleware",
     "get_logging_config",
     "RateLimiter",
+    "_rate_limiter",
+    "get_client_identifier",
     "make_rate_limit_dependency",
 ]

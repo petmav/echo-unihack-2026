@@ -15,21 +15,21 @@ You open Echo, tap the logo, and type what's on your mind. 2 seconds later: *"84
 No chatbot. No social feed. No clinical questionnaire. Just ambient proof that you're not alone, powered by semantic search and private by design.
 
 ## How We Built It
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS (mobile-first)
+- **Frontend**: Next.js 16, TypeScript, Tailwind CSS (mobile-first)
 - **Backend**: FastAPI (Python)
-- **Anonymisation**: Anonymizer SLM 0.6B (Eternis) — self-hosted via Ollama. Raw thought text never leaves our server unstripped.
-- **AI**: Claude (Anthropic) — humanises anonymised text. Only ever sees post-anonymisation output.
+- **Anonymisation**: Qwen3.5-0.8B — self-hosted via Ollama. Raw thought text never leaves our server unstripped.
+- **AI**: NanoGPT API — qwen3.5-122b-a10b — humanises anonymised text. Only ever sees post-anonymisation output.
 - **Search**: Elasticsearch — vector similarity search on sentiment embeddings, `search_after` pagination, aggregate counts
 - **Auth**: Email + bcrypt only. No names, no profile data.
 
 ## What Makes It Technically Interesting
-Three-stage privacy-preserving pipeline: self-hosted SLM anonymisation → Claude humanisation → Elastic vector semantic retrieval. Raw thought text never persists on any server. Claude never sees a user's original words. Elastic documents have no user linkage whatsoever. A full database breach reveals nothing about any individual.
+Three-stage privacy-preserving pipeline: self-hosted SLM anonymisation → NanoGPT humanisation → Elastic vector semantic retrieval. Raw thought text never persists on any server. NanoGPT never sees a user's original words. Elastic documents have no user linkage whatsoever. A full database breach reveals nothing about any individual.
 
 ## Privacy Story (for judges)
 *"We designed for the worst case: assume our entire infrastructure is breached. Even then — no attacker can read what any user actually wrote, because we never stored it. No attacker can identify who felt what, because Elastic has no user IDs. The only thing that persists is anonymous proof that humans share the same pain."*
 
 ## Prizes Targeting
-- [ ] **AI Solutions Prize (Quantium)** — AI is structurally core at every stage: SLM anonymisation, Claude humanisation, Elastic vector semantic search
+- [ ] **AI Solutions Prize (Quantium)** — AI is structurally core at every stage: SLM anonymisation, NanoGPT humanisation, Elastic vector semantic search
 - [ ] **Best Use of Elastic Technology** — vector similarity search, sentiment clustering, search_after pagination, real-time aggregate match counts
 - [ ] **Social Impact Prize** — mental health, accessible to anyone, no clinical gatekeeping, no waitlist
 - [ ] **Best Design** — breathing animation, count reveal moment, card scroll UX
@@ -52,7 +52,7 @@ Show the response cards. Tap one with a "what helped" badge.
 *"This was written by someone who came out the other side. Their exact words. Unedited."*
 
 **[1:30 — Technical]**
-*"Here's what happened in those 2 seconds."* Briefly walk through the pipeline: SLM → Claude → Elastic. Show the privacy guarantee: *"Claude never saw what I typed."*
+*"Here's what happened in those 2 seconds."* Briefly walk through the pipeline: SLM → NanoGPT → Elastic. Show the privacy guarantee: *"The AI never saw what I typed."*
 
 **[2:10 — History / resolve flow]**
 Show the history panel, the resolve button, the "what helped" submission.
@@ -63,9 +63,9 @@ Show the history panel, the resolve button, the "what helped" submission.
 
 ## Third-Party APIs & Tools Used
 _(Required for submission — list everything)_
-- Anthropic Claude API (claude-sonnet-4-20250514)
+- NanoGPT API (qwen3.5-122b-a10b) — OpenAI-compatible, used for humanisation and theme classification
 - Elasticsearch / Elastic Cloud
-- Anonymizer SLM 0.6B by Eternis (HuggingFace) — self-hosted
+- Qwen3.5-0.8B (via Ollama) — self-hosted anonymisation model
 - Ollama (local model serving)
 - sentence-transformers / all-MiniLM-L6-v2 (local embeddings)
 - AI tools used during development: Claude (claude.ai), Claude Code

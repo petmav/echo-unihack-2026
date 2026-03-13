@@ -14,16 +14,15 @@ privacy violation, not merely a functional bug.
 
 import json
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import services.elastic as elastic_module
-from services.elastic import index_thought, store_resolution
-from services.anonymiser import OllamaConnectionError, OllamaTimeoutError, OllamaResponseError
-
+import pytest
 from fastapi.testclient import TestClient
-from main import app
 
+import services.elastic as elastic_module
+from main import app
+from services.anonymiser import OllamaConnectionError, OllamaResponseError, OllamaTimeoutError
+from services.elastic import index_thought, store_resolution
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -40,7 +39,7 @@ RAW_RESOLUTION_KEYWORDS = ["Emily", "Watson", "Vincent"]
 ANONYMISED_TEXT = "My [male name] at [financial company] undermines me every meeting"
 HUMANISED_TEXT = "Someone at work consistently undermines my contributions, eroding my confidence."
 THEME = "work_stress"
-SAMPLE_VECTOR = [0.1] * 1536
+SAMPLE_VECTOR = [0.1] * 384
 SAMPLE_MESSAGE_ID = "test-uuid-privacy-1234"
 
 # Forbidden fields must never appear in any Elasticsearch document
@@ -295,9 +294,9 @@ class TestNoRawTextInLogs:
             with patch("routers.thoughts.anonymiser_service.anonymize_text") as mock_anon:
                 mock_anon.side_effect = OllamaConnectionError("service down")
 
-                response = client.post(
+                client.post(
                     "/api/v1/thoughts",
-                    json={"raw_text": RAW_THOUGHT_PII},
+                    json={"text": RAW_THOUGHT_PII},
                 )
 
         log_output = caplog.text
@@ -328,7 +327,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert response.status_code == 503
@@ -348,7 +347,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert response.status_code == 503
@@ -368,7 +367,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert response.status_code == 502
@@ -390,7 +389,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert response.status_code == 502
@@ -414,7 +413,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert response.status_code == 502
@@ -460,7 +459,7 @@ class TestNoRawTextInErrorResponses:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         response_data = response.json()
@@ -509,9 +508,9 @@ class TestForbiddenFieldsNeverInElastic:
              patch("routers.thoughts.ai.classify_theme", return_value=THEME):
 
             client = TestClient(app)
-            response = client.post(
+            client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         # Verify that an ES index call was made
@@ -545,7 +544,7 @@ class TestForbiddenFieldsNeverInElastic:
             client = TestClient(app)
             client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": RAW_THOUGHT_PII},
+                json={"text": RAW_THOUGHT_PII},
             )
 
         assert mock_es_client.index.called

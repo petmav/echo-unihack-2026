@@ -12,15 +12,14 @@ Cases covered:
 4. Live Elasticsearch data is returned when get_aggregates returns results
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
-from main import app
 
 import routers.thoughts as thoughts_router
 import services.elastic as elastic_module
-
+from main import app
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -13,20 +13,20 @@ Authentication:
 - AuthCredentials: Email + password for registration/login
 - AuthResponse: JWT access token response
 
-PRIVACY INVARIANT: Raw thought text arrives in ThoughtSubmitRequest.raw_text
+PRIVACY INVARIANT: Raw thought text arrives in ThoughtSubmitRequest.text
 and is IMMEDIATELY passed to the anonymizer. It is NEVER stored, logged, or
 passed to any other service. Only anonymized text is persisted.
 """
 
-from .thought import (
-    ThoughtSubmitRequest,
-    ThoughtResponse,
-    ThoughtSubmitResult,
-    PaginatedThoughts,
-)
 from .auth import (
     AuthCredentials,
     AuthResponse,
+)
+from .thought import (
+    PaginatedThoughts,
+    ThoughtResponse,
+    ThoughtSubmitRequest,
+    ThoughtSubmitResult,
 )
 
 __all__ = [

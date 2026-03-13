@@ -12,10 +12,9 @@ No external dependencies required — pure Pydantic validation tests.
 import pytest
 from pydantic import ValidationError
 
-from models.thought import ThoughtSubmitRequest
 from models.auth import AuthCredentials
 from models.resolution import ResolutionSubmit
-
+from models.thought import ThoughtSubmitRequest
 
 # ---------------------------------------------------------------------------
 # ThoughtSubmitRequest
@@ -26,15 +25,15 @@ class TestThoughtSubmitRequest:
 
     def test_valid_thought(self):
         """A normal thought within bounds should parse successfully."""
-        req = ThoughtSubmitRequest(raw_text="I feel overwhelmed at work.")
-        assert req.raw_text == "I feel overwhelmed at work."
+        req = ThoughtSubmitRequest(text="I feel overwhelmed at work.")
+        assert req.text == "I feel overwhelmed at work."
 
     def test_min_length_rejects_empty_string(self):
         """Empty string must be rejected (min_length=1)."""
         with pytest.raises(ValidationError) as exc_info:
-            ThoughtSubmitRequest(raw_text="")
+            ThoughtSubmitRequest(text="")
         errors = exc_info.value.errors()
-        assert any(e["loc"] == ("raw_text",) for e in errors)
+        assert any(e["loc"] == ("text",) for e in errors)
 
     def test_whitespace_only_normalises_to_empty_string(self):
         """
@@ -42,52 +41,52 @@ class TestThoughtSubmitRequest:
         collapses to '' after strip_whitespace normalisation.
         The model accepts the input; the empty result is the caller's responsibility to handle.
         """
-        req = ThoughtSubmitRequest(raw_text="   ")
-        assert req.raw_text == ""
+        req = ThoughtSubmitRequest(text="   ")
+        assert req.text == ""
 
     def test_max_length_accepts_exactly_1000_chars(self):
         """A string of exactly 1000 characters must be accepted."""
         text = "a" * 1000
-        req = ThoughtSubmitRequest(raw_text=text)
-        assert len(req.raw_text) == 1000
+        req = ThoughtSubmitRequest(text=text)
+        assert len(req.text) == 1000
 
     def test_max_length_rejects_1001_chars(self):
         """A string of 1001 characters must be rejected (max_length=1000)."""
         text = "a" * 1001
         with pytest.raises(ValidationError) as exc_info:
-            ThoughtSubmitRequest(raw_text=text)
+            ThoughtSubmitRequest(text=text)
         errors = exc_info.value.errors()
-        assert any(e["loc"] == ("raw_text",) for e in errors)
+        assert any(e["loc"] == ("text",) for e in errors)
 
     def test_whitespace_normalisation_strips_leading_trailing(self):
         """Leading and trailing whitespace should be stripped."""
-        req = ThoughtSubmitRequest(raw_text="  hello world  ")
-        assert req.raw_text == "hello world"
+        req = ThoughtSubmitRequest(text="  hello world  ")
+        assert req.text == "hello world"
 
     def test_whitespace_normalisation_collapses_internal_spaces(self):
         """Multiple internal spaces should be collapsed to single spaces."""
-        req = ThoughtSubmitRequest(raw_text="hello   world  today")
-        assert req.raw_text == "hello world today"
+        req = ThoughtSubmitRequest(text="hello   world  today")
+        assert req.text == "hello world today"
 
     def test_whitespace_normalisation_handles_newlines(self):
         """Newlines and tabs in the middle are treated as whitespace and collapsed."""
-        req = ThoughtSubmitRequest(raw_text="line one\nline two\ttab")
-        assert req.raw_text == "line one line two tab"
+        req = ThoughtSubmitRequest(text="line one\nline two\ttab")
+        assert req.text == "line one line two tab"
 
     def test_single_character_thought_accepted(self):
         """Single non-whitespace character is the minimum valid input."""
-        req = ThoughtSubmitRequest(raw_text="?")
-        assert req.raw_text == "?"
+        req = ThoughtSubmitRequest(text="?")
+        assert req.text == "?"
 
-    def test_raw_text_field_required(self):
-        """Omitting raw_text should raise ValidationError."""
+    def test_text_field_required(self):
+        """Omitting text should raise ValidationError."""
         with pytest.raises(ValidationError):
             ThoughtSubmitRequest()
 
     def test_unicode_content_accepted(self):
         """Unicode characters (emoji, accented letters) should be accepted."""
-        req = ThoughtSubmitRequest(raw_text="Je suis épuisé 😔")
-        assert "épuisé" in req.raw_text
+        req = ThoughtSubmitRequest(text="Je suis épuisé 😔")
+        assert "épuisé" in req.text
 
 
 # ---------------------------------------------------------------------------

@@ -2,69 +2,85 @@
 Configuration module for Echo backend.
 
 Loads environment variables required for the application:
-- ANTHROPIC_API_KEY: Claude API access
+- NANOGPT_API_KEY: NanoGPT API access (Qwen3.5-122B humanisation)
 - ELASTIC_CLOUD_ID: Elasticsearch cloud instance identifier
 - ELASTIC_API_KEY: Elasticsearch authentication
+- ELASTIC_THOUGHTS_INDEX: Elasticsearch index name for thoughts (default: echo-thoughts)
+- ELASTIC_RESOLUTIONS_INDEX: Elasticsearch index name for resolutions (default: echo-resolutions)
 - JWT_SECRET: Secret key for JWT token generation
 - OLLAMA_HOST: Host URL for local Ollama SLM instance
 - DATABASE_URL: PostgreSQL connection string for account data
+- RATE_LIMIT_THOUGHTS_PER_HOUR: Max thought submissions per hour per client
 
 PRIVACY NOTE: This config module does NOT handle raw thought text.
 Raw thoughts are never persisted on the server - they are anonymized
 immediately upon receipt and the raw text is discarded.
 """
 
-import os
-from typing import Optional
-from dotenv import load_dotenv
-
-# Load environment variables from .env file if present
-load_dotenv()
+from pydantic_settings import BaseSettings
 
 
-class Config:
-    """Application configuration loaded from environment variables."""
+class Config(BaseSettings):
+    """Application configuration loaded from environment variables via pydantic-settings."""
 
-    # Anthropic Claude API
-    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # NanoGPT API (OpenAI-compatible, used for humanisation + classification)
+    NANOGPT_API_KEY: str = ""
 
     # Elasticsearch configuration
-    ELASTIC_CLOUD_ID: str = os.getenv("ELASTIC_CLOUD_ID", "")
-    ELASTIC_API_KEY: str = os.getenv("ELASTIC_API_KEY", "")
+    # Cloud credentials (optional — falls back to ELASTIC_HOST if not set)
+    ELASTIC_CLOUD_ID: str = ""
+    ELASTIC_API_KEY: str = ""
+    # Local Elasticsearch fallback (used when cloud credentials are absent)
+    ELASTIC_HOST: str = "http://localhost:9200"
+
+    # Elasticsearch index names (overridable via env for multi-env deploys)
+    ELASTIC_THOUGHTS_INDEX: str = "echo-thoughts"
+    ELASTIC_RESOLUTIONS_INDEX: str = "echo-resolutions"
+
+    @property
+    def use_elastic_cloud(self) -> bool:
+        """True only when cloud credentials look valid (non-empty, non-placeholder)."""
+        return bool(
+            self.ELASTIC_CLOUD_ID
+            and self.ELASTIC_API_KEY
+            and not self.ELASTIC_CLOUD_ID.startswith("your-")
+            and "..." not in self.ELASTIC_CLOUD_ID
+        )
 
     # JWT authentication
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
+    JWT_SECRET: str = "dev-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_DAYS: int = 7
 
     # Ollama SLM for anonymization
-    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    OLLAMA_MODEL: str = "hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf"
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "anonymizer"
 
     # Database configuration
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/echo")
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/echo"
 
     # Server configuration
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
 
-    # CORS configuration
+    # CORS configuration (not env-loaded; hardcoded for security)
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
 
-    # Elasticsearch index names
-    ELASTIC_THOUGHTS_INDEX: str = "echo-thoughts"
-    ELASTIC_RESOLUTIONS_INDEX: str = "echo-resolutions"
-
-    # Rate limiting configuration
+    # Rate limiting configuration (overridable via env)
     RATE_LIMIT_THOUGHTS_PER_HOUR: int = 10
     RATE_LIMIT_LOGIN_PER_15MIN: int = 5
     RATE_LIMIT_RESOLUTION_PER_HOUR: int = 5
 
-    @classmethod
-    def validate(cls) -> list[str]:
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+    def validate(self) -> list[str]:
         """
         Validate that required configuration is present.
 
@@ -73,16 +89,10 @@ class Config:
         """
         missing = []
 
-        if not cls.ANTHROPIC_API_KEY:
-            missing.append("ANTHROPIC_API_KEY")
+        if not self.NANOGPT_API_KEY:
+            missing.append("NANOGPT_API_KEY")
 
-        if not cls.ELASTIC_CLOUD_ID:
-            missing.append("ELASTIC_CLOUD_ID")
-
-        if not cls.ELASTIC_API_KEY:
-            missing.append("ELASTIC_API_KEY")
-
-        if cls.JWT_SECRET == "dev-secret-key-change-in-production":
+        if self.JWT_SECRET == "dev-secret-key-change-in-production":
             missing.append("JWT_SECRET (using default dev key)")
 
         return missing

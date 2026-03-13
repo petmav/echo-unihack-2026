@@ -20,20 +20,18 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-import numpy as np
-from elasticsearch import Elasticsearch, NotFoundError
+from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
+from sentence_transformers import SentenceTransformer
 
 from config import config
 from seed_data import RESOLUTIONS, THOUGHTS_BY_THEME
 
-
 # ── Constants ────────────────────────────────────────────────────────────────
 
-VECTOR_DIMS = 1536
+VECTOR_DIMS = 384
 
-# Each theme gets a reproducible centroid so same-theme thoughts cluster together
-_THEME_CENTROIDS: dict[str, np.ndarray] = {}
+_embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Weekly distribution weights: index 0 = current week, 7 = oldest
 # Current week gets the most entries for impressive aggregate counts
@@ -73,40 +71,17 @@ _RESOLUTIONS_INDEX_MAPPING: dict[str, Any] = {
 
 # ── Vector generation ─────────────────────────────────────────────────────────
 
-def _get_theme_centroid(theme: str) -> np.ndarray:
+def _generate_sentiment_vector(text: str) -> list[float]:
     """
-    Return a reproducible unit-norm centroid vector for the given theme.
-
-    Same theme always produces the same centroid so vectors are stable
-    across script runs.
-    """
-    if theme not in _THEME_CENTROIDS:
-        rng = np.random.default_rng(seed=abs(hash(theme)) % (2 ** 32))
-        centroid = rng.standard_normal(VECTOR_DIMS).astype(np.float32)
-        centroid /= np.linalg.norm(centroid)
-        _THEME_CENTROIDS[theme] = centroid
-    return _THEME_CENTROIDS[theme]
-
-
-def _generate_sentiment_vector(theme: str, noise_scale: float = 0.15) -> list[float]:
-    """
-    Generate a 1536-dim vector near the theme centroid with gaussian noise.
-
-    Thoughts within the same theme cluster together in vector space, enabling
-    meaningful kNN semantic search results in the demo.
+    Embed text using all-MiniLM-L6-v2 into a 384-dim unit-normalised vector.
 
     Args:
-        theme: Theme category string.
-        noise_scale: Standard deviation of gaussian noise added to centroid.
+        text: Humanised thought text to embed.
 
     Returns:
-        List of 1536 floats (unit-normalised).
+        List of 384 floats (unit-normalised, suitable for cosine similarity).
     """
-    centroid = _get_theme_centroid(theme)
-    noise = np.random.standard_normal(VECTOR_DIMS).astype(np.float32) * noise_scale
-    vector = centroid + noise
-    vector /= np.linalg.norm(vector)
-    return vector.tolist()
+    return _embed_model.encode(text, normalize_embeddings=True).tolist()
 
 
 # ── Timestamp helpers ─────────────────────────────────────────────────────────
@@ -207,7 +182,7 @@ def _build_thought_action(
             "message_id": message_id,
             "humanised_text": text,
             "theme_category": theme,
-            "sentiment_vector": _generate_sentiment_vector(theme),
+            "sentiment_vector": _generate_sentiment_vector(text),
             "timestamp_week": _iso_week_string(weeks_ago),
             "has_resolution": has_resolution,
         },
@@ -325,7 +300,6 @@ def seed(client: Elasticsearch, force: bool) -> None:
 
     print("\n[2/4] Building documents...")
     random.seed(42)
-    np.random.seed(42)
 
     actions, thought_count, resolution_count = _build_all_actions(
         thoughts_index, resolutions_index
@@ -408,7 +382,6 @@ def dry_run() -> None:
     print("\n[DRY RUN] Would seed the following data:")
 
     random.seed(42)
-    np.random.seed(42)
 
     total_thoughts = 0
     total_resolutions = 0
@@ -430,11 +403,55 @@ def dry_run() -> None:
         label = "← current week" if weeks_ago == 0 else ""
         print(f"    {week_str}  {count:>4} thoughts  {label}")
 
-    print(f"\n  Target indices:")
+    print("\n  Target indices:")
     print(f"    {config.ELASTIC_THOUGHTS_INDEX}")
     print(f"    {config.ELASTIC_RESOLUTIONS_INDEX}")
     print(f"\n  Would seed {total_thoughts} thoughts and {total_resolutions} resolutions")
     print("  (use without --dry-run to execute against Elasticsearch)")
+
+
+# ── Client factory ────────────────────────────────────────────────────────────
+
+def _connect() -> Elasticsearch | None:
+    """
+    Create and verify an Elasticsearch client.
+
+    Tries Elastic Cloud first (if credentials are configured), then falls back
+    to a local instance at ELASTIC_HOST.
+
+    Returns:
+        A connected Elasticsearch client, or None on failure.
+    """
+    if config.use_elastic_cloud:
+        print(f"Connecting to Elastic Cloud ({config.ELASTIC_CLOUD_ID[:20]}...)...")
+        try:
+            client = Elasticsearch(
+                cloud_id=config.ELASTIC_CLOUD_ID,
+                api_key=config.ELASTIC_API_KEY,
+                request_timeout=30,
+            )
+            info = client.info()
+            print(f"Connected to Elastic Cloud cluster: {info['cluster_name']}")
+            return client
+        except Exception as exc:
+            print(f"  Cloud connection failed: {exc}")
+            print("  Falling back to local Elasticsearch...")
+
+    print(f"Connecting to local Elasticsearch at {config.ELASTIC_HOST}...")
+    try:
+        client = Elasticsearch(config.ELASTIC_HOST, request_timeout=30)
+        info = client.info()
+        print(f"Connected to local cluster: {info['cluster_name']}")
+        return client
+    except Exception as exc:
+        print(f"ERROR: Could not connect to Elasticsearch: {exc}", file=sys.stderr)
+        print(
+            "  Ensure either:\n"
+            "    - ELASTIC_CLOUD_ID and ELASTIC_API_KEY are set in .env, or\n"
+            f"   - A local Elasticsearch instance is running at {config.ELASTIC_HOST}",
+            file=sys.stderr,
+        )
+        return None
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -459,25 +476,8 @@ def main() -> None:
         dry_run()
         return
 
-    missing = config.validate()
-    elastic_missing = [k for k in missing if k.startswith("ELASTIC")]
-    if elastic_missing:
-        print(f"ERROR: Missing Elasticsearch configuration: {elastic_missing}", file=sys.stderr)
-        print("Set ELASTIC_CLOUD_ID and ELASTIC_API_KEY in your .env file.", file=sys.stderr)
-        sys.exit(1)
-
-    print("Connecting to Elasticsearch...")
-    client = Elasticsearch(
-        cloud_id=config.ELASTIC_CLOUD_ID,
-        api_key=config.ELASTIC_API_KEY,
-        request_timeout=30,
-    )
-
-    try:
-        info = client.info()
-        print(f"Connected to Elasticsearch cluster: {info['cluster_name']}")
-    except Exception as exc:
-        print(f"ERROR: Could not connect to Elasticsearch: {exc}", file=sys.stderr)
+    client = _connect()
+    if client is None:
         sys.exit(1)
 
     seed(client, force=args.force)

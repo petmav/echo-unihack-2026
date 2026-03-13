@@ -8,19 +8,19 @@ Device-stored data (raw thoughts, history, trends, Future You letters) is cleare
 client-side via localStorage.clear().
 """
 
-from fastapi import APIRouter, HTTPException, Header, Depends
-from sqlalchemy.orm import Session
-from typing import Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy.orm import Session
+
+from database import Account, MessageTheme, get_db
 from services import auth as auth_service
-from database import get_db, Account, MessageTheme
 
 router = APIRouter(prefix="/account", tags=["account"])
 
 
 @router.delete("", response_model=dict)
 async def delete_account(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
     """
@@ -52,4 +52,4 @@ async def delete_account(
     db.delete(account)
     db.commit()
 
-    return {"deleted": True, "user_id": user_id}
+    return {"deleted": True}

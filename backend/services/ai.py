@@ -1,8 +1,8 @@
 """
-Claude API service for humanizing anonymized thoughts.
+AI service for humanizing anonymized thoughts.
 
-Uses Anthropic Claude API (claude-sonnet-4-20250514) to convert anonymized
-thoughts into natural, empathetic 50-60 word expressions.
+Uses NanoGPT API (OpenAI-compatible) with Qwen3.5-122B-A10B to convert
+anonymized thoughts into natural, empathetic 50-60 word expressions.
 
 CRITICAL: This service MUST ONLY receive anonymized text. It must NEVER
 be passed raw user thoughts. The anonymiser service is always called first.
@@ -12,14 +12,17 @@ Example:
     Output (humanized):  "Someone at work consistently undermines me in front
                          of others, and it's eroding my confidence in myself."
 
-Privacy guarantee: Claude API only ever receives text that has already been
+Privacy guarantee: The API only ever receives text that has already been
 processed by the anonymizer. No raw thoughts, no PII.
 """
 
-import anthropic
+import logging
+
+import httpx
 
 from config import config
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Valid theme categories
@@ -75,11 +78,15 @@ CRISIS_THEMES: frozenset[str] = frozenset({
     "domestic_violence",
 })
 
-_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+_NANOGPT_BASE_URL = "https://nano-gpt.com/api/v1"
+_MODEL = "qwen3.5-122b-a10b"
 
 _HUMANISE_SYSTEM_PROMPT = (
     "You are an empathetic rewriter. Convert the anonymized thought you receive "
     "into a warm, natural first-person expression between 50 and 60 words. "
+    "Replace any bracketed placeholders like [male name], [female name], [company], "
+    "[location] with natural generic references (e.g. 'someone', 'a person', "
+    "'my workplace', 'where I live'). "
     "Preserve the emotional specificity and the core feeling. "
     "Do not add advice, questions, or affirmations. "
     "Output ONLY the rewritten thought — no preamble, no commentary."
@@ -94,19 +101,73 @@ _CLASSIFY_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Custom exception hierarchy
+# Custom exception hierarchy (names kept for backward compat with router)
 # ---------------------------------------------------------------------------
 
 class ClaudeError(Exception):
-    """Base exception for all Claude API errors."""
+    """Base exception for all AI API errors."""
 
 
 class ClaudeRateLimitError(ClaudeError):
-    """Raised when the Claude API returns a rate-limit (429) response."""
+    """Raised when the AI API returns a rate-limit (429) response."""
 
 
 class ClaudeAPIError(ClaudeError):
-    """Raised when the Claude API returns any other error response."""
+    """Raised when the AI API returns any other error response."""
+
+
+# ---------------------------------------------------------------------------
+# Internal helper
+# ---------------------------------------------------------------------------
+
+async def _chat(system_prompt: str, user_content: str, max_tokens: int = 200) -> str:
+    """
+    Send a chat completion request to the NanoGPT API.
+
+    Returns the assistant message content string.
+    Raises ClaudeRateLimitError or ClaudeAPIError on failure.
+    """
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            response = await client.post(
+                f"{_NANOGPT_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config.NANOGPT_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": _MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content},
+                    ],
+                    "max_tokens": max_tokens,
+                    "stream": False,
+                },
+            )
+        except httpx.ConnectError as exc:
+            raise ClaudeAPIError("Could not connect to NanoGPT API.") from exc
+        except httpx.TimeoutException as exc:
+            raise ClaudeAPIError("NanoGPT API request timed out.") from exc
+        except httpx.RequestError as exc:
+            raise ClaudeAPIError(f"Network error contacting NanoGPT API: {exc}") from exc
+
+    if response.status_code == 429:
+        raise ClaudeRateLimitError("NanoGPT API rate limit exceeded. Please retry later.")
+
+    if response.status_code != 200:
+        raise ClaudeAPIError(f"NanoGPT API returned HTTP {response.status_code}.")
+
+    try:
+        data = response.json()
+        content = data["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        raise ClaudeAPIError("Could not parse NanoGPT API response.") from exc
+
+    if not content:
+        raise ClaudeAPIError("NanoGPT API returned an empty response.")
+
+    return content
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +186,8 @@ async def humanize_thought(anonymized_text: str) -> str:
         Humanized text (50-60 words) suitable for display to other users.
 
     Raises:
-        ClaudeRateLimitError: If the Claude API rate limit is exceeded.
-        ClaudeAPIError: If the Claude API returns any other error.
+        ClaudeRateLimitError: If the API rate limit is exceeded.
+        ClaudeAPIError: If the API returns any other error.
         ValueError: If input is empty.
 
     PRIVACY: This function assumes input has been anonymized. Do NOT pass
@@ -135,106 +196,28 @@ async def humanize_thought(anonymized_text: str) -> str:
     if not anonymized_text or not anonymized_text.strip():
         raise ValueError("anonymized_text must not be empty.")
 
-    client = anthropic.AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-
-    try:
-        message = await client.messages.create(
-            model=_CLAUDE_MODEL,
-            max_tokens=200,
-            system=_HUMANISE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": anonymized_text.strip()}],
-        )
-    except anthropic.RateLimitError as exc:
-        raise ClaudeRateLimitError(
-            "Claude API rate limit exceeded. Please retry later."
-        ) from exc
-    except anthropic.APIStatusError as exc:
-        raise ClaudeAPIError(
-            f"Claude API returned an error: {exc.status_code}"
-        ) from exc
-    except anthropic.APIConnectionError as exc:
-        raise ClaudeAPIError(
-            "Could not connect to the Claude API."
-        ) from exc
-    except anthropic.APIError as exc:
-        raise ClaudeAPIError(
-            f"Unexpected Claude API error: {exc}"
-        ) from exc
-
-    humanized = message.content[0].text.strip() if message.content else ""
-    if not humanized:
-        raise ClaudeAPIError("Claude returned an empty response for humanization.")
-
-    return humanized
+    return await _chat(_HUMANISE_SYSTEM_PROMPT, anonymized_text.strip(), max_tokens=200)
 
 
 async def classify_theme(humanized_text: str) -> str:
     """
-    Classify emotional theme of humanized thought using Claude API.
-
-    Classifies the input into exactly one of the 12 defined theme categories.
-    Risk themes (self_harm, suicidal_ideation, crisis, substance_abuse,
-    eating_disorder, abuse, domestic_violence) are classified with HIGH RECALL —
-    when in doubt, the classifier biases toward risk themes to ensure safety
-    resources are shown to users who may need them.
-
-    Calls the Claude API to map the humanized text to one of the predefined
-    theme categories. Falls back to "general_anxiety" on any error so that
-    theme classification failure is never fatal to the thought pipeline.
+    Classify emotional theme of humanized thought.
 
     Args:
         humanized_text: Humanized thought text (post anonymisation, post
                         humanisation). Must not be raw user input.
 
     Returns:
-        Theme category string from VALID_THEMES (e.g. "work_stress",
-        "relationship_conflict", "self_harm", "general_anxiety", etc.).
+        Theme category string from VALID_THEMES.
 
     Raises:
-        ClaudeRateLimitError: If the Claude API rate limit is exceeded.
-        ClaudeAPIError: If the Claude API returns any other error.
+        ClaudeRateLimitError: If the API rate limit is exceeded.
+        ClaudeAPIError: If the API returns any other error.
         ValueError: If input is empty.
-
-    Note:
-        Theme classification is used for:
-        - Elasticsearch semantic search grouping
-        - Safety resource display (crisis categories trigger safety banner)
-        - Future You letter matching
-        - Breathing animation co-presence levels
-
-        Falls back to "general_anxiety" if Claude is unavailable.
     """
     if not humanized_text or not humanized_text.strip():
         raise ValueError("humanized_text must not be empty.")
 
-    client = anthropic.AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-
-    try:
-        message = await client.messages.create(
-            model=_CLAUDE_MODEL,
-            max_tokens=20,
-            system=_CLASSIFY_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": humanized_text.strip()}],
-        )
-    except anthropic.RateLimitError as exc:
-        raise ClaudeRateLimitError(
-            "Claude API rate limit exceeded. Please retry later."
-        ) from exc
-    except anthropic.APIStatusError as exc:
-        raise ClaudeAPIError(
-            f"Claude API returned an error: {exc.status_code}"
-        ) from exc
-    except anthropic.APIConnectionError as exc:
-        raise ClaudeAPIError(
-            "Could not connect to the Claude API."
-        ) from exc
-    except anthropic.APIError as exc:
-        raise ClaudeAPIError(
-            f"Unexpected Claude API error: {exc}"
-        ) from exc
-
-    raw_theme = message.content[0].text.strip().lower() if message.content else ""
-
-    # Normalise and validate — fall back to "other" if unexpected label returned
-    theme = raw_theme if raw_theme in VALID_THEMES else "other"
-    return theme
+    raw_theme = await _chat(_CLASSIFY_SYSTEM_PROMPT, humanized_text.strip(), max_tokens=20)
+    theme = raw_theme.lower().strip()
+    return theme if theme in VALID_THEMES else "other"

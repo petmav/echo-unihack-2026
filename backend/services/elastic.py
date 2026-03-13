@@ -21,19 +21,17 @@ with no way to link them to users.
 """
 
 import logging
-import time
 from datetime import date
-from typing import Optional, Any
+from typing import Any
 
 from elasticsearch import AsyncElasticsearch, TransportError
 
 from config import config
 
-
 logger = logging.getLogger("echo")
 
 # Global Elasticsearch client (initialized on startup)
-_es_client: Optional[AsyncElasticsearch] = None
+_es_client: AsyncElasticsearch | None = None
 
 # Index mapping for echo-resolutions
 _RESOLUTIONS_INDEX_MAPPING = {
@@ -55,11 +53,11 @@ _THOUGHTS_INDEX_MAPPING = {
             "theme_category": {"type": "keyword"},
             "sentiment_vector": {
                 "type": "dense_vector",
-                "dims": 1536,
+                "dims": 384,
                 "index": True,
                 "similarity": "cosine",
             },
-            "timestamp_week": {"type": "date"},
+            "timestamp_week": {"type": "keyword"},
             "has_resolution": {"type": "boolean"},
         }
     }
@@ -92,14 +90,30 @@ async def init_elasticsearch() -> None:
     """
     Initialize Elasticsearch client and create indices if needed.
 
+    Prefers Elastic Cloud when ELASTIC_CLOUD_ID and ELASTIC_API_KEY are set.
+    Falls back to a local Elasticsearch instance at ELASTIC_HOST otherwise.
+
     Called during FastAPI startup event.
     """
     global _es_client
 
-    _es_client = AsyncElasticsearch(
-        cloud_id=config.ELASTIC_CLOUD_ID,
-        api_key=config.ELASTIC_API_KEY,
-    )
+    if config.use_elastic_cloud:
+        try:
+            _es_client = AsyncElasticsearch(
+                cloud_id=config.ELASTIC_CLOUD_ID,
+                api_key=config.ELASTIC_API_KEY,
+            )
+            logger.info("Elasticsearch: using Elastic Cloud")
+        except ValueError as exc:
+            logger.warning(f"Elastic Cloud credentials invalid ({exc}); falling back to local")
+            _es_client = None
+
+    if _es_client is None:
+        logger.info(f"Elasticsearch: using host at {config.ELASTIC_HOST}")
+        kwargs: dict = {"hosts": [config.ELASTIC_HOST]}
+        if config.ELASTIC_API_KEY:
+            kwargs["api_key"] = config.ELASTIC_API_KEY
+        _es_client = AsyncElasticsearch(**kwargs)
 
     try:
         await _ensure_indices_exist(_es_client)
@@ -174,7 +188,7 @@ async def search_similar_thoughts(
     theme_category: str,
     sentiment_vector: list[float],
     limit: int = 20,
-    search_after: Optional[list] = None,
+    search_after: list | None = None,
 ) -> dict[str, Any]:
     """
     Search for similar thoughts using vector similarity.
@@ -299,7 +313,7 @@ async def get_aggregates() -> list[dict[str, Any]]:
         return []
 
 
-async def get_thought_by_id(message_id: str) -> Optional[dict[str, Any]]:
+async def get_thought_by_id(message_id: str) -> dict[str, Any] | None:
     """
     Retrieve a thought document from Elasticsearch by message_id.
 
@@ -317,16 +331,27 @@ async def get_thought_by_id(message_id: str) -> Optional[dict[str, Any]]:
         return None
 
     try:
-        response = await _es_client.get(
+        response = await _es_client.search(
             index=config.ELASTIC_THOUGHTS_INDEX,
-            id=message_id,
+            body={
+                "query": {"term": {"message_id": message_id}},
+                "fields": ["sentiment_vector"],
+                "_source": True,
+                "size": 1,
+            },
         )
-        source = response["_source"]
+        hits = response["hits"]["hits"]
+        if not hits:
+            return None
+        hit = hits[0]
+        source = hit["_source"]
+        # dense_vector is not in _source on Serverless — fetch from fields
+        vec = hit.get("fields", {}).get("sentiment_vector")
         return {
             "message_id": source["message_id"],
             "humanised_text": source["humanised_text"],
             "theme_category": source["theme_category"],
-            "sentiment_vector": source["sentiment_vector"],
+            "sentiment_vector": vec,
             "has_resolution": source.get("has_resolution", False),
         }
     except Exception as exc:
@@ -410,7 +435,7 @@ async def update_thought_resolution(message_id: str) -> bool:
         return False
 
 
-async def get_resolution(message_id: str) -> Optional[dict[str, Any]]:
+async def get_resolution(message_id: str) -> dict[str, Any] | None:
     """
     Retrieve a resolution document from Elasticsearch by message_id.
 

@@ -11,16 +11,16 @@ Key invariants verified:
 - search_after cursor passed through correctly for pagination
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import services.elastic as elastic_module
 from services.elastic import (
+    get_aggregates,
     index_thought,
     search_similar_thoughts,
-    get_aggregates,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -29,7 +29,7 @@ from services.elastic import (
 SAMPLE_MESSAGE_ID = "abc123-uuid-here"
 SAMPLE_HUMANISED_TEXT = "Someone at work consistently undermines me."
 SAMPLE_THEME = "work_stress"
-SAMPLE_VECTOR = [0.1] * 1536  # 1536-dim vector
+SAMPLE_VECTOR = [0.1] * 384  # 384-dim vector (all-MiniLM-L6-v2)
 
 
 def _make_mock_es_client() -> AsyncMock:

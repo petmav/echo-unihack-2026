@@ -4,17 +4,19 @@ Auth router: POST /auth/register, POST /auth/login, POST /auth/refresh
 Echo collects ONLY email + bcrypt password hash.
 No name, no DOB, no phone, no profile photo -- nothing else.
 
-In-memory user store for hackathon demo:
-  _users: dict[email -> {user_id, hashed_password}]
+Backed by PostgreSQL via SQLAlchemy async (asyncpg driver).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
-from typing import Optional
+import uuid
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.auth import AuthCredentials, AuthResponse
+from database import Account, get_async_db
 from middleware.rate_limit import make_rate_limit_dependency
+from models.auth import AuthCredentials, AuthResponse
+from services.auth import create_access_token, decode_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,32 +29,47 @@ login_rate_limit = make_rate_limit_dependency(
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(credentials: AuthCredentials):
+async def register(
+    credentials: AuthCredentials,
+    db: AsyncSession = Depends(get_async_db),
+):
     """Register a new user account. Returns JWT access token (7-day expiry)."""
-    if credentials.email in _users:
+    result = await db.execute(select(Account).where(Account.email == credentials.email))
+    existing = result.scalar_one_or_none()
+    if existing is not None:
         raise HTTPException(status_code=409, detail="Email already registered")
 
     user_id = str(uuid.uuid4())
-    hashed = hash_password(credentials.password)
-    _users[credentials.email] = {"user_id": user_id, "hashed_password": hashed}
+    account = Account(
+        id=user_id,
+        email=credentials.email,
+        password_hash=hash_password(credentials.password),
+    )
+    db.add(account)
+    await db.commit()
 
     token = create_access_token(user_id)
     return AuthResponse(access_token=token)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(credentials: AuthCredentials, _: None = Depends(login_rate_limit)):
+async def login(
+    credentials: AuthCredentials,
+    db: AsyncSession = Depends(get_async_db),
+    _: None = Depends(login_rate_limit),
+):
     """Authenticate existing user. Returns JWT access token."""
-    user = _users.get(credentials.email)
-    if user is None or not verify_password(credentials.password, user["hashed_password"]):
+    result = await db.execute(select(Account).where(Account.email == credentials.email))
+    account = result.scalar_one_or_none()
+    if account is None or not verify_password(credentials.password, account.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(user["user_id"])
+    token = create_access_token(account.id)
     return AuthResponse(access_token=token)
 
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh_token(authorization: Optional[str] = Header(None)):
+async def refresh_token(authorization: str | None = Header(None)):
     """Refresh JWT token before expiry."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")

@@ -3,7 +3,7 @@
 #
 # Services:
 # - backend: FastAPI server for thought processing pipeline
-# - ollama: Local SLM for anonymization (eternisai/anonymizer-0.6b)
+# - ollama: Local SLM for anonymization (qwen3.5:0.8b)
 #
 # Note: Elasticsearch runs on Elastic Cloud (configured via env vars)
 #       and is NOT included as a local container.
@@ -89,7 +89,7 @@ volumes:
 # ============================================================================
 #
 # 1. First time setup - Pull the anonymizer model:
-#    docker-compose exec ollama ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+#    docker-compose exec ollama ollama pull hf.co/qwen3.5:0.8b-q4_k_m-gguf
 #
 # 2. Start all services:
 #    docker-compose up -d
@@ -113,7 +113,7 @@ volumes:
 #
 # - The backend service NEVER logs raw thought text (see middleware/logging.py)
 # - Ollama runs the anonymizer FIRST - raw text is discarded immediately
-# - Claude (via ANTHROPIC_API_KEY) only receives anonymized text
+# - NanoGPT API (via NANOGPT_API_KEY) only receives anonymized text
 # - Elasticsearch (Elastic Cloud) stores anonymized thoughts with NO user IDs
 # - All privacy constraints are enforced in the application layer
 #

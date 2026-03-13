@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-
+import { useMemo, useId } from "react";
 import { motion } from "framer-motion";
-
 import type { PresenceLevel } from "@/lib/types";
 
 interface EchoLogoProps {
@@ -16,58 +14,29 @@ interface EchoLogoProps {
 
 const BREATHE_DURATION = 7;
 
-/**
- * Visual parameters per presence level. Higher levels produce
- * deeper hues, stronger ripples, and a slower, more resonant
- * breathing rhythm — as if more people are breathing together.
- */
 const PRESENCE_VISUAL = [
-  { arcHue: "#C8856C", glowOpacity: 0.08, arcBoost: 0, durationScale: 1.0 },
-  { arcHue: "#C07A60", glowOpacity: 0.10, arcBoost: 0.05, durationScale: 0.95 },
-  { arcHue: "#B86F54", glowOpacity: 0.13, arcBoost: 0.10, durationScale: 0.90 },
-  { arcHue: "#AE6248", glowOpacity: 0.17, arcBoost: 0.15, durationScale: 0.85 },
-  { arcHue: "#A4553C", glowOpacity: 0.22, arcBoost: 0.20, durationScale: 0.80 },
+  { arcHue: "#C8856C", glowOpacity: 0.38, arcBoost: 0,    durationScale: 1.00 },
+  { arcHue: "#C07A60", glowOpacity: 0.46, arcBoost: 0.05, durationScale: 0.95 },
+  { arcHue: "#B86F54", glowOpacity: 0.54, arcBoost: 0.10, durationScale: 0.90 },
+  { arcHue: "#AE6248", glowOpacity: 0.62, arcBoost: 0.15, durationScale: 0.85 },
+  { arcHue: "#A4553C", glowOpacity: 0.70, arcBoost: 0.20, durationScale: 0.80 },
 ] as const;
 
-function makeTransition(durationScale: number) {
+// Required for Framer Motion scale/translate to work correctly on SVG elements.
+// Without transformBox:"fill-box", transforms pivot from the SVG viewport origin
+// (top-left corner) instead of the element's own bounding box centre.
+const SVG_T: React.CSSProperties = {
+  transformBox: "fill-box",
+  transformOrigin: "center",
+};
+
+function makeTrans(duration: number, delay = 0) {
   return {
-    duration: BREATHE_DURATION * durationScale,
+    duration,
+    delay,
     ease: [0.42, 0, 0.58, 1] as const,
     repeat: Infinity,
     repeatType: "loop" as const,
-  };
-}
-
-function makeBreathVariants(durationScale: number) {
-  return {
-    idle: { scale: 1 },
-    breathe: {
-      scale: [1, 1.08, 1.06, 1.08, 1],
-      transition: makeTransition(durationScale),
-    },
-  };
-}
-
-function makeRippleVariants(
-  maxScale: number,
-  baseOpacity: number,
-  boost: number,
-  durationScale: number
-) {
-  const boostedOpacity = Math.min(baseOpacity + boost, 1);
-  return {
-    idle: { scale: 1, opacity: boostedOpacity },
-    breathe: {
-      scale: [1, maxScale, maxScale, maxScale, 1],
-      opacity: [
-        boostedOpacity,
-        boostedOpacity * 0.4,
-        boostedOpacity * 0.4,
-        boostedOpacity * 0.4,
-        boostedOpacity,
-      ],
-      transition: makeTransition(durationScale),
-    },
   };
 }
 
@@ -78,36 +47,72 @@ export function EchoLogo({
   onClick,
   className,
 }: EchoLogoProps) {
+  const uid = useId().replace(/:/g, "");
   const animState = animate ? "breathe" : "idle";
-  const visual = PRESENCE_VISUAL[presenceLevel];
+  const safeLevel = Math.min(Math.max(presenceLevel, 0), PRESENCE_VISUAL.length - 1);
+  const visual = PRESENCE_VISUAL[safeLevel];
+  const dur = BREATHE_DURATION * visual.durationScale;
 
-  const breatheVariants = useMemo(
-    () => makeBreathVariants(visual.durationScale),
-    [visual.durationScale]
-  );
+  // Left crescent breathes leftward (expanding the shared space)
+  const leftV = useMemo(() => ({
+    idle:    { x: 0 },
+    breathe: { x: [0, -5, -4, -5, 0], transition: makeTrans(dur) },
+  }), [dur]);
 
-  const outerRipple = useMemo(
-    () => makeRippleVariants(1.12, 0.25, visual.arcBoost, visual.durationScale),
-    [visual.arcBoost, visual.durationScale]
-  );
-  const middleRipple = useMemo(
-    () => makeRippleVariants(1.08, 0.45, visual.arcBoost, visual.durationScale),
-    [visual.arcBoost, visual.durationScale]
-  );
-  const innerRipple = useMemo(
-    () => makeRippleVariants(1.04, 0.7, visual.arcBoost, visual.durationScale),
-    [visual.arcBoost, visual.durationScale]
-  );
+  // Right crescent mirrors left
+  const rightV = useMemo(() => ({
+    idle:    { x: 0 },
+    breathe: { x: [0, 5, 4, 5, 0], transition: makeTrans(dur) },
+  }), [dur]);
+
+  // The shared breath glow brightens and expands on inhale
+  const glowV = useMemo(() => {
+    const peak = Math.min(visual.glowOpacity + 0.28, 0.92);
+    return {
+      idle:    { scale: 1, opacity: visual.glowOpacity },
+      breathe: {
+        scale:   [1, 1.18, 1.14, 1.18, 1],
+        opacity: [visual.glowOpacity, peak, peak * 0.95, peak, visual.glowOpacity],
+        transition: makeTrans(dur),
+      },
+    };
+  }, [visual.glowOpacity, dur]);
+
+  // Two oval ripples expand outward, staggered by half a breath cycle
+  const ripple1V = useMemo(() => ({
+    idle:    { scale: 1, opacity: 0 },
+    breathe: {
+      scale:   [1, 1.55],
+      opacity: [0.28 + visual.arcBoost, 0],
+      transition: { duration: dur * 0.48, delay: 0, ease: "easeOut" as const, repeat: Infinity, repeatDelay: dur * 0.52 },
+    },
+  }), [visual.arcBoost, dur]);
+
+  const ripple2V = useMemo(() => ({
+    idle:    { scale: 1, opacity: 0 },
+    breathe: {
+      scale:   [1, 1.55],
+      opacity: [0.18 + visual.arcBoost, 0],
+      transition: { duration: dur * 0.48, delay: dur * 0.5, ease: "easeOut" as const, repeat: Infinity, repeatDelay: dur * 0.52 },
+    },
+  }), [visual.arcBoost, dur]);
 
   return (
     <motion.div
       className={className}
       onClick={onClick}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      } : undefined}
       style={{ cursor: onClick ? "pointer" : undefined, lineHeight: 0 }}
       whileTap={onClick ? { scale: 0.95 } : undefined}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? "Share what's on your mind" : "Echo logo"}
+      aria-label={onClick ? "Share what's on your mind" : undefined}
+      aria-hidden={onClick ? undefined : true}
       data-presence-level={presenceLevel}
     >
       <svg
@@ -118,91 +123,56 @@ export function EchoLogo({
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <radialGradient id="echo-bg-glow" cx="0.4" cy="0.45" r="0.65">
-            <stop offset="0%" stopColor="#D49A82" stopOpacity={visual.glowOpacity} />
+          <linearGradient id={`echo-crescent-grad-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#D49A82" />
+            <stop offset="100%" stopColor={visual.arcHue} />
+          </linearGradient>
+          <radialGradient id={`echo-breath-glow-${uid}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor="#D9A58E" stopOpacity="1" />
+            <stop offset="55%"  stopColor={visual.arcHue} stopOpacity="0.55" />
             <stop offset="100%" stopColor={visual.arcHue} stopOpacity="0" />
           </radialGradient>
-          <linearGradient id="echo-arc-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#D49A82" />
-            <stop offset="100%" stopColor="#A06B55" />
-          </linearGradient>
         </defs>
 
-        {/* Ambient glow */}
-        <motion.circle
-          cx="256"
-          cy="256"
-          r="240"
-          fill="url(#echo-bg-glow)"
-          variants={breatheVariants}
-          animate={animState}
-          style={{ originX: "256px", originY: "256px" }}
+        {/* Ripple ring 2 (more delay) */}
+        <motion.ellipse
+          cx="256" cy="256" rx="168" ry="108"
+          stroke={visual.arcHue} strokeWidth="1.5" fill="none"
+          variants={ripple2V} animate={animState}
+          style={SVG_T}
         />
 
-        {/* Outer arc */}
-        <motion.path
-          d="M 180 380 A 175 175 0 0 1 180 132"
-          stroke={visual.arcHue}
-          strokeWidth="18"
-          strokeLinecap="round"
-          fill="none"
-          variants={outerRipple}
-          animate={animState}
-          style={{ originX: "256px", originY: "256px" }}
+        {/* Ripple ring 1 */}
+        <motion.ellipse
+          cx="256" cy="256" rx="168" ry="108"
+          stroke={visual.arcHue} strokeWidth="2" fill="none"
+          variants={ripple1V} animate={animState}
+          style={SVG_T}
         />
 
-        {/* Middle arc */}
-        <motion.path
-          d="M 215 345 A 125 125 0 0 1 215 167"
-          stroke={visual.arcHue}
-          strokeWidth="22"
-          strokeLinecap="round"
-          fill="none"
-          variants={middleRipple}
-          animate={animState}
-          style={{ originX: "256px", originY: "256px" }}
+        {/* Left crescent — sweeps left (outer ctrl≈100), concave inner ctrl≈185 */}
+        <motion.g variants={leftV} animate={animState} style={SVG_T}>
+          <path
+            d="M 256 152 C 100 195, 100 317, 256 360 C 185 317, 185 195, 256 152 Z"
+            fill={`url(#echo-crescent-grad-${uid})`}
+          />
+        </motion.g>
+
+        {/* Right crescent — sweeps right (outer ctrl≈412), concave inner ctrl≈327 */}
+        <motion.g variants={rightV} animate={animState} style={SVG_T}>
+          <path
+            d="M 256 152 C 412 195, 412 317, 256 360 C 327 317, 327 195, 256 152 Z"
+            fill={`url(#echo-crescent-grad-${uid})`}
+          />
+        </motion.g>
+
+        {/* Shared breath space glow — fills the almond gap between crescent inner edges */}
+        <motion.ellipse
+          cx="256" cy="256" rx="62" ry="104"
+          fill={`url(#echo-breath-glow-${uid})`}
+          variants={glowV} animate={animState}
+          style={SVG_T}
         />
-
-        {/* Inner arc */}
-        <motion.path
-          d="M 250 310 A 75 75 0 0 1 250 202"
-          stroke="url(#echo-arc-grad)"
-          strokeWidth="26"
-          strokeLinecap="round"
-          fill="none"
-          variants={innerRipple}
-          animate={animState}
-          style={{ originX: "256px", originY: "256px" }}
-        />
-
-        {/* Core dot */}
-        <motion.circle
-          cx="290"
-          cy="256"
-          r="32"
-          fill="url(#echo-arc-grad)"
-          variants={breatheVariants}
-          animate={animState}
-          style={{ originX: "290px", originY: "256px" }}
-        />
-
-        {/* Specular highlight */}
-        <circle cx="282" cy="248" r="10" fill="white" opacity="0.15" />
-
-        {/* Wordmark */}
-        <text
-          x="256"
-          y="460"
-          textAnchor="middle"
-          fontFamily="'Fraunces', Georgia, serif"
-          fontSize="56"
-          fontWeight="300"
-          fill="#A06B55"
-          letterSpacing="8"
-          opacity="0.8"
-        >
-          echo
-        </text>
       </svg>
     </motion.div>
   );
@@ -210,23 +180,26 @@ export function EchoLogo({
 
 export function EchoLogoSmall() {
   return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 512 512"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="28" height="28" viewBox="0 0 512 512" fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id="echo-sm-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#D49A82" />
+        <linearGradient id="echo-sm-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#D49A82" />
           <stop offset="100%" stopColor="#A06B55" />
         </linearGradient>
+        <radialGradient id="echo-sm-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#D9A58E" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#C8856C" stopOpacity="0" />
+        </radialGradient>
       </defs>
-      <path d="M 180 380 A 175 175 0 0 1 180 132" stroke="#C8856C" strokeWidth="24" strokeLinecap="round" fill="none" opacity="0.2" />
-      <path d="M 215 345 A 125 125 0 0 1 215 167" stroke="#C8856C" strokeWidth="28" strokeLinecap="round" fill="none" opacity="0.35" />
-      <path d="M 250 310 A 75 75 0 0 1 250 202" stroke="url(#echo-sm-grad)" strokeWidth="32" strokeLinecap="round" fill="none" opacity="0.6" />
-      <circle cx="290" cy="256" r="40" fill="url(#echo-sm-grad)" />
+      <path
+        d="M 256 152 C 100 195, 100 317, 256 360 C 185 317, 185 195, 256 152 Z"
+        fill="url(#echo-sm-grad)"
+      />
+      <path
+        d="M 256 152 C 412 195, 412 317, 256 360 C 327 317, 327 195, 256 152 Z"
+        fill="url(#echo-sm-grad)"
+      />
+      <ellipse cx="256" cy="256" rx="62" ry="104" fill="url(#echo-sm-glow)" />
     </svg>
   );
 }

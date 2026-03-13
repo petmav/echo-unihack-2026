@@ -10,22 +10,24 @@ PRIVACY ARCHITECTURE:
 - No account_id linkage in Elastic documents
 
 This application orchestrates the three-stage AI pipeline:
-1. Anonymizer SLM 0.6B (strips PII, preserves emotion)
-2. Claude API (humanizes anonymized text)
-3. Elasticsearch (semantic matching, zero account linkage)
+1. Qwen3.5-0.8B via Ollama (strips PII, preserves emotion)
+2. NanoGPT API — qwen3.5-122b-a10b (humanizes anonymized text)
+3. Elasticsearch Serverless (semantic matching, zero account linkage)
 """
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from config import config
+from database import init_db
 from middleware.cors import get_cors_middleware
-from middleware.logging import setup_application_logging
+from middleware.logging import get_logging_config, setup_application_logging
 from middleware.request_size import add_request_size_middleware
-from routers import thoughts, auth, resolution, account
-from services.elastic import init_elasticsearch, close_elasticsearch
+from routers import account, auth, resolution, thoughts
+from services.elastic import close_elasticsearch, init_elasticsearch
 
 
 # Application lifecycle management
@@ -58,6 +60,9 @@ async def lifespan(app: FastAPI):
         logger.warning("Some features may not work correctly")
     else:
         logger.info("Configuration validated")
+
+    # Initialize database tables (accounts, message_themes)
+    init_db()
 
     # Initialize Elasticsearch
     await init_elasticsearch()
@@ -190,5 +195,5 @@ if __name__ == "__main__":
         host=config.HOST,
         port=config.PORT,
         reload=True,
-        log_config=None,  # We use our custom logging setup
+        log_config=get_logging_config(),
     )

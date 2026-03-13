@@ -9,7 +9,7 @@ Additional backend-only models:
 
 PRIVACY NOTE:
 Resolution text (advice from users who resolved similar issues) goes through
-the same Anonymizer SLM 0.6B pass to strip PII while preserving specificity.
+the same Qwen3.5-0.8B anonymiser pass to strip PII while preserving specificity.
 It is then stored verbatim in Elasticsearch and shown verbatim to users.
 
 CRITICAL: We never paraphrase or summarize resolution text with AI, as
@@ -58,6 +58,6 @@ class ResolutionResponse(BaseModel):
     resolution_text: str = Field(
         ..., description="Anonymized 'what helped' text (shown verbatim)"
     )
-    resolved_at: int = Field(
-        ..., description="Unix timestamp when resolution was submitted"
+    resolved_at: int | None = Field(
+        None, description="Unix timestamp when resolution was submitted"
     )

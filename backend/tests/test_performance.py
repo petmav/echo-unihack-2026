@@ -9,21 +9,18 @@ This test suite verifies subtask-3-3 requirements:
 IMPORTANT: These tests require Ollama to be running with the anonymizer model.
 To set up:
 1. Start Ollama: ollama serve
-2. Pull the model: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+2. Pull the model: ollama pull qwen3.5:0.8b
 3. Verify model: curl http://localhost:11434/api/tags | grep anonymizer
 """
 
 import asyncio
-
-import pytest
-import time
 import statistics
-from typing import List
+import time
 
 import httpx
+import pytest
 
 from services.anonymiser import AnonymiserService
-
 
 # ---------------------------------------------------------------------------
 # Skip helper — tests require Ollama + anonymizer model
@@ -46,7 +43,7 @@ def _anonymizer_model_available() -> bool:
 
 
 _OLLAMA_MODEL_AVAILABLE = _anonymizer_model_available()
-_SKIP_REASON = "Anonymizer model not available in Ollama (requires: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf)"
+_SKIP_REASON = "Anonymizer model not available in Ollama (requires: ollama pull qwen3.5:0.8b)"
 
 
 # Typical thought text samples (< 280 chars each)
@@ -83,7 +80,7 @@ class TestAnonymiserPerformance:
         """Create an anonymiser service instance for testing."""
         service = AnonymiserService(
             ollama_base_url="http://localhost:11434",
-            model_name="eternisai/anonymizer-0.6b-q4_k_m-gguf",
+            model_name="qwen3.5:0.8b",
             timeout_seconds=2.0
         )
         yield service
@@ -117,7 +114,7 @@ class TestAnonymiserPerformance:
 
         This is the primary acceptance test for subtask-3-3.
         """
-        response_times: List[float] = []
+        response_times: list[float] = []
         failures = []
 
         print("\n" + "="*80)
@@ -176,13 +173,13 @@ class TestAnonymiserPerformance:
             print(f"Total requests:        {len(TYPICAL_THOUGHTS)}")
             print(f"Successful requests:   {len(response_times)}")
             print(f"Failed requests:       {len(failures)}")
-            print(f"\nResponse Time Statistics:")
+            print("\nResponse Time Statistics:")
             print(f"  Average:             {avg_time:.3f}s")
             print(f"  Median:              {median_time:.3f}s")
             print(f"  Minimum:             {min_time:.3f}s")
             print(f"  Maximum:             {max_time:.3f}s")
             print(f"  Standard deviation:  {stdev_time:.3f}s")
-            print(f"\nPerformance Target:    < 2.000s per request")
+            print("\nPerformance Target:    < 2.000s per request")
             print(f"Target met:            {'YES ✓' if max_time < 2.0 else 'NO ✗'}")
             print("="*80)
 
@@ -210,7 +207,7 @@ class TestAnonymiserPerformance:
         assert avg_time < 2.0, \
             f"Average response time {avg_time:.3f}s exceeds 2s"
 
-        print(f"\n✓ All 10 requests completed successfully within 2s")
+        print("\n✓ All 10 requests completed successfully within 2s")
         print(f"✓ Average response time: {avg_time:.3f}s")
 
     @pytest.mark.asyncio
@@ -258,7 +255,7 @@ class TestAnonymiserPerformance:
         significant variance between requests.
         """
         test_text = "I'm struggling with anxiety and don't know how to cope"
-        response_times: List[float] = []
+        response_times: list[float] = []
 
         # Run 5 times to check consistency
         for i in range(5):
@@ -297,12 +294,12 @@ if __name__ == "__main__":
         # Create service
         service = AnonymiserService(
             ollama_base_url="http://localhost:11434",
-            model_name="eternisai/anonymizer-0.6b-q4_k_m-gguf",
+            model_name="qwen3.5:0.8b",
             timeout_seconds=2.0
         )
 
         try:
-            response_times: List[float] = []
+            response_times: list[float] = []
 
             print(f"\nTesting {len(TYPICAL_THOUGHTS)} typical thought samples...")
 
@@ -310,7 +307,7 @@ if __name__ == "__main__":
                 print(f"\nRequest {i}/{len(TYPICAL_THOUGHTS)}: ", end="")
 
                 start_time = time.time()
-                result = await service.anonymise(thought_text)
+                await service.anonymise(thought_text)
                 elapsed_time = time.time() - start_time
                 response_times.append(elapsed_time)
 
@@ -330,13 +327,13 @@ if __name__ == "__main__":
             print("PERFORMANCE BASELINE RESULTS")
             print("="*80)
             print(f"Total requests:        {len(response_times)}")
-            print(f"\nResponse Time Statistics:")
+            print("\nResponse Time Statistics:")
             print(f"  Average:             {avg_time:.3f}s")
             print(f"  Median:              {median_time:.3f}s")
             print(f"  Minimum:             {min_time:.3f}s")
             print(f"  Maximum:             {max_time:.3f}s")
             print(f"  Standard deviation:  {stdev_time:.3f}s")
-            print(f"\nPerformance Target:    < 2.000s per request")
+            print("\nPerformance Target:    < 2.000s per request")
             print(f"Target met:            {'YES ✓' if max_time < 2.0 else 'NO ✗'}")
             print("="*80)
 

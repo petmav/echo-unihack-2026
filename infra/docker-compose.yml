@@ -3,7 +3,7 @@
 #
 # Services:
 # - postgres: PostgreSQL database for user accounts and message mappings
-# - ollama: Local SLM for anonymization (eternisai/anonymizer-0.6b)
+# - ollama: Local SLM for anonymization (qwen3.5:0.8b)
 # - backend: FastAPI server for thought processing pipeline
 # - frontend: Next.js web application
 #
@@ -52,14 +52,38 @@ services:
     networks:
       - echo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       start_period: 30s
       retries: 3
     environment:
-      # Ollama configuration
       - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_HF_TOKEN=${OLLAMA_HF_TOKEN:-}
+
+  # ============================================================================
+  # Elasticsearch Service - Local fallback (used when ELASTIC_CLOUD_ID is unset)
+  # ============================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: echo-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
+      interval: 20s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - echo-network
 
   # ============================================================================
   # Backend Service - FastAPI Server
@@ -72,10 +96,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Override OLLAMA_HOST to point to Docker service
+      # These override .env because they must use Docker service hostnames
       - OLLAMA_HOST=http://ollama:11434
-      # Override DATABASE_URL to use Docker service hostname
       - DATABASE_URL=postgresql://echo_user:echo_password@postgres:5432/echo_db
+      # All other config (NANOGPT_API_KEY, ELASTIC_HOST, ELASTIC_API_KEY, etc.)
+      # comes from env_file below
     env_file:
       - ../.env
     depends_on:
@@ -83,15 +108,17 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - echo-network
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      start_period: 10s
-      retries: 3
+      start_period: 30s
+      retries: 5
     volumes:
       # Mount backend code for development hot-reload
       - ../backend:/app
@@ -99,17 +126,18 @@ services:
       - /app/__pycache__
 
   # ============================================================================
-  # Frontend Service - Next.js Web Application
+  # Frontend Service - Next.js Web Application (dev mode with hot-reload)
   # ============================================================================
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
+    image: node:20-alpine
     container_name: echo-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
     ports:
       - "3000:3000"
-    env_file:
-      - ../.env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
     depends_on:
       backend:
         condition: service_healthy
@@ -117,11 +145,11 @@ services:
     networks:
       - echo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
-      retries: 3
+      start_period: 60s
+      retries: 5
     volumes:
       - ../frontend:/app
       - /app/node_modules
@@ -145,13 +173,16 @@ volumes:
   ollama-models:
     name: echo-ollama-models
     driver: local
+  elasticsearch-data:
+    name: echo-elasticsearch-data
+    driver: local
 
 # ============================================================================
 # Usage Instructions
 # ============================================================================
 #
 # 1. First time setup - Pull the anonymizer model:
-#    docker-compose exec ollama ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+#    docker-compose exec ollama ollama pull qwen3.5:0.8b
 #
 # 2. Start all services:
 #    docker-compose up -d
@@ -176,7 +207,7 @@ volumes:
 #
 # - The backend service NEVER logs raw thought text (see middleware/logging.py)
 # - Ollama runs the anonymizer FIRST - raw text is discarded immediately
-# - Claude (via ANTHROPIC_API_KEY) only receives anonymized text
+# - NanoGPT API (via NANOGPT_API_KEY) only receives anonymized text
 # - Elasticsearch (Elastic Cloud) stores anonymized thoughts with NO user IDs
 # - All privacy constraints are enforced in the application layer
 # - Startup order: postgres → ollama → backend → frontend (enforced via health checks)

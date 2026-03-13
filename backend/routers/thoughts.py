@@ -9,29 +9,27 @@ PRIVACY CRITICAL:
 
 import hashlib
 import json
-import random
 import uuid
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import config
+from database import MessageTheme, get_async_db
 from middleware.rate_limit import _rate_limiter, get_client_identifier
 from models.thought import (
+    PaginatedThoughts,
+    ThemeAggregateResponse,
+    ThoughtResponse,
     ThoughtSubmitRequest,
     ThoughtSubmitResult,
-    PaginatedThoughts,
-    ThoughtResponse,
-    ThemeAggregateResponse,
 )
+from services import ai, elastic, embeddings
 from services import anonymiser as anonymiser_service
-from services import ai
-from services.ai import ClaudeRateLimitError, ClaudeAPIError
-from services import elastic
-from config import config
+from services import auth as auth_service
+from services.ai import ClaudeAPIError, ClaudeRateLimitError
 
 router = APIRouter(prefix="/thoughts", tags=["thoughts"])
-
-_SENTIMENT_VECTOR_DIMS = 1536
 
 _THOUGHTS_RATE_LIMIT_MAX = config.RATE_LIMIT_THOUGHTS_PER_HOUR
 _THOUGHTS_RATE_LIMIT_WINDOW = 3600  # seconds
@@ -79,18 +77,13 @@ async def thoughts_rate_limit(request: Request) -> None:
         )
 
 
-def _generate_sentiment_vector() -> list[float]:
-    """
-    Generate a stub sentiment vector.
-
-    Returns a list of 1536 random floats in [-1, 1] as a placeholder until
-    a real embedding model is integrated.
-    """
-    return [random.uniform(-1.0, 1.0) for _ in range(_SENTIMENT_VECTOR_DIMS)]
-
-
 @router.post("", response_model=ThoughtSubmitResult)
-async def submit_thought(request: ThoughtSubmitRequest, _: None = Depends(thoughts_rate_limit)):
+async def submit_thought(
+    request: ThoughtSubmitRequest,
+    http_request: Request,
+    _: None = Depends(thoughts_rate_limit),
+    db: AsyncSession = Depends(get_async_db),
+):
     """
     Submit a new thought for anonymization, humanization, and matching.
 
@@ -108,63 +101,63 @@ async def submit_thought(request: ThoughtSubmitRequest, _: None = Depends(though
     # Step 1: Anonymize raw text — MUST be called first, raw text discarded after
     try:
         anonymized_text = await anonymiser_service.anonymize_text(request.text)
-    except anonymiser_service.OllamaConnectionError:
+    except anonymiser_service.OllamaConnectionError as err:
         raise HTTPException(
             status_code=503,
             detail="Anonymization service unavailable. Please try again later.",
-        )
-    except anonymiser_service.OllamaTimeoutError:
+        ) from err
+    except anonymiser_service.OllamaTimeoutError as err:
         raise HTTPException(
             status_code=503,
             detail="Anonymization service timed out. Please try again later.",
-        )
-    except anonymiser_service.OllamaResponseError:
+        ) from err
+    except anonymiser_service.OllamaResponseError as err:
         raise HTTPException(
             status_code=502,
             detail="Anonymization service returned an invalid response.",
-        )
+        ) from err
 
     # Step 2: Humanize with Claude — only receives anonymized text
     try:
         humanised_text = await ai.humanize_thought(anonymized_text)
-    except ClaudeRateLimitError:
+    except ClaudeRateLimitError as err:
         raise HTTPException(
             status_code=429,
             detail="Service is temporarily busy. Please try again in a moment.",
-        )
-    except ClaudeAPIError:
+        ) from err
+    except ClaudeAPIError as err:
         raise HTTPException(
             status_code=502,
             detail="Humanization service failed. Please try again later.",
-        )
-    except Exception:
+        ) from err
+    except Exception as err:
         raise HTTPException(
             status_code=502,
             detail="Humanization service failed. Please try again later.",
-        )
+        ) from err
 
     # Step 3: Classify emotional theme
     try:
         theme_category = await ai.classify_theme(humanised_text)
-    except ClaudeRateLimitError:
+    except ClaudeRateLimitError as err:
         raise HTTPException(
             status_code=429,
             detail="Service is temporarily busy. Please try again in a moment.",
-        )
-    except ClaudeAPIError:
+        ) from err
+    except ClaudeAPIError as err:
         raise HTTPException(
             status_code=502,
             detail="Theme classification failed. Please try again later.",
-        )
-    except Exception:
+        ) from err
+    except Exception as err:
         raise HTTPException(
             status_code=502,
             detail="Theme classification failed. Please try again later.",
-        )
+        ) from err
 
-    # Step 4: Generate unique message ID and stub sentiment vector
+    # Step 4: Generate unique message ID and embed humanised text
     message_id = str(uuid.uuid4())
-    sentiment_vector = _generate_sentiment_vector()
+    sentiment_vector = await embeddings.embed(humanised_text)
 
     # Step 5: Index in Elasticsearch (non-fatal if unavailable)
     try:
@@ -177,6 +170,23 @@ async def submit_thought(request: ThoughtSubmitRequest, _: None = Depends(though
     except Exception:
         # Indexing failure is non-fatal — the user can still see results
         pass
+
+    # Step 5b: Record account → message_id → theme linkage if authenticated
+    # (non-fatal; used only for targeted cleanup on account deletion)
+    authorization = http_request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        account_id = auth_service.decode_access_token(authorization[len("Bearer "):])
+        if account_id:
+            try:
+                db.add(MessageTheme(
+                    id=str(uuid.uuid4()),
+                    account_id=account_id,
+                    message_id=message_id,
+                    theme_category=theme_category,
+                ))
+                await db.commit()
+            except Exception:
+                await db.rollback()
 
     # Step 6: Search for similar thoughts
     try:
@@ -212,7 +222,7 @@ async def submit_thought(request: ThoughtSubmitRequest, _: None = Depends(though
 async def get_similar_thoughts(
     message_id: str = Query(..., description="Message ID to find similar thoughts for"),
     size: int = Query(20, ge=1, le=100, description="Number of results per page"),
-    search_after: Optional[str] = Query(
+    search_after: str | None = Query(
         None, description="Elasticsearch search_after cursor (JSON array)"
     ),
 ):
@@ -223,17 +233,17 @@ async def get_similar_thoughts(
 
     PRIVACY: Returns only anonymized/humanized thoughts with no user linkage.
     """
-    parsed_cursor: Optional[list] = None
+    parsed_cursor: list | None = None
     if search_after is not None:
         try:
             parsed_cursor = json.loads(search_after)
             if not isinstance(parsed_cursor, list):
                 raise ValueError("search_after must be a JSON array")
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as err:
             raise HTTPException(
                 status_code=422,
                 detail="Invalid search_after cursor: must be a JSON array string.",
-            )
+            ) from err
 
     try:
         thought_doc = await elastic.get_thought_by_id(message_id)

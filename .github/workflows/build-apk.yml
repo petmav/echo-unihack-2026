@@ -1,0 +1,127 @@
+name: Build Android APK
+
+on:
+  # Manual trigger — lets you override the backend URL at build time
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Backend API URL baked into the APK (e.g. https://your-backend.fly.dev/api/v1). Falls back to the NEXT_PUBLIC_API_URL repository secret if empty.'
+        required: false
+        default: ''
+
+  # Also build automatically when frontend code changes on main
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # GitHub-hosted ubuntu-latest runners ship with Android SDK pre-installed.
+      # We only need to set up Java 17 explicitly.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Resolve the backend URL with this priority:
+      #   1. workflow_dispatch input (manual override)
+      #   2. NEXT_PUBLIC_API_URL repository secret (set once, always used)
+      #   3. Empty string (app will use demo/fallback mode)
+      - name: Resolve backend API URL
+        id: api-url
+        run: |
+          URL="${{ inputs.api_url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ secrets.NEXT_PUBLIC_API_URL }}"
+          fi
+          echo "resolved=$URL" >> "$GITHUB_OUTPUT"
+          if [ -z "$URL" ]; then
+            echo "::warning::NEXT_PUBLIC_API_URL is not set. APK will run in demo/fallback mode (no live backend)."
+          else
+            echo "::notice::Building APK with API URL: $URL"
+          fi
+
+      - name: Build static export (Next.js → out/)
+        working-directory: frontend
+        env:
+          NEXT_OUTPUT: export
+          NEXT_PUBLIC_API_URL: ${{ steps.api-url.outputs.resolved }}
+        run: npm run build:mobile
+
+      # The android/ directory is gitignored (it's generated, ~50 MB).
+      # Re-scaffold it fresh on every CI run, then run our setup script which
+      # writes local.properties (sdk.dir) so Gradle can find the Android SDK.
+      # The JDK patch in gradle.properties is a no-op here because setup-java
+      # above already sets JAVA_HOME correctly for CI.
+      - name: Scaffold Capacitor Android project
+        working-directory: frontend
+        run: npx cap add android
+
+      - name: Patch android/local.properties and gradle.properties
+        working-directory: frontend
+        env:
+          # GitHub-hosted ubuntu-latest runners expose the SDK here
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        run: node scripts/setup-android.js
+
+      - name: Generate Android icon assets
+        working-directory: frontend
+        run: |
+          npm run gen:icon
+          npx @capacitor/assets generate --android
+
+      - name: Sync web assets into Android project
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Make Gradle wrapper executable
+        working-directory: frontend/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: echo-debug-${{ github.sha }}
+          # Side-load this APK:  adb install app-debug.apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Build summary
+        run: |
+          echo "## Android APK Build" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API URL baked in | \`${{ steps.api-url.outputs.resolved || '(none — demo mode)' }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Artifact | echo-debug-${{ github.sha }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download the APK from the **Artifacts** section above and install with:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "adb install app-debug.apk" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"

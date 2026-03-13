@@ -18,11 +18,9 @@ Coverage:
         (missing message_id)           → 422
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,14 +103,14 @@ class TestSubmitThoughtContract:
     def test_valid_body_returns_200(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         assert response.status_code == 200
 
     def test_response_has_message_id(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert "message_id" in data
@@ -122,7 +120,7 @@ class TestSubmitThoughtContract:
     def test_response_has_theme_category(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert "theme_category" in data
@@ -132,7 +130,7 @@ class TestSubmitThoughtContract:
     def test_response_has_match_count(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert "match_count" in data
@@ -142,7 +140,7 @@ class TestSubmitThoughtContract:
     def test_response_has_similar_thoughts(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert "similar_thoughts" in data
@@ -151,7 +149,7 @@ class TestSubmitThoughtContract:
     def test_response_has_search_after(self, test_client, mock_all_services):
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert "search_after" in data
@@ -178,7 +176,7 @@ class TestSubmitThoughtContract:
 
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "I feel overwhelmed by everything at work"},
+            json={"text": "I feel overwhelmed by everything at work"},
         )
         data = response.json()
         assert len(data["similar_thoughts"]) == 1
@@ -202,7 +200,7 @@ class TestSubmitThoughtContract:
 
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "Feeling really lost lately"},
+            json={"text": "Feeling really lost lately"},
         )
         data = response.json()
         assert data["search_after"] == ["2024-01-01T00:00:00Z", "some-id"]
@@ -217,34 +215,34 @@ class TestSubmitThoughtContract:
 class TestSubmitThoughtValidation:
     """Contract tests for input validation on POST /api/v1/thoughts."""
 
-    def test_empty_raw_text_returns_422(self, test_client):
-        """raw_text with zero length must be rejected by Pydantic validation."""
+    def test_empty_text_returns_422(self, test_client):
+        """text with zero length must be rejected by Pydantic validation."""
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": ""},
+            json={"text": ""},
         )
         assert response.status_code == 422
 
-    def test_raw_text_at_max_length_is_accepted(
+    def test_text_at_max_length_is_accepted(
         self, test_client, mock_all_services
     ):
-        """raw_text of exactly 2000 characters must be accepted."""
+        """text of exactly 1000 characters must be accepted."""
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "a" * 2000},
+            json={"text": "a" * 1000},
         )
         assert response.status_code == 200
 
-    def test_raw_text_exceeding_max_length_returns_422(self, test_client):
-        """raw_text of 2001 characters must be rejected with HTTP 422."""
+    def test_text_exceeding_max_length_returns_422(self, test_client):
+        """text of 1001 characters must be rejected with HTTP 422."""
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": "a" * 2001},
+            json={"text": "a" * 1001},
         )
         assert response.status_code == 422
 
-    def test_missing_raw_text_field_returns_422(self, test_client):
-        """Omitting raw_text entirely must yield HTTP 422."""
+    def test_missing_text_field_returns_422(self, test_client):
+        """Omitting text entirely must yield HTTP 422."""
         response = test_client.post(
             "/api/v1/thoughts",
             json={},
@@ -255,7 +253,7 @@ class TestSubmitThoughtValidation:
         """422 responses must include a detail key (FastAPI standard)."""
         response = test_client.post(
             "/api/v1/thoughts",
-            json={"raw_text": ""},
+            json={"text": ""},
         )
         assert response.status_code == 422
         data = response.json()

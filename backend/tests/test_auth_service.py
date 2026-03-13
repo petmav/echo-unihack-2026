@@ -8,20 +8,17 @@ Tests cover:
 - decode_access_token: valid token, expired token, tampered token, None/empty input
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from datetime import UTC, datetime, timedelta
 
 from jose import jwt
 
+from config import config
 from services.auth import (
-    hash_password,
-    verify_password,
     create_access_token,
     decode_access_token,
+    hash_password,
+    verify_password,
 )
-from config import config
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -161,7 +158,7 @@ class TestDecodeAccessToken:
 
     def test_expired_token_returns_none(self):
         """decode_access_token must return None for an expired token."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payload = {
             "sub": SAMPLE_USER_ID,
             "iat": now - timedelta(days=8),
@@ -198,8 +195,8 @@ class TestDecodeAccessToken:
         """decode_access_token must return None if the token was signed with a different secret."""
         payload = {
             "sub": SAMPLE_USER_ID,
-            "iat": datetime.now(timezone.utc),
-            "exp": datetime.now(timezone.utc) + timedelta(days=7),
+            "iat": datetime.now(UTC),
+            "exp": datetime.now(UTC) + timedelta(days=7),
         }
         wrong_secret_token = jwt.encode(payload, "wrong-secret", algorithm=config.JWT_ALGORITHM)
         result = decode_access_token(wrong_secret_token)

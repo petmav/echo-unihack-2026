@@ -11,16 +11,15 @@ Covers:
 7. Content validation rejects empty string (422 response)
 """
 
-import time
 import hashlib
-from unittest.mock import AsyncMock, patch, MagicMock
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from middleware.rate_limit import RateLimiter, get_client_identifier, _rate_limiter
 from main import app
-
+from middleware.rate_limit import RateLimiter, get_client_identifier
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -61,7 +60,7 @@ class TestRateLimiterAllowsUnderLimit:
 
     def test_different_keys_are_independent(self, limiter):
         """Each client key has its own independent bucket."""
-        for i in range(3):
+        for _i in range(3):
             limiter.is_allowed("key:alpha", max_requests=3, window_seconds=60)
 
         # key:alpha is now at its limit; key:beta should still be free
@@ -233,6 +232,7 @@ class TestHTTP429WithRetryAfterHeader:
         then verifying that the raised HTTPException carries a 429 status.
         """
         from fastapi import HTTPException, status
+
         from routers.auth import login_rate_limit
 
         async def always_429(request=None):
@@ -281,6 +281,7 @@ class TestHTTP429WithRetryAfterHeader:
         immediately raise a 429.
         """
         from fastapi import HTTPException, status
+
         from routers.thoughts import thoughts_rate_limit
 
         async def fake_rate_limit(request=None):
@@ -295,7 +296,7 @@ class TestHTTP429WithRetryAfterHeader:
         try:
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "I feel overwhelmed at work"},
+                json={"text": "I feel overwhelmed at work"},
             )
             assert response.status_code == 429
             assert "Retry-After" in response.headers
@@ -321,7 +322,7 @@ class TestContentValidationLongString:
         try:
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": oversized_text},
+                json={"text": oversized_text},
             )
             assert response.status_code == 422, (
                 f"Expected 422 for text > 1000 chars, got {response.status_code}"
@@ -334,7 +335,6 @@ class TestContentValidationLongString:
         exact_text = "a" * 1000
 
         from routers.thoughts import thoughts_rate_limit
-        from unittest.mock import patch
 
         app.dependency_overrides[thoughts_rate_limit] = lambda: None
 
@@ -353,7 +353,7 @@ class TestContentValidationLongString:
 
                 response = client.post(
                     "/api/v1/thoughts",
-                    json={"raw_text": exact_text},
+                    json={"text": exact_text},
                 )
                 # Must NOT be a 422 validation error
                 assert response.status_code != 422, (
@@ -376,16 +376,16 @@ class TestContentValidationEmptyString:
         try:
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": ""},
+                json={"text": ""},
             )
             assert response.status_code == 422, (
-                f"Expected 422 for empty raw_text, got {response.status_code}"
+                f"Expected 422 for empty text, got {response.status_code}"
             )
         finally:
             app.dependency_overrides.clear()
 
-    def test_missing_raw_text_field_returns_422(self, client):
-        """Omitting raw_text entirely should also trigger 422."""
+    def test_missing_text_field_returns_422(self, client):
+        """Omitting text entirely should also trigger 422."""
         from routers.thoughts import thoughts_rate_limit
 
         app.dependency_overrides[thoughts_rate_limit] = lambda: None
@@ -409,7 +409,7 @@ class TestContentValidationEmptyString:
         try:
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "   "},
+                json={"text": "   "},
             )
             # Whitespace " " has length 3 — passes min_length=1. It will
             # succeed validation and be forwarded to the anonymiser pipeline.

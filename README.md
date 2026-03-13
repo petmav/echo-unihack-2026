@@ -17,10 +17,10 @@ You type a thought. Echo finds everyone who felt the same. No accounts required 
 
 ## Stack
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS (mobile-first)
+- **Frontend**: Next.js 16, TypeScript, Tailwind CSS (mobile-first)
 - **Backend**: FastAPI (Python)
-- **Anonymisation**: Anonymizer SLM 0.6B (self-hosted via Ollama) — raw thoughts never leave our server unprocessed
-- **AI**: Claude (Anthropic) — humanises anonymised text only
+- **Anonymisation**: Qwen3.5-0.8B (self-hosted via Ollama) — raw thoughts never leave our server unprocessed
+- **AI**: NanoGPT API — qwen3.5-122b-a10b — humanises anonymised text only
 - **Search**: Elasticsearch — vector similarity search + aggregate counts
 - **Auth**: Email + bcrypt only
 
@@ -38,13 +38,13 @@ cd echo
 
 # 1. Configure environment
 cp .env.example .env
-# Fill in: ANTHROPIC_API_KEY, ELASTIC_CLOUD_ID, ELASTIC_API_KEY
+# Fill in: NANOGPT_API_KEY, ELASTIC_HOST, ELASTIC_API_KEY, JWT_SECRET
 
 # 2. Start all services (backend, frontend, ollama)
 docker-compose -f infra/docker-compose.yml up -d
 
 # 3. Pull the anonymiser model into the ollama container (one-time, ~400MB)
-docker-compose -f infra/docker-compose.yml exec ollama ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+docker-compose -f infra/docker-compose.yml exec ollama ollama pull qwen3.5:0.8b
 ```
 
 Frontend: http://localhost:3000
@@ -53,7 +53,7 @@ API Docs: http://localhost:8000/docs
 
 ### Seed the database (required for demo)
 ```bash
-cd backend && python scripts/seed.py
+cd backend && python seed_elastic.py
 ```
 
 ## Documentation

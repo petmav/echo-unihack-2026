@@ -14,19 +14,18 @@ PRIVACY NOTE:
     in mocked error scenarios is disposable placeholder text.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from services.ai import ClaudeAPIError, ClaudeRateLimitError
 from services.anonymiser import (
     OllamaConnectionError,
-    OllamaTimeoutError,
     OllamaResponseError,
+    OllamaTimeoutError,
 )
-from services.ai import ClaudeRateLimitError, ClaudeAPIError
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -54,7 +53,7 @@ def client_no_raise():
 
 def _thought_payload(text: str = "I feel overwhelmed by everything lately") -> dict:
     """Return a valid POST /api/v1/thoughts request body."""
-    return {"raw_text": text}
+    return {"text": text}
 
 
 def _assert_no_raw_text_in_response(response_text: str, raw_input: str) -> None:
@@ -297,7 +296,7 @@ class TestOllamaUnavailableHandling:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": raw_input},
+                json={"text": raw_input},
             )
 
         assert response.status_code == 503
@@ -422,7 +421,7 @@ class TestClaudeRateLimitHandling:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": raw_input},
+                json={"text": raw_input},
             )
 
         assert response.status_code == 429
@@ -563,7 +562,7 @@ class TestElasticsearchFallback:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": raw_input},
+                json={"text": raw_input},
             )
 
         assert response.status_code == 200
@@ -604,7 +603,7 @@ class TestPrivacyInvariantErrorResponses:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": self.PII_THOUGHT},
+                json={"text": self.PII_THOUGHT},
             )
 
         assert response.status_code == 503
@@ -626,7 +625,7 @@ class TestPrivacyInvariantErrorResponses:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": self.PII_THOUGHT},
+                json={"text": self.PII_THOUGHT},
             )
 
         assert response.status_code == 429
@@ -648,7 +647,7 @@ class TestPrivacyInvariantErrorResponses:
         ):
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": self.PII_THOUGHT},
+                json={"text": self.PII_THOUGHT},
             )
 
         assert response.status_code == 502
@@ -664,7 +663,7 @@ class TestPrivacyInvariantErrorResponses:
 
         response = client.post(
             "/api/v1/thoughts",
-            json={"raw_text": oversized_thought},
+            json={"text": oversized_thought},
         )
 
         assert response.status_code == 422
@@ -711,7 +710,7 @@ class TestPrivacyInvariantErrorResponses:
             ):
                 response = client.post(
                     "/api/v1/thoughts",
-                    json={"raw_text": raw_input},
+                    json={"text": raw_input},
                 )
 
             assert response.status_code == expected_status, (

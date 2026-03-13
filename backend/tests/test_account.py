@@ -12,17 +12,21 @@ Verifies account deletion behaviour:
 """
 
 import os
-os.environ.setdefault("USE_SQLITE", "true")
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+os.environ.setdefault("USE_SQLITE", "true")  # must be set before app imports
 
-from main import app
-from database import Base, Account, MessageTheme, get_db
-from services import auth as auth_service
+# ruff: noqa: E402
+from datetime import UTC  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from database import Account, Base, MessageTheme, get_db  # noqa: E402
+from main import app  # noqa: E402
+from services import auth as auth_service  # noqa: E402
 
 
 @pytest.fixture
@@ -75,7 +79,6 @@ class TestDeleteAccount:
         assert response.status_code == 200
         data = response.json()
         assert data["deleted"] is True
-        assert data["user_id"] == user_id
 
     def test_delete_account_missing_auth_header(self, client, db_session):
         """Request without Authorization header returns 401."""
@@ -107,15 +110,17 @@ class TestDeleteAccount:
 
     def test_delete_account_expired_token(self, client, db_session):
         """An expired JWT token returns 401."""
-        import jwt
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from jose import jwt
+
         from config import config
 
         # Craft a token that is already expired
         payload = {
             "sub": "expired-user-id",
-            "iat": datetime(2020, 1, 1, tzinfo=timezone.utc),
-            "exp": datetime(2020, 1, 8, tzinfo=timezone.utc),  # expired long ago
+            "iat": datetime(2020, 1, 1, tzinfo=UTC),
+            "exp": datetime(2020, 1, 8, tzinfo=UTC),  # expired long ago
         }
         expired_token = jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
@@ -150,7 +155,6 @@ class TestDeleteAccount:
         assert response.status_code == 200
         data = response.json()
         assert "deleted" in data
-        assert "user_id" in data
         assert data["deleted"] is True
 
     def test_delete_account_different_users(self, client, db_session):
@@ -166,7 +170,7 @@ class TestDeleteAccount:
                 headers={"Authorization": make_auth_header(uid)},
             )
             assert response.status_code == 200
-            assert response.json()["user_id"] == uid
+            assert response.json()["deleted"] is True
 
     def test_delete_removes_account_from_db(self, client, db_session):
         """After DELETE, the Account row is no longer in the database."""

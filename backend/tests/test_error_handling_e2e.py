@@ -16,9 +16,10 @@ Tests verify:
 See test_error_handling.py for comprehensive unit tests with broader coverage.
 """
 
-import pytest
+from unittest.mock import AsyncMock, patch
+
 import httpx
-from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
 
 from services.anonymiser import (
     AnonymiserService,
@@ -43,7 +44,7 @@ class TestErrorHandlingWithOllamaUnavailable:
         propagates as 503 Service Unavailable.
         """
         test_input = {
-            "raw_text": "My boss David at CIA headquarters undermines me constantly"
+            "text": "My boss David at CIA headquarters undermines me constantly"
         }
 
         # Mock the anonymiser service to raise OllamaConnectionError
@@ -68,7 +69,7 @@ class TestErrorHandlingWithOllamaUnavailable:
     def test_api_returns_503_when_ollama_times_out(self, client):
         """Test that API returns HTTP 503 when Ollama times out."""
         test_input = {
-            "raw_text": "My colleague Sarah at FBI headquarters is difficult to work with"
+            "text": "My colleague Sarah at FBI headquarters is difficult to work with"
         }
 
         # Mock the anonymiser service to raise OllamaTimeoutError
@@ -96,7 +97,7 @@ class TestErrorHandlingWithOllamaUnavailable:
         """
         sensitive_keywords = ["David", "CIA", "headquarters", "undermines"]
         test_input = {
-            "raw_text": "My boss David at CIA headquarters undermines me constantly"
+            "text": "My boss David at CIA headquarters undermines me constantly"
         }
 
         # Mock the anonymiser service to raise an error
@@ -106,8 +107,7 @@ class TestErrorHandlingWithOllamaUnavailable:
         ) as mock_anon:
             mock_anon.side_effect = OllamaConnectionError(
                 "Anonymizer service unavailable. Please ensure Ollama is running."
-            ),
-        ):
+            )
             response = client.post("/api/v1/thoughts", json=test_input)
 
         response_text = response.text.lower()
@@ -116,20 +116,9 @@ class TestErrorHandlingWithOllamaUnavailable:
                 f"PRIVACY VIOLATION: Sensitive keyword '{keyword}' found in error response"
             )
 
-            # Make the request
-            response = client.post("/api/v1/thoughts", json=test_input)
-
-            # Get the full response as string
-            response_text = response.text.lower()
-
-            # Verify NONE of the sensitive keywords appear in the error response
-            for keyword in sensitive_keywords:
-                assert keyword.lower() not in response_text, \
-                    f"PRIVACY VIOLATION: Sensitive keyword '{keyword}' found in error response"
-
     def test_error_messages_are_user_friendly(self, client):
         """Test that error messages are descriptive and user-friendly."""
-        test_input = {"raw_text": "Test thought"}
+        test_input = {"text": "Test thought"}
 
         # Mock connection error
         with patch(
@@ -159,12 +148,10 @@ class TestErrorHandlingWithOllamaUnavailable:
         and that PII is never leaked across any of the requests.
         """
         test_inputs = [
-            {"raw_text": "First sensitive thought with name Alice"},
-            {"raw_text": "Second sensitive thought with company Google"},
-            {"raw_text": "Third sensitive thought with location Paris"},
+            {"text": "First sensitive thought with name Alice"},
+            {"text": "Second sensitive thought with company Google"},
+            {"text": "Third sensitive thought with location Paris"},
         ]
-        pii_tokens = ["alice", "google", "paris"]
-
         # Mock the anonymiser service to always fail
         with patch(
             "routers.thoughts.anonymiser_service.anonymize_text",
@@ -182,7 +169,7 @@ class TestErrorHandlingWithOllamaUnavailable:
                 )
 
                 response_text = response.text.lower()
-                for word in test_input["raw_text"].split():
+                for word in test_input["text"].split():
                     if len(word) > 3:  # Check meaningful words
                         # Some generic words might appear in error messages,
                         # but specific PII should not
@@ -209,7 +196,7 @@ class TestServiceRecovery:
         # Create a service instance and initialise its internal HTTP client
         service = AnonymiserService(
             ollama_base_url="http://localhost:11434",
-            model_name="eternisai/anonymizer-0.6b-q4_k_m-gguf",
+            model_name="qwen3.5:0.8b",
             timeout_seconds=2.0,
         )
 
@@ -224,11 +211,18 @@ class TestServiceRecovery:
                 await service.anonymise("Test text during failure")
 
             # Second call: Ollama restored (successful response)
-            mock_client.post.side_effect = None
-            mock_client.post.return_value = mock_response
+            # httpx.Response.json() is synchronous, so use MagicMock not AsyncMock
+            from unittest.mock import MagicMock  # noqa: PLC0415
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "message": {"content": '{"replacements": []}'}
+            }
+            mock_post.side_effect = None
+            mock_post.return_value = mock_response
 
             result = await service.anonymise("Test text after recovery")
-            assert result == "Test [anonymised] text"
+            assert result == "Test text after recovery"
 
         await service.close()
 
@@ -240,7 +234,7 @@ class TestServiceRecovery:
         1. Ollama is down → 503
         2. Ollama comes back up → 200 with valid result
         """
-        test_input = {"raw_text": "My colleague bothers me"}
+        test_input = {"text": "My colleague bothers me"}
 
         with (
             patch(

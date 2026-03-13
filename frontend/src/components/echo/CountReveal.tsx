@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { motion } from "framer-motion";
 
@@ -22,27 +22,36 @@ export function CountReveal({
   const [displayCount, setDisplayCount] = useState(0);
   const startTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number>(0);
+  const targetCountRef = useRef(targetCount);
+  const onAnimationCompleteRef = useRef(onAnimationComplete);
 
-  const animate = useCallback(
-    (timestamp: number) => {
+  useEffect(() => {
+    targetCountRef.current = targetCount;
+  }, [targetCount]);
+
+  useEffect(() => {
+    onAnimationCompleteRef.current = onAnimationComplete;
+  }, [onAnimationComplete]);
+
+  useEffect(() => {
+    startTimeRef.current = null;
+
+    function animate(timestamp: number) {
       if (!startTimeRef.current) startTimeRef.current = timestamp;
 
       const elapsed = timestamp - startTimeRef.current;
       const progress = Math.min(elapsed / COUNT_ANIMATION_DURATION_MS, 1);
       const easedProgress = easeOutCubic(progress);
 
-      setDisplayCount(Math.round(easedProgress * targetCount));
+      setDisplayCount(Math.round(easedProgress * targetCountRef.current));
 
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
-        onAnimationComplete?.();
+        onAnimationCompleteRef.current?.();
       }
-    },
-    [targetCount, onAnimationComplete]
-  );
+    }
 
-  useEffect(() => {
     const delay = setTimeout(() => {
       rafRef.current = requestAnimationFrame(animate);
     }, 400);
@@ -51,7 +60,7 @@ export function CountReveal({
       clearTimeout(delay);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [animate]);
+  }, []);
 
   return (
     <motion.div

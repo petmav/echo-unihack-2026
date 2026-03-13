@@ -9,33 +9,33 @@ Key invariants verified:
 - OllamaConnectionError raised on httpx.ConnectError
 - OllamaTimeoutError raised on httpx.TimeoutException
 - OllamaResponseError raised on non-200 HTTP status
-- OllamaResponseError raised on empty response body
-- OllamaResponseError raised on malformed JSON
+- Fallback to original text on empty/unparseable model output
+- OllamaResponseError raised on malformed JSON (response.json() failure)
 - Error messages NEVER contain raw input text (privacy guarantee)
 - Module-level helpers anonymize_text() and validate_anonymization() work correctly
 """
 
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import services.anonymiser as anonymiser_module
+import httpx
+import pytest
+
 from services.anonymiser import (
     AnonymiserService,
     OllamaConnectionError,
-    OllamaTimeoutError,
     OllamaResponseError,
+    OllamaTimeoutError,
     anonymize_text,
     validate_anonymization,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 SAMPLE_RAW_TEXT = "My boss David at Google undermines me constantly."
-SAMPLE_ANONYMISED_TEXT = "My [male name] at [tech company] undermines me constantly."
+SAMPLE_ANONYMISED_TEXT = "My boss [male name] at [tech company] undermines me constantly."
+SAMPLE_MODEL_OUTPUT = '{"replacements": [{"original": "David", "replacement": "[male name]"}, {"original": "Google", "replacement": "[tech company]"}]}'
 
 
 def _make_mock_response(status_code: int = 200, json_data: dict | None = None) -> MagicMock:
@@ -67,11 +67,11 @@ class TestAnonymiserServiceHappyPath:
 
     @pytest.mark.asyncio
     async def test_returns_anonymised_text_on_success(self):
-        """anonymise() should return the stripped response text on a valid 200 response."""
+        """anonymise() should return the anonymised text on a valid 200 response."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": SAMPLE_ANONYMISED_TEXT},
+            json_data={"message": {"content": SAMPLE_MODEL_OUTPUT}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
@@ -83,11 +83,11 @@ class TestAnonymiserServiceHappyPath:
 
     @pytest.mark.asyncio
     async def test_strips_whitespace_from_response(self):
-        """anonymise() should strip leading/trailing whitespace from the response."""
+        """anonymise() should strip leading/trailing whitespace from the model output."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": "  " + SAMPLE_ANONYMISED_TEXT + "\n"},
+            json_data={"message": {"content": "  " + SAMPLE_MODEL_OUTPUT + "\n"}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
@@ -99,11 +99,11 @@ class TestAnonymiserServiceHappyPath:
 
     @pytest.mark.asyncio
     async def test_posts_to_correct_url(self):
-        """anonymise() should POST to <base_url>/api/generate."""
+        """anonymise() should POST to <base_url>/api/chat."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": SAMPLE_ANONYMISED_TEXT},
+            json_data={"message": {"content": SAMPLE_MODEL_OUTPUT}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
@@ -112,15 +112,15 @@ class TestAnonymiserServiceHappyPath:
             await service.anonymise(SAMPLE_RAW_TEXT)
 
         call_args = mock_client.post.call_args
-        assert call_args[0][0] == "http://localhost:11434/api/generate"
+        assert call_args[0][0] == "http://localhost:11434/api/chat"
 
     @pytest.mark.asyncio
     async def test_payload_contains_model_and_stream_false(self):
-        """anonymise() payload must include model name and stream=False."""
+        """anonymise() payload must include model name, messages list, and stream=False."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": SAMPLE_ANONYMISED_TEXT},
+            json_data={"message": {"content": SAMPLE_MODEL_OUTPUT}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
@@ -132,6 +132,10 @@ class TestAnonymiserServiceHappyPath:
         payload = call_kwargs["json"]
         assert payload["model"] == "test-model"
         assert payload["stream"] is False
+        assert isinstance(payload["messages"], list)
+        assert len(payload["messages"]) >= 2
+        assert payload["messages"][0]["role"] == "system"
+        assert payload["messages"][1]["role"] == "user"
 
 
 # ---------------------------------------------------------------------------
@@ -199,34 +203,36 @@ class TestAnonymiserServiceErrors:
                 await service.anonymise(SAMPLE_RAW_TEXT)
 
     @pytest.mark.asyncio
-    async def test_raises_response_error_on_empty_response_body(self):
-        """OllamaResponseError must be raised when Ollama returns an empty response field."""
+    async def test_falls_back_to_original_on_empty_response_body(self):
+        """anonymise() should fall back to original text when model returns empty content."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": ""},
+            json_data={"message": {"content": ""}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
         with patch.object(service, "_get_client", return_value=mock_client):
-            with pytest.raises(OllamaResponseError):
-                await service.anonymise(SAMPLE_RAW_TEXT)
+            result = await service.anonymise(SAMPLE_RAW_TEXT)
+
+        assert result == SAMPLE_RAW_TEXT
 
     @pytest.mark.asyncio
-    async def test_raises_response_error_on_whitespace_only_response(self):
-        """OllamaResponseError must be raised when the response field is only whitespace."""
+    async def test_falls_back_to_original_on_whitespace_only_response(self):
+        """anonymise() should fall back to original text when model returns only whitespace."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": "   "},
+            json_data={"message": {"content": "   "}},
         )
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
         with patch.object(service, "_get_client", return_value=mock_client):
-            with pytest.raises(OllamaResponseError):
-                await service.anonymise(SAMPLE_RAW_TEXT)
+            result = await service.anonymise(SAMPLE_RAW_TEXT)
+
+        assert result == SAMPLE_RAW_TEXT
 
     @pytest.mark.asyncio
     async def test_raises_response_error_on_malformed_json(self):
@@ -243,8 +249,8 @@ class TestAnonymiserServiceErrors:
                 await service.anonymise(SAMPLE_RAW_TEXT)
 
     @pytest.mark.asyncio
-    async def test_raises_response_error_on_missing_response_key(self):
-        """OllamaResponseError must be raised when JSON has no 'response' key."""
+    async def test_raises_response_error_on_missing_message_key(self):
+        """OllamaResponseError must be raised when JSON has no 'message' key."""
         service = _make_service()
         mock_response = _make_mock_response(
             status_code=200,
@@ -317,14 +323,11 @@ class TestAnonymiserPrivacy:
         assert "Bob" not in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_response_error_empty_body_does_not_contain_raw_text(self):
-        """OllamaResponseError on empty body must NOT include raw input text."""
+    async def test_response_error_non_200_does_not_contain_raw_text_sensitive(self):
+        """OllamaResponseError on non-200 must NOT include raw input text (sensitive variant)."""
         service = _make_service()
         sensitive_text = "My therapist Dr. Alice recommended I change jobs."
-        mock_response = _make_mock_response(
-            status_code=200,
-            json_data={"response": ""},
-        )
+        mock_response = _make_mock_response(status_code=502)
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
@@ -407,7 +410,7 @@ class TestAnonymizeText:
         """anonymize_text() should return the anonymised string on success."""
         mock_response = _make_mock_response(
             status_code=200,
-            json_data={"response": SAMPLE_ANONYMISED_TEXT},
+            json_data={"message": {"content": SAMPLE_MODEL_OUTPUT}},
         )
         mock_http_client = AsyncMock()
         mock_http_client.is_closed = False

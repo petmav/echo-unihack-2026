@@ -3,7 +3,7 @@
 ## What This Is
 **Echo** is a mental health app built for UNIHACK 2026 (March 13-15, 2026). 48-hour build.
 
-The core loop: a user expresses a negative intrusive thought → it is anonymised on our servers by a local SLM → Claude humanises it → Elasticsearch finds others who felt the same → the user sees how many people share their experience and scrolls through their anonymised thoughts → people who resolved similar issues can share what helped, shown verbatim.
+The core loop: a user expresses a negative intrusive thought → it is anonymised on our servers by a local SLM → NanoGPT humanises it → Elasticsearch finds others who felt the same → the user sees how many people share their experience and scrolls through their anonymised thoughts → people who resolved similar issues can share what helped, shown verbatim.
 
 ---
 
@@ -13,10 +13,10 @@ Intrusive negative thoughts are near-universal but feel uniquely isolating. Exis
 ---
 
 ## Stack
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS — mobile-first
+- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS — mobile-first
 - **Backend**: FastAPI (Python), async, RESTful
-- **Anonymisation**: Anonymizer SLM 0.6B (Eternis, HuggingFace) — self-hosted via Ollama
-- **Humanisation**: Anthropic Claude API (`claude-sonnet-4-20250514`) — only ever sees anonymised text
+- **Anonymisation**: Qwen3.5-0.8B (Eternis, HuggingFace) — self-hosted via Ollama
+- **Humanisation**: NanoGPT API — qwen3.5-122b-a10b — only ever sees anonymised text
 - **Search/Storage**: Elasticsearch (Elastic Cloud)
 - **Auth**: Email + bcrypt password hash only — no names, no DOB, nothing else
 - **Infra**: Docker Compose for local dev
@@ -35,12 +35,12 @@ User types thought (lives in browser RAM only)
         ↓
 POST /api/v1/thoughts  (raw text in HTTPS request body only)
         ↓
-[OUR SERVER] Anonymizer SLM 0.6B strips PII, preserves emotional specificity
+[OUR SERVER] Qwen3.5-0.8B strips PII, preserves emotional specificity
              e.g. "My boss David at Google undermines me"
              →   "My [male name] at [tech company] undermines me"
              RAW TEXT IS DISCARDED IMMEDIATELY — never written to disk or logs
         ↓
-[OUR SERVER] Claude receives ONLY the anonymised text
+[OUR SERVER] NanoGPT API receives ONLY the anonymised text
              Humanises to natural 50-60 word expression
              e.g. → "Someone at work consistently undermines me in front of
                      others, and it's eroding my confidence in myself."
@@ -78,7 +78,7 @@ POST /api/v1/thoughts  (raw text in HTTPS request body only)
 
 1. NEVER log request bodies in any environment — raw thoughts transit in the body
 2. NEVER write raw thought text to any database, log file, cache, or temp file
-3. NEVER pass raw thought text to any external API — Claude only receives post-SLM output
+3. NEVER pass raw thought text to any external API — NanoGPT only receives post-SLM output
 4. NEVER store or log IP addresses
 5. NEVER add account_id or user identifiers to Elastic documents
 6. The anonymiser step is NOT optional and cannot be skipped or bypassed
@@ -89,7 +89,7 @@ POST /api/v1/thoughts  (raw text in HTTPS request body only)
 ## "What Helped" Flow
 
 When a user resolves an issue they can optionally share what helped others. This advice text:
-1. Goes through the same Anonymizer SLM 0.6B pass (PII stripped, specificity preserved)
+1. Goes through the same Qwen3.5-0.8B pass (PII stripped, specificity preserved)
 2. Stored verbatim in Elastic, linked to the original thought's message_id
 3. Shown verbatim to users who tap a response card — NOT paraphrased, NOT summarised by AI
 
@@ -195,8 +195,8 @@ backend/
     resolution.py         → POST /resolution (what helped), GET /resolution/{id}
     account.py            → GET/DELETE /account
   services/
-    anonymiser.py         → Anonymizer SLM 0.6B via Ollama — ALWAYS CALLED FIRST
-    ai.py                 → Claude API — ONLY called after anonymiser
+    anonymiser.py         → Qwen3.5-0.8B via Ollama — ALWAYS CALLED FIRST
+    ai.py                 → NanoGPT API — ONLY called after anonymiser
     elastic.py            → All Elasticsearch operations
     auth.py               → JWT creation/validation, bcrypt hashing
   models/
@@ -217,7 +217,7 @@ docs/
 ## Running Locally
 ```bash
 # 1. Pull and serve the anonymiser model (one-time)
-ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+ollama pull qwen3.5:0.8b
 ollama serve   # runs on localhost:11434
 
 # 2. Fill in env vars
@@ -256,7 +256,7 @@ cd backend && uvicorn main:app --reload     # http://localhost:8000
 
 ## Judging Criteria Reminders
 - **Polish & Design**: This needs to feel like a real product, not a hackathon prototype. Breathing animation and count reveal are the money shots — get them right first.
-- **Technical Difficulty**: Three-stage pipeline (self-hosted SLM → Claude → Elastic vector search) with a privacy architecture is genuinely non-trivial.
+- **Technical Difficulty**: Three-stage pipeline (self-hosted SLM → NanoGPT → Elastic vector search) with a privacy architecture is genuinely non-trivial.
 - **Originality**: No app does ambient anonymous solidarity with semantic matching + peer resolution advice with this privacy model.
 - **Wow Factor**: *"847 people have felt this."* Seed the database before the demo.
 

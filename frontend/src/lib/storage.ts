@@ -13,7 +13,7 @@
  */
 
 import type { LocalThought, FutureLetter, PresenceLevel } from "./types";
-import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS } from "./constants";
+import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS, PROMPT_COOLDOWN_DAYS } from "./constants";
 import { getKey, encrypt, decrypt } from "./crypto";
 
 const THOUGHTS_KEY = "echo_thoughts";
@@ -160,6 +160,60 @@ export async function getResolvedCount(): Promise<number> {
 export async function getMostRecentTheme(): Promise<string | null> {
   const thoughts = await readThoughts();
   return thoughts.length > 0 ? thoughts[0].theme_category : null;
+}
+
+/* ── Notification opt-in (sync — stores a simple boolean flag) ── */
+
+export function getNotificationOptIn(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(NOTIFICATION_OPT_IN_KEY) === "true";
+}
+
+export function setNotificationOptIn(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(NOTIFICATION_OPT_IN_KEY, enabled ? "true" : "false");
+}
+
+/* ── Delayed prompt helpers ── */
+
+/**
+ * Record the timestamp of the most-recent delayed prompt display so
+ * we can enforce the PROMPT_COOLDOWN_DAYS cooldown.
+ */
+export function setLastPromptDate(timestamp: number): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LAST_PROMPT_DATE_KEY, String(timestamp));
+}
+
+function getLastPromptDate(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = localStorage.getItem(LAST_PROMPT_DATE_KEY);
+  return raw ? Number(raw) : 0;
+}
+
+/**
+ * Return the first unresolved thought older than RESOLUTION_PROMPT_WEEKS
+ * weeks, or null if none exists or the prompt cooldown has not elapsed.
+ *
+ * This is intentionally synchronous — it reads from the already-hydrated
+ * in-memory state represented by localStorage — but because readThoughts()
+ * is async we expose a separate async variant used at startup, and a
+ * lightweight sync helper that operates on a pre-loaded snapshot when
+ * called on the home screen after hydration.
+ *
+ * Note: page.tsx calls this after the thought history has been loaded into
+ * React state, but to avoid a race we provide a standalone async version.
+ */
+export async function getNextPromptCandidate(): Promise<LocalThought | null> {
+  const lastPrompt = getLastPromptDate();
+  const cooldownMs = PROMPT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+
+  if (lastPrompt > 0 && Date.now() - lastPrompt < cooldownMs) {
+    return null;
+  }
+
+  const candidates = await getPromptCandidates();
+  return candidates.length > 0 ? candidates[0] : null;
 }
 
 /* ── JWT / Onboarding (no sensitive text — remain sync) ── */

@@ -30,8 +30,8 @@ This document defines exactly what that means in practice.
 
 ### What we explicitly do NOT collect
 
-- IP addresses (stripped at reverse proxy level before hitting FastAPI)
-- Full timestamps or datetimes (week numbers only)
+- IP addresses in raw form — IPs are SHA256-hashed for rate limiting purposes only and never stored or logged
+- Full timestamps or datetimes (ISO week strings only, e.g. `"2024-W11"`)
 - Device identifiers or fingerprints
 - User agent strings
 - Names, DOB, phone numbers, or any profile information
@@ -42,7 +42,7 @@ This document defines exactly what that means in practice.
 
 ## The Anonymisation Contract
 
-The Anonymizer SLM 0.6B model performs the following transformation before any text is stored or passed to external APIs:
+The Qwen3.5-0.8B model (served via Ollama) performs the following transformation before any text is stored or passed to external APIs:
 
 **Entities replaced with semantic placeholders:**
 - Person names → `[male name]`, `[female name]`, `[name]`
@@ -109,12 +109,11 @@ This is semantic-preserving anonymisation, not redaction. The goal is that two p
 ### Scenario 3: A user's device is compromised
 
 **Attacker obtains:**
-- That user's raw thought history (stored in localStorage)
-- That user's message_id mapping
+- That user's localStorage — note that `echo_thoughts` and `echo_future_letters` are encrypted at rest using AES-GCM (Web Crypto API). An attacker who cannot decrypt (e.g. no access to the session key) cannot read raw thought text even from localStorage.
 - That user's JWT (valid for up to 7 days)
 
 **What they can learn:**
-- The content of that one user's thoughts, including raw unprocessed text
+- The content of that one user's thoughts (if they can also decrypt AES-GCM — requires session key access)
 - Nothing about any other user
 
 **What they cannot learn:**
@@ -176,7 +175,6 @@ Echo collects "personal information" (email addresses). Under the APP (Australia
 - We must not use personal information for a purpose other than the primary purpose of collection
 
 ### GDPR (if EU users access the app)
-The EU Shared Future Prize is a target — EU judges may consider GDPR compliance:
 - Legal basis for processing: legitimate interest + consent at signup
 - Right to erasure: implemented via account deletion endpoint
 - Data minimisation: core to our architecture
@@ -191,7 +189,7 @@ Before demo/submission, verify:
 - [ ] FastAPI request logging disabled in production (`--no-access-log` flag)
 - [ ] Nginx/reverse proxy configured to strip `X-Forwarded-For` and not log IPs
 - [ ] Elastic Cloud index verified to contain no account_id or raw text fields
-- [ ] Anonymiser called before any Claude API call — verified in code
+- [ ] Anonymiser called before any NanoGPT API call — verified in code
 - [ ] DELETE /api/v1/account tested and confirmed to purge all server-side user data
 - [ ] localStorage cleared on account deletion from the client
 - [ ] HTTPS enforced (no HTTP fallback)

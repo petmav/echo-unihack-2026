@@ -18,11 +18,10 @@ JWT tokens contain only:
 No sensitive data in JWT payload.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import jwt
 
 from config import config
 
@@ -68,7 +67,7 @@ def create_access_token(user_id: str) -> str:
     Returns:
         JWT token string (valid for 7 days).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "iat": now,
@@ -77,7 +76,7 @@ def create_access_token(user_id: str) -> str:
     return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
 
-def decode_access_token(token: Optional[str]) -> Optional[str]:
+def decode_access_token(token: str | None) -> str | None:
     """
     Decode and validate JWT access token.
 
@@ -91,7 +90,7 @@ def decode_access_token(token: Optional[str]) -> Optional[str]:
         return None
     try:
         payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-        user_id: Optional[str] = payload.get("sub")
+        user_id: str | None = payload.get("sub")
         return user_id
     except Exception:
         return None

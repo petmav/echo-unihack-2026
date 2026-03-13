@@ -2,7 +2,7 @@
 Pydantic models for the Anonymizer SLM service.
 
 The anonymiser is the first critical step in Echo's privacy pipeline. It uses
-Anonymizer SLM 0.6B (via Ollama) to perform semantic-preserving PII replacement,
+Qwen3.5-0.8B (via Ollama) to perform semantic-preserving PII replacement,
 stripping identifying information while preserving emotional specificity.
 
 CRITICAL PRIVACY INVARIANT:

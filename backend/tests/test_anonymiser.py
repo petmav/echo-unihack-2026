@@ -11,24 +11,21 @@ These tests verify the critical privacy gate in Echo's architecture:
 IMPORTANT: These tests require Ollama to be running with the anonymizer model.
 To set up:
 1. Start Ollama: ollama serve
-2. Pull the model: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+2. Pull the model: ollama pull qwen3.5:0.8b
 3. Verify model: curl http://localhost:11434/api/tags | grep anonymizer
 """
 
 import asyncio
-
-import pytest
-import httpx
 from unittest.mock import AsyncMock, patch
+
+import httpx
+import pytest
 
 from services.anonymiser import (
     AnonymiserService,
     OllamaConnectionError,
     OllamaTimeoutError,
-    OllamaResponseError,
-    AnonymiserError
 )
-
 
 # ---------------------------------------------------------------------------
 # Skip helpers — these tests require Ollama + the anonymizer model
@@ -51,7 +48,7 @@ def _anonymizer_model_available() -> bool:
 
 
 _OLLAMA_MODEL_AVAILABLE = _anonymizer_model_available()
-_SKIP_REASON = "Anonymizer model not available in Ollama (requires: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf)"
+_SKIP_REASON = "Anonymizer model not available in Ollama (requires: ollama pull qwen3.5:0.8b)"
 
 
 # Test data with PII that should be anonymised
@@ -92,7 +89,7 @@ class TestAnonymiserServiceIntegration:
         """Create an anonymiser service instance for testing."""
         service = AnonymiserService(
             ollama_base_url="http://localhost:11434",
-            model_name="eternisai/anonymizer-0.6b-q4_k_m-gguf",
+            model_name="qwen3.5:0.8b",
             timeout_seconds=2.0
         )
         yield service
@@ -123,7 +120,7 @@ class TestAnonymiserServiceIntegration:
 
             # Check for the anonymizer model
             assert any("anonymizer" in name.lower() for name in model_names), \
-                "Anonymizer model not found. Pull it with: ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf"
+                "Anonymizer model not found. Pull it with: ollama pull qwen3.5:0.8b"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -199,18 +196,23 @@ class TestAnonymiserServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_connection_error_when_ollama_unavailable(self):
         """Test that service raises OllamaConnectionError when Ollama is not running."""
-        # Use a non-existent endpoint to simulate Ollama being down.
-        # Port 99999 is out of the valid range (0-65535), so on some platforms
-        # the OS times out the connection instead of immediately refusing it.
-        # We accept both OllamaConnectionError and OllamaTimeoutError as valid
-        # error types — both indicate the service is unreachable.
+        # Mock the httpx client directly rather than using an invalid port number.
+        # Port 99999 (>65535) causes an OverflowError wrapped in an ExceptionGroup on
+        # Python 3.11+ / anyio, which is a platform artifact, not the code under test.
         service = AnonymiserService(
-            ollama_base_url="http://localhost:99999",  # Invalid port
-            timeout_seconds=1.0
+            ollama_base_url="http://localhost:11434",
+            timeout_seconds=1.0,
         )
+        internal_client = service._get_client()
 
-        with pytest.raises((OllamaConnectionError, OllamaTimeoutError)):
-            await service.anonymise("Test text")
+        with patch.object(
+            internal_client,
+            "post",
+            new_callable=AsyncMock,
+            side_effect=httpx.ConnectError("Connection refused"),
+        ):
+            with pytest.raises(OllamaConnectionError):
+                await service.anonymise("Test text")
 
         await service.close()
 
@@ -273,7 +275,7 @@ class TestAnonymiserServicePrivacy:
         """Create an anonymiser service instance for privacy testing."""
         service = AnonymiserService(
             ollama_base_url="http://localhost:11434",
-            model_name="eternisai/anonymizer-0.6b-q4_k_m-gguf",
+            model_name="qwen3.5:0.8b",
             timeout_seconds=2.0,
         )
         yield service
@@ -311,7 +313,7 @@ class TestAnonymiserServicePrivacy:
 
         caplog.set_level(logging.DEBUG)
 
-        service = AnonymiserService(
+        AnonymiserService(
             ollama_base_url="http://localhost:11434",
             model_name="test-model",
             timeout_seconds=2.0

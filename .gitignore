@@ -33,6 +33,14 @@ Thumbs.db
 # Docker
 *.log
 
+# Test databases (transient artifacts)
+*.db
+*.db-shm
+*.db-wal
+
+# Claude Code local settings
+.claude/
+
 # Auto Claude data directory
 .auto-claude/
 

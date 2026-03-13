@@ -1,28 +1,20 @@
 """
 Unit tests for the AI service (services/ai.py).
 
-These tests verify the current stub behaviour of the Claude API integration.
-All tests use AsyncMock so they will work once the real Claude client is wired in.
+These tests verify the NanoGPT API integration using mocked httpx clients.
+All tests use AsyncMock so they run without a live API connection.
 
 Key invariants verified:
 - humanize_thought() returns a non-empty string for any anonymised input
-- classify_theme() returns a non-empty string and a recognisable theme category
-- Neither function is called with raw user text (enforced by convention; see privacy notes)
-
-TODO (once Claude API is integrated):
-- Replace stub return-value assertions with mocked Anthropic client assertions
-- Verify the correct model (claude-sonnet-4-20250514) is used
-- Verify the correct prompt template is sent
-- Verify output length falls in the 50-60 word target range
-- Verify anthropic.APIError is propagated as expected
+- classify_theme() returns a recognisable theme category
+- Neither function is called with raw user text (enforced by convention)
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import services.ai as ai_module
-from services.ai import humanize_thought, classify_theme
+import pytest
 
+from services.ai import classify_theme, humanize_thought
 
 # ---------------------------------------------------------------------------
 # Sample data
@@ -39,10 +31,26 @@ SAMPLE_HUMANISED_TEXT = (
 # Known theme categories used throughout the app
 KNOWN_THEMES = {
     "work_stress",
+    "burnout",
+    "career_uncertainty",
+    "workplace_conflict",
     "relationship_conflict",
-    "self_worth",
-    "anxiety",
+    "loneliness",
+    "family_tension",
+    "friendship_issues",
+    "romantic_heartbreak",
+    "self_doubt",
+    "low_self_esteem",
+    "identity_confusion",
+    "perfectionism",
     "general_anxiety",
+    "social_anxiety",
+    "depression",
+    "grief",
+    "overwhelm",
+    "life_purpose",
+    "existential_dread",
+    "future_uncertainty",
     "self_harm",
     "suicidal_ideation",
     "crisis",
@@ -50,12 +58,27 @@ KNOWN_THEMES = {
     "eating_disorder",
     "abuse",
     "domestic_violence",
-    "grief",
-    "loneliness",
-    "family_conflict",
-    "identity",
-    "financial_stress",
+    "other",
 }
+
+
+def _mock_nanogpt_response(text: str, status_code: int = 200):
+    """Build a mock httpx Response matching the NanoGPT chat completions format."""
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    mock_response.json.return_value = {"choices": [{"message": {"content": text}}]}
+    return mock_response
+
+
+def _make_mock_client(response_text: str, status_code: int = 200):
+    """Create a fully configured mock httpx.AsyncClient with async context manager support."""
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(
+        return_value=_mock_nanogpt_response(response_text, status_code)
+    )
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    return mock_client
 
 
 # ---------------------------------------------------------------------------
@@ -68,35 +91,32 @@ class TestHumanizeThought:
     @pytest.mark.asyncio
     async def test_returns_non_empty_string(self):
         """humanize_thought must return a non-empty string for valid anonymised input."""
-        result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
+        mock_client = _make_mock_client(SAMPLE_HUMANISED_TEXT)
+
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
 
         assert isinstance(result, str)
         assert len(result.strip()) > 0
 
     @pytest.mark.asyncio
-    async def test_stub_returns_input_unchanged(self):
-        """
-        Current stub returns the anonymised text as-is.
+    async def test_returns_claude_response_text(self):
+        """humanize_thought returns the text from the API response."""
+        mock_client = _make_mock_client(SAMPLE_HUMANISED_TEXT)
 
-        TODO: Once Claude API is integrated, remove this test and replace with:
-            mock_client = AsyncMock()
-            mock_client.messages.create.return_value = MagicMock(
-                content=[MagicMock(text=SAMPLE_HUMANISED_TEXT)]
-            )
-            with patch.object(ai_module, "_anthropic_client", mock_client):
-                result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
-            assert result == SAMPLE_HUMANISED_TEXT
-        """
-        result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
 
-        # Stub: returns input unchanged
-        assert result == SAMPLE_ANONYMISED_TEXT
+        assert result == SAMPLE_HUMANISED_TEXT
 
     @pytest.mark.asyncio
     async def test_handles_short_anonymised_input(self):
         """humanize_thought must handle short anonymised inputs without error."""
         short_input = "I feel [emotion] all the time."
-        result = await humanize_thought(short_input)
+        mock_client = _make_mock_client("I feel this emotion all the time.")
+
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await humanize_thought(short_input)
 
         assert isinstance(result, str)
         assert len(result.strip()) > 0
@@ -109,54 +129,35 @@ class TestHumanizeThought:
             "I work at [company] and I struggle to focus. "
             "I have not told [family member] how I feel."
         )
-        result = await humanize_thought(long_input)
+        expected = "Someone important left after many years and I struggle to cope."
+        mock_client = _make_mock_client(expected)
+
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await humanize_thought(long_input)
 
         assert isinstance(result, str)
         assert len(result.strip()) > 0
 
     @pytest.mark.asyncio
-    async def test_privacy_anonymised_text_does_not_appear_in_raw_form(self):
+    async def test_privacy_anonymised_text_does_not_contain_raw_pii(self):
         """
         PRIVACY: humanize_thought only ever receives anonymised text.
-        This test documents the contract — real PII must never be passed in.
-
-        TODO: Once Claude API is integrated, assert that the client is called
-        with anonymised text only (no real names, emails, or locations):
-            call_args = mock_client.messages.create.call_args
-            prompt_content = str(call_args)
-            # PII markers will have been stripped by anonymiser before reaching here
-            assert "David" not in prompt_content
-            assert "Google" not in prompt_content
+        The anonymised input must not contain raw PII markers.
         """
         anonymised = "My [male name] at [tech company] undermines me."
-        result = await humanize_thought(anonymised)
+        mock_client = _make_mock_client(SAMPLE_HUMANISED_TEXT)
 
-        # The output must not contain raw PII (the stub returns input unchanged
-        # which is safe here because input is already anonymised)
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await humanize_thought(anonymised)
+
         assert isinstance(result, str)
-
-    @pytest.mark.asyncio
-    async def test_with_mocked_anthropic_client(self):
-        """
-        Demonstrates how to test humanize_thought once the real Claude client
-        is wired in.
-
-        TODO: Enable this test when the Claude API integration is complete.
-        Until then it serves as a specification of expected mock usage.
-        """
-        # TODO: Uncomment and adapt once services/ai.py exposes _anthropic_client
-        # expected_output = SAMPLE_HUMANISED_TEXT
-        # mock_client = AsyncMock()
-        # mock_client.messages.create.return_value = MagicMock(
-        #     content=[MagicMock(text=expected_output)]
-        # )
-        # with patch.object(ai_module, "_anthropic_client", mock_client):
-        #     result = await humanize_thought(SAMPLE_ANONYMISED_TEXT)
-        # assert result == expected_output
-        # mock_client.messages.create.assert_awaited_once()
-        # call_kwargs = mock_client.messages.create.call_args.kwargs
-        # assert call_kwargs["model"] == "claude-sonnet-4-20250514"
-        pytest.skip("Skipped until Claude API integration is complete")
+        # Verify no raw PII was in the input that was sent to the API
+        call_kwargs = mock_client.post.call_args.kwargs
+        payload = call_kwargs["json"]
+        messages = payload["messages"]
+        user_message = messages[1]["content"]
+        assert "David" not in user_message
+        assert "Google" not in user_message
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +170,10 @@ class TestClassifyTheme:
     @pytest.mark.asyncio
     async def test_returns_non_empty_string(self):
         """classify_theme must return a non-empty string."""
-        result = await classify_theme(SAMPLE_HUMANISED_TEXT)
+        mock_client = _make_mock_client("work_stress")
+
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await classify_theme(SAMPLE_HUMANISED_TEXT)
 
         assert isinstance(result, str)
         assert len(result.strip()) > 0
@@ -177,35 +181,27 @@ class TestClassifyTheme:
     @pytest.mark.asyncio
     async def test_returns_recognisable_theme_category(self):
         """
-        classify_theme must return a theme that is either in the known-themes set
-        or at least a snake_case string (allowing for new categories to be added).
-
-        The current stub always returns 'general_anxiety'.
+        classify_theme must return a theme from the known-themes set
+        (or 'other' for unrecognised labels).
         """
-        result = await classify_theme(SAMPLE_HUMANISED_TEXT)
+        mock_client = _make_mock_client("work_stress")
 
-        # Either matches a known theme, or is a non-empty snake_case string
-        is_known_theme = result in KNOWN_THEMES
-        is_snake_case_string = (
-            result.replace("_", "").isalpha() and result == result.lower()
-        )
-        assert is_known_theme or is_snake_case_string, (
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await classify_theme(SAMPLE_HUMANISED_TEXT)
+
+        assert result in KNOWN_THEMES, (
             f"classify_theme returned '{result}' which is not a recognisable theme category"
         )
 
     @pytest.mark.asyncio
-    async def test_stub_returns_general_anxiety(self):
-        """
-        Current stub always returns 'general_anxiety'.
+    async def test_falls_back_to_other_for_unrecognised_theme(self):
+        """classify_theme falls back to 'other' when the API returns an unknown label."""
+        mock_client = _make_mock_client("some_made_up_theme")
 
-        TODO: Once real theme classification is implemented, replace with:
-            result = await classify_theme("I can't stop worrying about my job.")
-            assert result in KNOWN_THEMES
-        """
-        result = await classify_theme(SAMPLE_HUMANISED_TEXT)
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await classify_theme(SAMPLE_HUMANISED_TEXT)
 
-        # Stub: always returns the default theme
-        assert result == "general_anxiety"
+        assert result == "other"
 
     @pytest.mark.asyncio
     async def test_returns_string_for_varied_inputs(self):
@@ -217,7 +213,11 @@ class TestClassifyTheme:
             "I keep having thoughts that scare me.",
         ]
         for text in inputs:
-            result = await classify_theme(text)
+            mock_client = _make_mock_client("general_anxiety")
+
+            with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+                result = await classify_theme(text)
+
             assert isinstance(result, str), (
                 f"classify_theme returned non-string for input: '{text}'"
             )
@@ -230,9 +230,6 @@ class TestClassifyTheme:
         """
         The returned theme string must be comparable to the risk-theme set used by
         the 'Guardrails of Care' safety layer on the frontend.
-
-        Risk themes trigger the safety resource block. The returned string must be
-        a plain comparable string (not None, not an object).
         """
         risk_themes = {
             "self_harm",
@@ -243,30 +240,13 @@ class TestClassifyTheme:
             "abuse",
             "domestic_violence",
         }
-        result = await classify_theme(SAMPLE_HUMANISED_TEXT)
+        mock_client = _make_mock_client("work_stress")
+
+        with patch("services.ai.httpx.AsyncClient", return_value=mock_client):
+            result = await classify_theme(SAMPLE_HUMANISED_TEXT)
 
         # Must be a string so membership checks work correctly
         assert isinstance(result, str)
         # Demonstrate the check pattern used by the safety layer
         is_risk_theme = result in risk_themes
         assert isinstance(is_risk_theme, bool)
-
-    @pytest.mark.asyncio
-    async def test_with_mocked_anthropic_client(self):
-        """
-        Demonstrates how to test classify_theme once the real Claude client
-        is wired in.
-
-        TODO: Enable this test when the Claude API integration is complete.
-        """
-        # TODO: Uncomment and adapt once services/ai.py exposes _anthropic_client
-        # expected_theme = "work_stress"
-        # mock_client = AsyncMock()
-        # mock_client.messages.create.return_value = MagicMock(
-        #     content=[MagicMock(text=expected_theme)]
-        # )
-        # with patch.object(ai_module, "_anthropic_client", mock_client):
-        #     result = await classify_theme(SAMPLE_HUMANISED_TEXT)
-        # assert result == expected_theme
-        # mock_client.messages.create.assert_awaited_once()
-        pytest.skip("Skipped until Claude API integration is complete")

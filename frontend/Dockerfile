@@ -29,6 +29,8 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Standalone output bundles the server into .next/standalone — required by the runner stage below
+ENV NEXT_OUTPUT=standalone
 
 # Build the application
 RUN npm run build

@@ -4,15 +4,20 @@ Resolution router: POST /resolution, GET /resolution/{message_id}
 Handles "what helped" advice flow when users resolve issues.
 
 PRIVACY CRITICAL:
-- Resolution text goes through Anonymizer SLM 0.6B (same as thoughts)
+- Resolution text goes through Qwen3.5-0.8B anonymiser (same as thoughts)
 - Stored verbatim after anonymization (NEVER paraphrased by AI)
 - Misconstrued mental health advice is a real harm — we show verbatim only
 """
 
-from fastapi import APIRouter, HTTPException
+import hashlib
 
-from models.resolution import ResolutionSubmit
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from config import config
+from middleware.rate_limit import _rate_limiter, get_client_identifier
+from models.resolution import ResolutionResponse, ResolutionSubmit
 from services import anonymiser as anonymiser_service
+from services import auth as auth_service
 from services import elastic
 
 router = APIRouter(prefix="/resolution", tags=["resolution"])
@@ -78,21 +83,21 @@ async def submit_resolution(submission: ResolutionSubmit, _: None = Depends(reso
     # Step 1: Anonymize resolution text — MUST be called first, raw text discarded after
     try:
         anonymized_text = await anonymiser_service.anonymize_text(submission.resolution_text)
-    except anonymiser_service.OllamaConnectionError:
+    except anonymiser_service.OllamaConnectionError as err:
         raise HTTPException(
             status_code=503,
             detail="Anonymization service unavailable. Please try again later.",
-        )
-    except anonymiser_service.OllamaTimeoutError:
+        ) from err
+    except anonymiser_service.OllamaTimeoutError as err:
         raise HTTPException(
             status_code=503,
             detail="Anonymization service timed out. Please try again later.",
-        )
-    except anonymiser_service.OllamaResponseError:
+        ) from err
+    except anonymiser_service.OllamaResponseError as err:
         raise HTTPException(
             status_code=502,
             detail="Anonymization service returned an invalid response.",
-        )
+        ) from err
 
     # Step 2: Store anonymized resolution text in Elasticsearch
     stored = await elastic.store_resolution(

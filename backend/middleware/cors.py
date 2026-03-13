@@ -5,8 +5,9 @@ Allows requests from the frontend development server (localhost:3000)
 with appropriate credentials and headers for authenticated requests.
 """
 
-from fastapi.middleware.cors import CORSMiddleware
 from typing import TYPE_CHECKING
+
+from fastapi.middleware.cors import CORSMiddleware
 
 if TYPE_CHECKING:
     from fastapi import FastAPI

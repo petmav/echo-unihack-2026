@@ -75,7 +75,7 @@ Accessed via hamburger menu (top-left). Slides in as a side drawer.
 
 **What happens to it**:
 1. Sent to `/api/v1/resolution` over HTTPS
-2. Anonymizer SLM 0.6B pass on our server (PII stripped, specificity preserved)
+2. Qwen3.5-0.8B (Ollama) anonymisation pass on our server (PII stripped, specificity preserved)
 3. Stored verbatim in Elastic, linked to original message_id
 4. Shown verbatim to other users — no AI processing
 
@@ -220,4 +220,4 @@ Seed thoughts should cover common themes:
 
 At least 5-10 seed entries should have "what helped" text attached, so the highlighted card state is visible in the demo.
 
-Store the seed script in `backend/scripts/seed.py`.
+The seed script is at `backend/seed_elastic.py`.

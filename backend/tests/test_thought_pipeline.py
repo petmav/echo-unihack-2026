@@ -10,13 +10,13 @@ Covers:
 - GET /api/v1/thoughts/aggregates falls back to demo data when Elastic returns empty list
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock, call
 from fastapi.testclient import TestClient
 
 from main import app
 from services.anonymiser import OllamaConnectionError, OllamaTimeoutError
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -74,7 +74,7 @@ class TestSubmitThoughtHappyPath:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "My boss David at Google undermines me"},
+                json={"text": "My boss David at Google undermines me"},
             )
 
         assert response.status_code == 200
@@ -103,7 +103,7 @@ class TestSubmitThoughtHappyPath:
 
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "My boss David at Google undermines me"},
+                json={"text": "My boss David at Google undermines me"},
             )
 
         data = response.json()
@@ -139,7 +139,7 @@ class TestSubmitThoughtHappyPath:
                 total=1,
             )
 
-            response = client.post("/api/v1/thoughts", json={"raw_text": "I hate my job"})
+            response = client.post("/api/v1/thoughts", json={"text": "I hate my job"})
 
         data = response.json()
         assert len(data["similar_thoughts"]) == 1
@@ -164,7 +164,7 @@ class TestSubmitThoughtHappyPath:
             mock_classify.return_value = "loneliness"
             mock_search.return_value = _make_search_result(total=2, search_after=None)
 
-            response = client.post("/api/v1/thoughts", json={"raw_text": "I feel alone"})
+            response = client.post("/api/v1/thoughts", json={"text": "I feel alone"})
 
         data = response.json()
         assert data["search_after"] is None
@@ -209,7 +209,7 @@ class TestPrivacyInvariants:
             mock_search.return_value = _make_search_result()
             client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "My boss Sarah at Facebook controls me"},
+                json={"text": "My boss Sarah at Facebook controls me"},
             )
 
         # anonymize must appear before humanize in the call order
@@ -242,7 +242,7 @@ class TestPrivacyInvariants:
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_search.return_value = _make_search_result()
-            client.post("/api/v1/thoughts", json={"raw_text": raw_text})
+            client.post("/api/v1/thoughts", json={"text": raw_text})
 
         assert len(humanizer_received) == 1
         # Humanizer must have received the anonymized text
@@ -270,7 +270,7 @@ class TestPrivacyInvariants:
             mock_classify.return_value = "work_stress"
             mock_search.return_value = _make_search_result()
 
-            response = client.post("/api/v1/thoughts", json={"raw_text": raw_text})
+            response = client.post("/api/v1/thoughts", json={"text": raw_text})
 
         response_text = response.text
         for pii_token in ["Alice", "HSBC", "stalking"]:
@@ -298,7 +298,7 @@ class TestThoughtPipelineErrors:
             )
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "I feel overwhelmed by work"},
+                json={"text": "I feel overwhelmed by work"},
             )
 
         assert response.status_code == 503
@@ -316,7 +316,7 @@ class TestThoughtPipelineErrors:
             mock_anon.side_effect = OllamaTimeoutError("Ollama request timed out.")
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "I feel overwhelmed by work"},
+                json={"text": "I feel overwhelmed by work"},
             )
 
         assert response.status_code == 503
@@ -339,7 +339,7 @@ class TestThoughtPipelineErrors:
             mock_humanize.side_effect = Exception("Claude API error")
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "I feel overwhelmed by work"},
+                json={"text": "I feel overwhelmed by work"},
             )
 
         assert response.status_code == 502
@@ -367,7 +367,7 @@ class TestThoughtPipelineErrors:
             mock_classify.side_effect = Exception("Theme classification API error")
             response = client.post(
                 "/api/v1/thoughts",
-                json={"raw_text": "I feel overwhelmed by work"},
+                json={"text": "I feel overwhelmed by work"},
             )
 
         assert response.status_code == 502
@@ -383,7 +383,7 @@ class TestThoughtPipelineErrors:
             new_callable=AsyncMock,
         ) as mock_anon:
             mock_anon.side_effect = OllamaConnectionError("Cannot connect")
-            response = client.post("/api/v1/thoughts", json={"raw_text": raw_with_pii})
+            response = client.post("/api/v1/thoughts", json={"text": raw_with_pii})
 
         assert response.status_code == 503
         response_body = response.text.lower()
