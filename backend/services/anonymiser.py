@@ -30,6 +30,24 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Runtime mode toggle — switched via admin dashboard
+# ---------------------------------------------------------------------------
+
+_anonymiser_mode: str = "ollama"  # "ollama" | "nanogpt"
+
+
+def get_anonymiser_mode() -> str:
+    return _anonymiser_mode
+
+
+def set_anonymiser_mode(mode: str) -> None:
+    global _anonymiser_mode
+    if mode not in ("ollama", "nanogpt"):
+        raise ValueError(f"Unknown anonymiser mode: {mode!r}")
+    _anonymiser_mode = mode
+    logger.info("Anonymiser mode switched to: %s", mode)
+
 
 # ---------------------------------------------------------------------------
 # Custom exception hierarchy
@@ -190,21 +208,17 @@ class AnonymiserService:
                 "Could not parse Ollama response JSON."
             ) from exc
 
-        return self._apply_replacements(raw_text, model_output)
+        return AnonymiserService._apply_replacements(raw_text, model_output)
 
     @staticmethod
-    def _strip_think(text: str) -> str:
-        """Remove <think>...</think> blocks emitted by Qwen3.5 reasoning mode."""
-        return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-
-    def _apply_replacements(self, original: str, model_output: str) -> str:
+    def _apply_replacements(original: str, model_output: str) -> str:
         """
         Parse the model's JSON response and apply PII replacements.
 
         Falls back to returning *original* unchanged if the response cannot
         be parsed, so the pipeline never silently drops user text.
         """
-        cleaned = self._strip_think(model_output)
+        cleaned = re.sub(r"<think>.*?</think>", "", model_output, flags=re.DOTALL).strip()
 
         # Extract the first JSON object from the response
         match = re.search(r"\{.*\}", cleaned, re.DOTALL)
@@ -230,6 +244,59 @@ class AnonymiserService:
 
 
 # ---------------------------------------------------------------------------
+# NanoGPT-backed anonymiser (cloud alternative, same prompt)
+# ---------------------------------------------------------------------------
+
+_NANOGPT_ANONYMISE_MODEL = "openai/gpt-oss-120b"
+_NANOGPT_BASE_URL = "https://nano-gpt.com/api/v1"
+
+
+async def _nanogpt_anonymize(raw_text: str) -> str:
+    """
+    Anonymise raw_text using NanoGPT (gpt-oss-120b) instead of local Ollama.
+
+    Uses the identical system prompt and replacement logic as AnonymiserService.
+
+    PRIVACY: raw_text is sent to the NanoGPT API (external). Only use this
+    mode when the privacy trade-off is acceptable for the deployment context.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.post(
+                f"{_NANOGPT_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config.NANOGPT_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": _NANOGPT_ANONYMISE_MODEL,
+                    "messages": [
+                        {"role": "system", "content": AnonymiserService._SYSTEM_PROMPT},
+                        {"role": "user", "content": f"Anonymize: {raw_text}"},
+                    ],
+                    "max_tokens": 256,
+                    "stream": False,
+                },
+            )
+        except httpx.ConnectError as exc:
+            raise OllamaConnectionError("Could not connect to NanoGPT API.") from exc
+        except httpx.TimeoutException as exc:
+            raise OllamaTimeoutError("NanoGPT anonymiser request timed out.") from exc
+        except httpx.RequestError as exc:
+            raise OllamaConnectionError(f"Network error contacting NanoGPT API: {exc}") from exc
+
+    if response.status_code != 200:
+        raise OllamaResponseError(f"NanoGPT API returned HTTP {response.status_code}.")
+
+    try:
+        content = response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        raise OllamaResponseError("Could not parse NanoGPT API response.") from exc
+
+    return AnonymiserService._apply_replacements(raw_text, content)
+
+
+# ---------------------------------------------------------------------------
 # Module-level convenience helpers (kept for backward compatibility)
 # ---------------------------------------------------------------------------
 
@@ -237,21 +304,16 @@ async def anonymize_text(raw_text: str) -> str:
     """
     Anonymize raw user text by removing PII while preserving emotional context.
 
-    Args:
-        raw_text: Raw user thought containing potential PII.
-
-    Returns:
-        Anonymized text with PII replaced by generic placeholders.
-
-    Raises:
-        OllamaConnectionError: If Ollama service is unavailable.
-        OllamaTimeoutError: If the request times out.
-        OllamaResponseError: If the response is invalid.
+    Dispatches to Ollama (local) or NanoGPT API depending on the runtime mode
+    set via the admin dashboard.
 
     PRIVACY: This function MUST be called before passing text to any other
     service or API. The raw_text parameter contains sensitive mental health
     content and potential PII.
     """
+    if _anonymiser_mode == "nanogpt":
+        return await _nanogpt_anonymize(raw_text)
+
     service = AnonymiserService()
     try:
         return await service.anonymise(raw_text)

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import config
 from database import Account, get_async_db
 from middleware.rate_limit import make_rate_limit_dependency
 from models.auth import AuthCredentials, AuthResponse
@@ -48,8 +49,9 @@ async def register(
     db.add(account)
     await db.commit()
 
-    token = create_access_token(user_id)
-    return AuthResponse(access_token=token)
+    is_admin = bool(config.ADMIN_EMAIL and credentials.email == config.ADMIN_EMAIL)
+    token = create_access_token(user_id, is_admin=is_admin)
+    return AuthResponse(access_token=token, is_admin=is_admin)
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -64,8 +66,9 @@ async def login(
     if account is None or not verify_password(credentials.password, account.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(account.id)
-    return AuthResponse(access_token=token)
+    is_admin = bool(config.ADMIN_EMAIL and account.email == config.ADMIN_EMAIL)
+    token = create_access_token(account.id, is_admin=is_admin)
+    return AuthResponse(access_token=token, is_admin=is_admin)
 
 
 @router.post("/refresh", response_model=AuthResponse)

@@ -30,16 +30,20 @@ import {
   setNotificationOptIn,
   getNextPromptCandidate,
   setLastPromptDate,
+  saveAdminStatus,
+  getAdminStatus,
 } from "@/lib/storage";
 import { initializeKey, clearKey } from "@/lib/crypto";
 import {
   submitThought,
   getSimilarThoughts,
   submitResolution,
+  getResolution,
   login,
   register,
   deleteAccount,
   getThemeAggregates,
+  ApiError,
 } from "@/lib/api";
 import { useDeviceType } from "@/lib/hooks";
 
@@ -54,6 +58,7 @@ import { TrendsPanel } from "@/components/echo/TrendsPanel";
 import { AccountPanel } from "@/components/echo/AccountPanel";
 import { AboutPanel } from "@/components/echo/AboutPanel";
 import { PrivacyPanel } from "@/components/echo/PrivacyPanel";
+import { AdminPanel } from "@/components/echo/AdminPanel";
 import { MenuOverlay } from "@/components/echo/MenuOverlay";
 import { HamburgerButton } from "@/components/echo/HamburgerButton";
 import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
@@ -128,6 +133,7 @@ export default function EchoApp() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [userEmail, setUserEmail] = useState("user@example.com");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
@@ -144,6 +150,7 @@ export default function EchoApp() {
     } else if (!hasToken) {
       setScreen("auth");
     } else {
+      setIsAdmin(getAdminStatus());
       setScreen("home");
     }
 
@@ -238,6 +245,13 @@ export default function EchoApp() {
     return () => timers.forEach(clearTimeout);
   }, [countAnimDone, similarThoughts.length]);
 
+  const handleUnauthorized = useCallback(() => {
+    clearKey();
+    clearAllData();
+    setAuthError("Your session has expired. Please sign in again.");
+    setScreen("auth");
+  }, []);
+
   const handleSubmitThought = useCallback(async () => {
     if (!thoughtText.trim()) return;
 
@@ -272,7 +286,17 @@ export default function EchoApp() {
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
       setTimeout(() => showResults(result.theme_category), remainingDelay);
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (err instanceof ApiError && err.status === 422) {
+        setScreen("home");
+        setInputOpen(true);
+        return;
+      }
+      // Server/network errors — fall back to demo data so the demo still works
       const demoId = "demo-" + Date.now();
       const demoTheme = inferThemeFromText(rawText, "self_worth");
       await saveThought(demoId, rawText, demoTheme);
@@ -292,7 +316,7 @@ export default function EchoApp() {
 
     setThoughtText("");
     refreshHistory();
-  }, [thoughtText, refreshHistory]);
+  }, [thoughtText, refreshHistory, handleUnauthorized]);
 
   const loadMoreThoughts = useCallback(async () => {
     if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
@@ -303,12 +327,28 @@ export default function EchoApp() {
       setSimilarThoughts((prev) => [...prev, ...result.thoughts]);
       setSearchAfterCursor(result.search_after);
       setHasMoreThoughts(result.search_after != null);
-    } catch {
-      /* Keep existing thoughts on error */
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+      }
+      /* Keep existing thoughts on other errors */
     } finally {
       setIsLoadingMore(false);
     }
-  }, [currentMessageId, isLoadingMore, hasMoreThoughts, searchAfterCursor]);
+  }, [currentMessageId, isLoadingMore, hasMoreThoughts, searchAfterCursor, handleUnauthorized]);
+
+  const handleCardTap = useCallback(async (thought: ThoughtResponse) => {
+    if (thought.has_resolution && !thought.resolution_text) {
+      try {
+        const resolution = await getResolution(thought.message_id);
+        setBottomSheetThought({ ...thought, resolution_text: resolution?.resolution_text });
+      } catch {
+        setBottomSheetThought(thought);
+      }
+    } else {
+      setBottomSheetThought(thought);
+    }
+  }, []);
 
   const handleAuth = useCallback(
     async (email: string, password: string, mode: "login" | "signup") => {
@@ -321,12 +361,24 @@ export default function EchoApp() {
         saveJwt(result.access_token);
         await initializeKey(password, email);
         setUserEmail(email);
+        const admin = result.is_admin ?? false;
+        saveAdminStatus(admin);
+        setIsAdmin(admin);
         setScreen("home");
-      } catch {
-        setUserEmail(email);
-        saveJwt("demo-token");
-        await initializeKey(password, email);
-        setScreen("home");
+      } catch (err) {
+        if (err instanceof ApiError) {
+          if (err.status === 422) {
+            setAuthError("Please check your email and password format.");
+          } else if (err.status === 401 || err.status === 400) {
+            setAuthError("Invalid email or password.");
+          } else if (err.status === 409) {
+            setAuthError("An account with this email already exists.");
+          } else {
+            setAuthError("Something went wrong. Please try again.");
+          }
+        } else {
+          setAuthError("Could not connect to the server. Please try again.");
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -395,7 +447,7 @@ export default function EchoApp() {
   );
 
   const isMainScreen = screen === "home" || screen === "results";
-  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy"];
+  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy", "admin"];
   const isPanel = PANEL_SCREENS.includes(screen);
 
   const PANEL_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
@@ -448,7 +500,7 @@ export default function EchoApp() {
               <ThoughtCardList
                 thoughts={similarThoughts}
                 visibleCount={cardsVisible}
-                onCardTap={setBottomSheetThought}
+                onCardTap={handleCardTap}
                 onLoadMore={loadMoreThoughts}
                 hasMore={hasMoreThoughts}
                 isLoadingMore={isLoadingMore}
@@ -584,6 +636,20 @@ export default function EchoApp() {
             <PrivacyPanel onBack={() => handleNavigate("about")} />
           </motion.div>
         )}
+
+        {screen === "admin" && (
+          <motion.div
+            key="admin"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <AdminPanel onBack={handleBackToHome} />
+          </motion.div>
+        )}
       </AnimatePresence>
     </>
   );
@@ -604,7 +670,13 @@ export default function EchoApp() {
             <span className="mx-auto font-serif text-sm font-light tracking-[3px] text-echo-text-muted opacity-60">
               echo
             </span>
-            <div className="w-10" aria-hidden="true" />
+            <div className="w-10 flex justify-end" aria-hidden={!isAdmin}>
+              {isAdmin && (
+                <span className="rounded-full bg-echo-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-echo-accent">
+                  admin
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -640,6 +712,7 @@ export default function EchoApp() {
           {menuOpen && (
             <MenuOverlay
               mode="sidebar"
+              isAdmin={isAdmin}
               onNavigate={(target) => {
                 setMenuOpen(false);
                 handleNavigate(target);
@@ -674,6 +747,11 @@ export default function EchoApp() {
               onClick={() => setMenuOpen((prev) => !prev)}
             />
             <div className="flex-1" />
+            {isAdmin && (
+              <span className="rounded-full bg-echo-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-echo-accent">
+                admin
+              </span>
+            )}
           </div>
         )}
 
@@ -682,6 +760,7 @@ export default function EchoApp() {
           {menuOpen && (
             <MenuOverlay
               mode="fullscreen"
+              isAdmin={isAdmin}
               onNavigate={(target) => {
                 setMenuOpen(false);
                 handleNavigate(target);

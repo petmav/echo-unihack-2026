@@ -69,6 +69,11 @@ class Config(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # Admin access — email address that receives the admin flag on login
+    ADMIN_EMAIL: str = ""
+    # Optional fixed admin password for the web dashboard (generated at startup if empty)
+    ADMIN_PASSWORD: str = ""
+
     # Rate limiting configuration (overridable via env)
     RATE_LIMIT_THOUGHTS_PER_HOUR: int = 10
     RATE_LIMIT_LOGIN_PER_15MIN: int = 5

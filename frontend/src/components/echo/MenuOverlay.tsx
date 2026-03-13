@@ -7,6 +7,7 @@ import {
   User,
   Info,
   ChevronRight,
+  Settings,
   X,
 } from "lucide-react";
 
@@ -35,17 +36,26 @@ interface MenuOverlayProps {
   onNavigate: (screen: AppScreen) => void;
   onClose: () => void;
   mode?: "fullscreen" | "sidebar";
+  isAdmin?: boolean;
 }
 
 export function MenuOverlay({
   onNavigate,
   onClose,
   mode = "fullscreen",
+  isAdmin = false,
 }: MenuOverlayProps) {
   const handleItemClick = (screen: AppScreen) => {
     onClose();
     onNavigate(screen);
   };
+
+  const menuItems: MenuItem[] = [
+    ...MENU_ITEMS,
+    ...(isAdmin
+      ? [{ id: "admin" as AppScreen, label: "Admin", icon: <Settings size={22} /> }]
+      : []),
+  ];
 
   if (mode === "sidebar") {
     return (
@@ -87,7 +97,7 @@ export function MenuOverlay({
           </div>
 
           <nav className="mt-4 flex flex-1 flex-col gap-1 px-3">
-            {MENU_ITEMS.map((item, index) => (
+            {menuItems.map((item, index) => (
               <motion.button
                 key={item.id}
                 className="flex w-full items-center gap-4 rounded-2xl px-3 py-3.5 text-left font-sans text-[15px] font-normal text-echo-text transition-colors hover:bg-echo-bg-warm active:bg-echo-bg-warm"

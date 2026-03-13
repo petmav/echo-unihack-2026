@@ -7,6 +7,7 @@ uvicorn[standard]==0.27.1
 # Authentication and security
 python-jose[cryptography]==3.3.0
 bcrypt==4.1.3
+python-multipart==0.0.9
 
 # Elasticsearch client for semantic search
 elasticsearch==8.12.1
@@ -27,6 +28,7 @@ sentence-transformers==3.0.1
 # Database ORM for account storage
 sqlalchemy==2.0.29
 asyncpg==0.29.0
+psycopg2-binary==2.9.9
 aiosqlite==0.20.0
 
 # Email validation for Pydantic

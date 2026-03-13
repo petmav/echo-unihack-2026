@@ -55,3 +55,6 @@ class AuthResponse(BaseModel):
     token_type: str = Field(
         default="bearer", description="Token type (always 'bearer' for JWT)"
     )
+    is_admin: bool = Field(
+        default=False, description="True when the authenticated account has admin privileges"
+    )

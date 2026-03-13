@@ -16,7 +16,9 @@ Privacy guarantee: The API only ever receives text that has already been
 processed by the anonymizer. No raw thoughts, no PII.
 """
 
+import json
 import logging
+import re
 
 import httpx
 
@@ -221,3 +223,58 @@ async def classify_theme(humanized_text: str) -> str:
     raw_theme = await _chat(_CLASSIFY_SYSTEM_PROMPT, humanized_text.strip(), max_tokens=20)
     theme = raw_theme.lower().strip()
     return theme if theme in VALID_THEMES else "other"
+
+
+_HUMANISE_AND_CLASSIFY_SYSTEM_PROMPT = (
+    "You are an empathetic rewriter and emotional theme classifier. "
+    "Given an anonymized thought, do two things:\n"
+    "1. Rewrite it as a warm, natural first-person expression between 50 and 60 words. "
+    "Replace bracketed placeholders like [male name], [female name], [company], [location] "
+    "with natural generic references (e.g. 'someone', 'a person', 'my workplace', 'where I live'). "
+    "Preserve the emotional specificity and core feeling. Do not add advice, questions, or affirmations.\n"
+    "2. Classify the emotional theme using EXACTLY ONE label from:\n"
+    + "\n".join(f"- {t}" for t in VALID_THEMES)
+    + "\n\nRespond ONLY with valid JSON — no preamble, no commentary:\n"
+    '{"humanised": "<rewritten thought>", "theme": "<theme_label>"}'
+)
+
+
+async def humanize_and_classify(anonymized_text: str) -> tuple[str, str]:
+    """
+    Humanize and classify an anonymized thought in a single API call.
+
+    Saves one round-trip to NanoGPT compared to calling humanize_thought
+    and classify_theme separately.
+
+    Args:
+        anonymized_text: Text already processed by the anonymiser service.
+
+    Returns:
+        Tuple of (humanised_text, theme_category).
+
+    Raises:
+        ClaudeRateLimitError: If the API rate limit is exceeded.
+        ClaudeAPIError: If the API returns any other error or unparseable response.
+        ValueError: If input is empty.
+    """
+    if not anonymized_text or not anonymized_text.strip():
+        raise ValueError("anonymized_text must not be empty.")
+
+    raw = await _chat(
+        _HUMANISE_AND_CLASSIFY_SYSTEM_PROMPT,
+        anonymized_text.strip(),
+        max_tokens=300,
+    )
+
+    match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group())
+            humanised = str(data.get("humanised", "")).strip()
+            theme = str(data.get("theme", "other")).lower().strip()
+            if humanised:
+                return humanised, theme if theme in VALID_THEMES else "other"
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    raise ClaudeAPIError("Could not parse combined humanise/classify response from NanoGPT API.")

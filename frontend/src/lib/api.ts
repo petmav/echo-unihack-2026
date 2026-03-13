@@ -142,4 +142,20 @@ export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
   return handleResponse<ThemeAggregate[]>(response);
 }
 
+export async function getAnonymiserMode(): Promise<{ mode: string }> {
+  const response = await fetch(`${API_BASE_URL}/admin/anonymiser/mode`, {
+    headers: authHeaders(),
+  });
+  return handleResponse<{ mode: string }>(response);
+}
+
+export async function setAnonymiserMode(mode: "ollama" | "nanogpt"): Promise<{ mode: string }> {
+  const response = await fetch(`${API_BASE_URL}/admin/anonymiser/mode`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ mode }),
+  });
+  return handleResponse<{ mode: string }>(response);
+}
+
 export { ApiError };

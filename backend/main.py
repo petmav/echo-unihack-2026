@@ -16,6 +16,7 @@ This application orchestrates the three-stage AI pipeline:
 """
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -26,7 +27,8 @@ from database import init_db
 from middleware.cors import get_cors_middleware
 from middleware.logging import get_logging_config, setup_application_logging
 from middleware.request_size import add_request_size_middleware
-from routers import account, auth, resolution, thoughts
+from routers import account, admin, auth, resolution, thoughts
+from routers.admin import api_router as admin_api_router, init_admin
 from services.elastic import close_elasticsearch, init_elasticsearch
 
 
@@ -66,6 +68,14 @@ async def lifespan(app: FastAPI):
 
     # Initialize Elasticsearch
     await init_elasticsearch()
+
+    # Generate admin password and initialise admin dashboard
+    admin_password = getattr(config, "ADMIN_PASSWORD", "") or secrets.token_urlsafe(12)
+    init_admin(admin_password)
+    logger.info("=" * 60)
+    logger.info("  ADMIN DASHBOARD : http://localhost:8000/admin")
+    logger.info("  ADMIN PASSWORD  : %s", admin_password)
+    logger.info("=" * 60)
 
     yield
 
@@ -107,6 +117,12 @@ app.include_router(thoughts.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(resolution.router, prefix="/api/v1")
 app.include_router(account.router, prefix="/api/v1")
+
+# Admin dashboard (no /api/v1 prefix — browser UI)
+app.include_router(admin.router)
+
+# Admin API endpoints (JWT-protected, used by in-app admin panel)
+app.include_router(admin_api_router, prefix="/api/v1")
 
 
 # Root endpoint

@@ -61,7 +61,7 @@ _RESOLUTIONS_INDEX_MAPPING: dict[str, Any] = {
         "properties": {
             "resolution_id": {"type": "keyword"},
             "message_id": {"type": "keyword"},
-            "resolution_text": {"type": "text"},
+            "anonymised_text": {"type": "text"},
             "theme_category": {"type": "keyword"},
             "timestamp_week": {"type": "keyword"},
         }
@@ -204,7 +204,7 @@ def _build_resolution_action(
         "_source": {
             "resolution_id": resolution_id,
             "message_id": message_id,
-            "resolution_text": resolution_text,
+            "anonymised_text": resolution_text,
             "theme_category": theme,
             "timestamp_week": _iso_week_string(weeks_ago),
         },

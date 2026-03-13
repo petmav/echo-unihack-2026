@@ -53,6 +53,7 @@ export interface AuthCredentials {
 export interface AuthResponse {
   access_token: string;
   token_type: string;
+  is_admin?: boolean;
 }
 
 export interface ResolutionSubmit {
@@ -70,4 +71,5 @@ export type AppScreen =
   | "trends"
   | "account"
   | "about"
-  | "privacy";
+  | "privacy"
+  | "admin";

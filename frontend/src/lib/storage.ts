@@ -21,6 +21,7 @@ const ONBOARDING_KEY = "echo_onboarding_done";
 const FUTURE_LETTERS_KEY = "echo_future_letters";
 const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
+const ADMIN_STATUS_KEY = "echo_is_admin";
 
 /** Shape stored for encrypted blobs */
 interface EncryptedBlob {
@@ -241,6 +242,19 @@ export function clearAllData(): void {
   localStorage.removeItem(FUTURE_LETTERS_KEY);
   localStorage.removeItem(NOTIFICATION_OPT_IN_KEY);
   localStorage.removeItem(LAST_PROMPT_DATE_KEY);
+  localStorage.removeItem(ADMIN_STATUS_KEY);
+}
+
+/* ── Admin status (sync — simple boolean flag) ── */
+
+export function saveAdminStatus(isAdmin: boolean): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ADMIN_STATUS_KEY, isAdmin ? "true" : "false");
+}
+
+export function getAdminStatus(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(ADMIN_STATUS_KEY) === "true";
 }
 
 export function hasCompletedOnboarding(): boolean {

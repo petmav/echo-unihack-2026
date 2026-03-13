@@ -57,12 +57,13 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_access_token(user_id: str) -> str:
+def create_access_token(user_id: str, is_admin: bool = False) -> str:
     """
     Create JWT access token for authenticated user.
 
     Args:
         user_id: User UUID from database.
+        is_admin: Whether the user has admin privileges.
 
     Returns:
         JWT token string (valid for 7 days).
@@ -72,6 +73,7 @@ def create_access_token(user_id: str) -> str:
         "sub": user_id,
         "iat": now,
         "exp": now + timedelta(days=config.JWT_EXPIRATION_DAYS),
+        "adm": is_admin,
     }
     return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
@@ -94,3 +96,21 @@ def decode_access_token(token: str | None) -> str | None:
         return user_id
     except Exception:
         return None
+
+
+def decode_access_token_admin(token: str | None) -> tuple[str | None, bool]:
+    """
+    Decode JWT and return (user_id, is_admin).
+
+    Returns:
+        (None, False) if token is invalid or missing.
+    """
+    if not token:
+        return None, False
+    try:
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+        user_id: str | None = payload.get("sub")
+        is_admin: bool = bool(payload.get("adm", False))
+        return user_id, is_admin
+    except Exception:
+        return None, False
