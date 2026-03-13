@@ -24,6 +24,7 @@ from config import config
 from middleware.cors import get_cors_middleware
 from middleware.logging import setup_application_logging
 from routers import thoughts, auth, resolution, account
+from services.elastic import init_elasticsearch, close_elasticsearch
 
 
 # Application lifecycle management
@@ -44,7 +45,7 @@ async def lifespan(app: FastAPI):
     setup_application_logging()
     logger = logging.getLogger("echo")
 
-    logger.info("🌊 Echo Backend Starting...")
+    logger.info("Echo Backend Starting...")
     logger.info(f"Server: {config.HOST}:{config.PORT}")
     logger.info(f"CORS Origins: {config.CORS_ORIGINS}")
     logger.info(f"Ollama Host: {config.OLLAMA_HOST}")
@@ -52,15 +53,19 @@ async def lifespan(app: FastAPI):
     # Validate configuration
     missing_config = config.validate()
     if missing_config:
-        logger.warning(f"⚠️  Missing configuration: {', '.join(missing_config)}")
+        logger.warning(f"Missing configuration: {', '.join(missing_config)}")
         logger.warning("Some features may not work correctly")
     else:
-        logger.info("✓ Configuration validated")
+        logger.info("Configuration validated")
+
+    # Initialize Elasticsearch
+    await init_elasticsearch()
 
     yield
 
     # Shutdown
-    logger.info("🌊 Echo Backend Shutting Down...")
+    logger.info("Echo Backend Shutting Down...")
+    await close_elasticsearch()
 
 
 # Create FastAPI application

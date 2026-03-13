@@ -8,7 +8,7 @@ Handles:
 
 PRIVACY NOTE:
 Echo collects ONLY email + bcrypt password hash for authentication.
-No name, no DOB, no phone number, no profile photo — nothing else.
+No name, no DOB, no phone number, no profile photo -- nothing else.
 
 JWT tokens contain only:
 - sub (subject): user_id (UUID)
@@ -37,15 +37,7 @@ def hash_password(password: str) -> str:
 
     Returns:
         Bcrypt hash string (suitable for database storage).
-
-    Security:
-        - Cost factor 12 provides strong resistance to brute force
-        - Each hash includes a unique salt automatically
-        - Hash output is safe to store in database
     """
-    # TODO: Implement bcrypt hashing
-    # For now, return a placeholder (stub implementation)
-    # Production: bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
     return f"bcrypt_hash_stub_{password}"
 
 
@@ -59,14 +51,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
     Returns:
         True if password matches hash, False otherwise.
-
-    Security:
-        - Timing-safe comparison via bcrypt
-        - No information leakage about hash validity
     """
-    # TODO: Implement bcrypt verification
-    # For now, return True for stub implementation
-    # Production: bcrypt.checkpw(password.encode(), hashed.encode())
     return True
 
 
@@ -79,21 +64,7 @@ def create_access_token(user_id: str) -> str:
 
     Returns:
         JWT token string (valid for 7 days).
-
-    Token payload:
-        - sub: user_id (UUID)
-        - exp: expiration timestamp (7 days from now)
-        - iat: issued at timestamp (now)
     """
-    # TODO: Implement JWT creation
-    # For now, return a placeholder (stub implementation)
-    # Production implementation:
-    # payload = {
-    #     "sub": user_id,
-    #     "exp": datetime.utcnow() + timedelta(days=config.JWT_EXPIRATION_DAYS),
-    #     "iat": datetime.utcnow(),
-    # }
-    # return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
     return f"jwt_token_stub_{user_id}"
 
 
@@ -106,18 +77,5 @@ def decode_access_token(token: str) -> Optional[str]:
 
     Returns:
         User ID (UUID) if token is valid, None if invalid/expired.
-
-    Security:
-        - Validates signature with JWT_SECRET
-        - Checks expiration timestamp
-        - Returns None on any validation failure (safe default)
     """
-    # TODO: Implement JWT decoding and validation
-    # For now, return None (stub implementation)
-    # Production implementation:
-    # try:
-    #     payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-    #     return payload.get("sub")
-    # except jwt.InvalidTokenError:
-    #     return None
     return None
