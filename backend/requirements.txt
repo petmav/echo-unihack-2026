@@ -1,0 +1,32 @@
+# Echo Backend - Python Dependencies
+# For the FastAPI mental health platform
+
+# Core FastAPI framework and server
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+
+# Request handling and multipart form data
+python-multipart==0.0.9
+
+# Authentication and security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Elasticsearch client for semantic search
+elasticsearch==8.12.1
+
+# Anthropic Claude API client
+anthropic==0.18.1
+
+# Environment variable management
+python-dotenv==1.0.1
+
+# Data validation (already included with FastAPI, but explicit for clarity)
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# HTTP client for making requests to Ollama
+httpx==0.26.0
+
+# Additional dependencies for production
+email-validator==2.1.0.post1

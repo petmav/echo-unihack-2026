@@ -1,0 +1,119 @@
+# Echo - Docker Compose Configuration
+# Mental health platform local development environment
+#
+# Services:
+# - backend: FastAPI server for thought processing pipeline
+# - ollama: Local SLM for anonymization (eternisai/anonymizer-0.6b)
+#
+# Note: Elasticsearch runs on Elastic Cloud (configured via env vars)
+#       and is NOT included as a local container.
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Backend Service - FastAPI Server
+  # ============================================================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: echo-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Override OLLAMA_HOST to point to Docker service
+      - OLLAMA_HOST=http://ollama:11434
+    env_file:
+      - ../backend/.env
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    volumes:
+      # Mount backend code for development hot-reload (optional)
+      - ../backend:/app
+      # Exclude Python cache
+      - /app/__pycache__
+
+  # ============================================================================
+  # Ollama Service - Local SLM for Anonymization
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: echo-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persist downloaded models between container restarts
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    environment:
+      # Ollama configuration
+      - OLLAMA_HOST=0.0.0.0
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  echo-network:
+    driver: bridge
+    name: echo-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  ollama-models:
+    name: echo-ollama-models
+    driver: local
+
+# ============================================================================
+# Usage Instructions
+# ============================================================================
+#
+# 1. First time setup - Pull the anonymizer model:
+#    docker-compose exec ollama ollama pull hf.co/eternisai/anonymizer-0.6b-q4_k_m-gguf
+#
+# 2. Start all services:
+#    docker-compose up -d
+#
+# 3. View logs:
+#    docker-compose logs -f backend
+#    docker-compose logs -f ollama
+#
+# 4. Stop all services:
+#    docker-compose down
+#
+# 5. Stop and remove volumes (WARNING: deletes Ollama models):
+#    docker-compose down -v
+#
+# 6. Rebuild backend after code changes:
+#    docker-compose build backend && docker-compose up -d backend
+#
+# ============================================================================
+# Privacy Reminders
+# ============================================================================
+#
+# - The backend service NEVER logs raw thought text (see middleware/logging.py)
+# - Ollama runs the anonymizer FIRST - raw text is discarded immediately
+# - Claude (via ANTHROPIC_API_KEY) only receives anonymized text
+# - Elasticsearch (Elastic Cloud) stores anonymized thoughts with NO user IDs
+# - All privacy constraints are enforced in the application layer
+#
