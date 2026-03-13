@@ -12,7 +12,7 @@ to 'resolution_text' in the HTTP response. No 'resolved_at' field is
 returned by this endpoint.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -52,6 +52,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -69,6 +70,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=None)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -83,6 +85,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=None)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -100,6 +103,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -124,6 +128,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -147,6 +152,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -168,6 +174,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
@@ -187,6 +194,7 @@ class TestGetResolution:
         mock_get_resolution = AsyncMock(return_value=resolution_doc)
 
         with (
+            patch.object(main_module, "init_db", new_callable=MagicMock),
             patch.object(main_module, "init_elasticsearch", new_callable=AsyncMock),
             patch.object(main_module, "close_elasticsearch", new_callable=AsyncMock),
             patch.object(elastic_module, "get_resolution", mock_get_resolution),
