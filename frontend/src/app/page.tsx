@@ -5,10 +5,12 @@ import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Target } from "lucide-react";
 
-import type { AppScreen, ThoughtResponse } from "@/lib/types";
+import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter } from "@/lib/types";
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
+  DEMO_FUTURE_LETTER,
+  inferThemeFromText,
 } from "@/lib/constants";
 import {
   saveThought,
@@ -19,6 +21,10 @@ import {
   clearAllData,
   hasCompletedOnboarding,
   markOnboardingComplete,
+  saveFutureLetter,
+  getFutureLettersForTheme,
+  getMostRecentTheme,
+  presenceLevelFromCount,
 } from "@/lib/storage";
 import {
   submitThought,
@@ -26,6 +32,7 @@ import {
   login,
   register,
   deleteAccount,
+  getThemeAggregates,
 } from "@/lib/api";
 import { useDeviceType } from "@/lib/hooks";
 
@@ -43,6 +50,8 @@ import { MenuOverlay } from "@/components/echo/MenuOverlay";
 import { HamburgerButton } from "@/components/echo/HamburgerButton";
 import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
+import { SafetyBanner } from "@/components/echo/SafetyBanner";
+import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 
 /* ── Demo seed data for when backend is unavailable ── */
 const SEED_THOUGHTS: ThoughtResponse[] = [
@@ -60,6 +69,22 @@ const SEED_THOUGHTS: ThoughtResponse[] = [
   { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones." },
 ];
 const SEED_MATCH_COUNT = 847;
+
+/**
+ * Ensures the demo Future You seed letter exists in localStorage.
+ * Only writes if no letter for the seed theme already exists,
+ * so user-written letters are never overwritten.
+ */
+function seedDemoFutureLetter() {
+  const existing = getFutureLettersForTheme(DEMO_FUTURE_LETTER.theme_category);
+  if (existing.length === 0) {
+    saveFutureLetter(
+      DEMO_FUTURE_LETTER.message_id,
+      DEMO_FUTURE_LETTER.theme_category,
+      DEMO_FUTURE_LETTER.letter_text
+    );
+  }
+}
 
 export default function EchoApp() {
   const deviceType = useDeviceType();
@@ -83,6 +108,10 @@ export default function EchoApp() {
   const [userEmail, setUserEmail] = useState("user@example.com");
 
   const [thoughtHistory, setThoughtHistory] = useState(getThoughtHistory());
+  const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
+  const [presenceCount, setPresenceCount] = useState(0);
+  const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
+  const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
 
   useEffect(() => {
     const hasOnboarded = hasCompletedOnboarding();
@@ -98,6 +127,33 @@ export default function EchoApp() {
 
     setThoughtHistory(getThoughtHistory());
   }, []);
+
+  /* Fetch aggregate theme counts for "Breathing With Others" */
+  useEffect(() => {
+    if (screen !== "home") return;
+
+    const recentTheme = getMostRecentTheme();
+
+    async function fetchPresence() {
+      try {
+        const aggregates = await getThemeAggregates();
+        const match = recentTheme
+          ? aggregates.find((a) => a.theme === recentTheme)
+          : aggregates[0];
+        if (match) {
+          setPresenceCount(match.count);
+          setPresenceLevel(presenceLevelFromCount(match.count));
+        }
+      } catch {
+        /* Demo fallback: simulate presence based on seed data */
+        const demoCount = 127 + Math.floor(Math.random() * 400);
+        setPresenceCount(demoCount);
+        setPresenceLevel(presenceLevelFromCount(demoCount));
+      }
+    }
+
+    fetchPresence();
+  }, [screen]);
 
   const refreshHistory = useCallback(() => {
     setThoughtHistory(getThoughtHistory());
@@ -127,6 +183,17 @@ export default function EchoApp() {
 
     const processingStart = Date.now();
 
+    const showResults = (themeCategory: string) => {
+      setCurrentThemeCategory(themeCategory);
+
+      const letters = getFutureLettersForTheme(themeCategory);
+      setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
+
+      setCardsVisible(0);
+      setCountAnimDone(false);
+      setScreen("results");
+    };
+
     try {
       const result = await submitThought(rawText);
       saveThought(result.message_id, rawText, result.theme_category);
@@ -136,24 +203,19 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => {
-        setCardsVisible(0);
-        setCountAnimDone(false);
-        setScreen("results");
-      }, remainingDelay);
+      setTimeout(() => showResults(result.theme_category), remainingDelay);
     } catch {
-      saveThought("demo-" + Date.now(), rawText, "self_worth");
+      const demoTheme = inferThemeFromText(rawText, "self_worth");
+      saveThought("demo-" + Date.now(), rawText, demoTheme);
       setMatchCount(SEED_MATCH_COUNT);
       setSimilarThoughts(SEED_THOUGHTS);
+
+      seedDemoFutureLetter();
 
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => {
-        setCardsVisible(0);
-        setCountAnimDone(false);
-        setScreen("results");
-      }, remainingDelay);
+      setTimeout(() => showResults(demoTheme), remainingDelay);
     }
 
     setThoughtText("");
@@ -203,6 +265,14 @@ export default function EchoApp() {
     [refreshHistory]
   );
 
+  const handleSaveFutureLetter = useCallback(
+    (messageId: string, themeCategory: string, text: string) => {
+      saveFutureLetter(messageId, themeCategory, text);
+      refreshHistory();
+    },
+    [refreshHistory]
+  );
+
   const handleDeleteAccount = useCallback(async () => {
     try {
       await deleteAccount();
@@ -246,11 +316,20 @@ export default function EchoApp() {
           <EchoLogo
             size={isDesktop ? 200 : 150}
             animate
+            presenceLevel={presenceLevel}
             onClick={() => setInputOpen(true)}
           />
           <p className="mt-7 animate-[fadeIn_1s_ease_0.6s_both] text-[13.5px] font-light tracking-wide text-echo-text-muted">
             tap to share what&apos;s on your mind
           </p>
+          {presenceCount > 0 && (
+            <p
+              className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
+              data-testid="presence-indicator"
+            >
+              {presenceCount} others breathing in this space this week
+            </p>
+          )}
         </div>
       )}
 
@@ -263,6 +342,17 @@ export default function EchoApp() {
               targetCount={matchCount}
               onAnimationComplete={() => setCountAnimDone(true)}
             />
+
+            {/* Guardrails of Care — safety resources for risk themes */}
+            {countAnimDone && currentThemeCategory && (
+              <SafetyBanner themeCategory={currentThemeCategory} />
+            )}
+
+            {/* Future You — letter from past self on matching theme */}
+            {countAnimDone && futureLetterMatch && (
+              <FutureYouBanner letter={futureLetterMatch} />
+            )}
+
             {countAnimDone && (
               <ThoughtCardList
                 thoughts={similarThoughts}
@@ -293,6 +383,7 @@ export default function EchoApp() {
           thoughts={thoughtHistory}
           onBack={handleBackToHome}
           onResolve={handleResolve}
+          onSaveFutureLetter={handleSaveFutureLetter}
         />
       )}
 

@@ -37,7 +37,7 @@ export function AccountPanel({
         </h2>
       </div>
 
-      <div className="px-4">
+      <div className="mx-auto w-full max-w-xl px-4">
         {/* Account info card */}
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
           <div className="flex items-center justify-between border-b border-black/5 px-4.5 py-4 text-sm text-echo-text">

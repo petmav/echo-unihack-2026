@@ -8,10 +8,13 @@ import { Check, ChevronLeft, Shield } from "lucide-react";
 import type { LocalThought } from "@/lib/types";
 import { MAX_RESOLUTION_LENGTH, RESOLUTION_PROMPT_WEEKS } from "@/lib/constants";
 
+import { FutureLetterInput } from "./FutureLetterInput";
+
 interface HistoryPanelProps {
   thoughts: LocalThought[];
   onBack: () => void;
   onResolve: (messageId: string, resolutionText: string) => void;
+  onSaveFutureLetter: (messageId: string, theme: string, text: string) => void;
 }
 
 function isOlderThanThreshold(timestamp: number): boolean {
@@ -36,6 +39,7 @@ export function HistoryPanel({
   thoughts,
   onBack,
   onResolve,
+  onSaveFutureLetter,
 }: HistoryPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resolveText, setResolveText] = useState("");
@@ -87,7 +91,7 @@ export function HistoryPanel({
         </h2>
       </div>
 
-      <div className="px-4 pb-12">
+      <div className="mx-auto w-full max-w-xl px-4 pb-12">
         {/* Privacy banner */}
         <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-echo-highlight p-3 text-echo-text-soft">
           <Shield size={18} className="shrink-0" />
@@ -186,6 +190,15 @@ export function HistoryPanel({
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* "Future You" letter — shown after resolving */}
+              {isResolved && !item.future_letter && (
+                <FutureLetterInput
+                  messageId={item.message_id}
+                  themeCategory={item.theme_category}
+                  onSave={onSaveFutureLetter}
+                />
+              )}
 
               {/* Resolve input (expanded) */}
               <AnimatePresence>

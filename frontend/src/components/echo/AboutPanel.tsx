@@ -25,7 +25,7 @@ export function AboutPanel({ onBack }: AboutPanelProps) {
         </h2>
       </div>
 
-      <div className="px-4 pb-12">
+      <div className="mx-auto w-full max-w-xl px-4 pb-12">
         {/* Hero */}
         <div className="py-5 text-center">
           <div className="flex justify-center">

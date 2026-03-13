@@ -33,7 +33,7 @@ export function AuthScreen({ onAuth, isLoading, error }: AuthScreenProps) {
     <div className="flex h-full flex-col items-center justify-center px-7 py-10">
       <EchoLogo size={72} animate={false} />
 
-      <form onSubmit={handleSubmit} className="mt-10 w-full">
+      <form onSubmit={handleSubmit} className="mt-10 w-full max-w-sm">
         <div className="mb-3">
           <input
             type="email"

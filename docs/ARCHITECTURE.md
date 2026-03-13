@@ -162,6 +162,68 @@ Sentiment vectors are generated using a local sentence-transformer model (all-Mi
 
 ---
 
+## "Breathing With Others" — Aggregate Theme Counts
+
+The home screen breathing animation is influenced by weekly aggregate counts per emotional theme. This uses Elasticsearch's aggregation framework:
+
+```
+GET /api/v1/thoughts/aggregates
+
+Backend query:
+{
+  "size": 0,
+  "query": {
+    "range": { "timestamp_week": { "gte": current_week_number } }
+  },
+  "aggs": {
+    "by_theme": {
+      "terms": { "field": "theme_category", "size": 50 }
+    }
+  }
+}
+
+Response: [{ "theme": "self_worth", "count": 342 }, ...]
+```
+
+The client maps the count for the user's most recent theme to a presence level (0–4), which adjusts the logo's visual parameters. No user IDs are involved — this is purely aggregate data.
+
+---
+
+## "Future You" — Local-Only Letters
+
+Future You letters are stored entirely in the client's localStorage:
+
+```json
+{
+  "echo_future_letters": [
+    {
+      "message_id": "abc-123",
+      "theme_category": "self_worth",
+      "letter_text": "Remember that the comparison trap is just that — a trap.",
+      "timestamp": 1710000000000
+    }
+  ]
+}
+```
+
+When a new thought is submitted and results return with a `theme_category`, the client checks localStorage for letters with the same theme. No server involvement.
+
+---
+
+## "Guardrails of Care" — Client-Side Safety Layer
+
+Safety resources are rendered purely client-side using a static mapping:
+
+```typescript
+RISK_THEMES = { "self_harm", "suicidal_ideation", "crisis",
+                "substance_abuse", "eating_disorder", "abuse",
+                "domestic_violence" }
+```
+
+When `theme_category` from the thought submission response matches any risk theme, a `SafetyBanner` component renders above the response cards. No API call, no log, no localStorage write. The banner contains static helpline numbers and is country-agnostic.
+
+---
+
 ## Pagination
 
 Response cards are paginated using Elasticsearch's `search_after` pattern:

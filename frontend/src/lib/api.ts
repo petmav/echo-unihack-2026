@@ -130,4 +130,16 @@ export async function deleteAccount(): Promise<{ success: boolean }> {
   return handleResponse<{ success: boolean }>(response);
 }
 
+export interface ThemeAggregate {
+  theme: string;
+  count: number;
+}
+
+export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
+  const response = await fetch(`${API_BASE_URL}/thoughts/aggregates`, {
+    headers: authHeaders(),
+  });
+  return handleResponse<ThemeAggregate[]>(response);
+}
+
 export { ApiError };

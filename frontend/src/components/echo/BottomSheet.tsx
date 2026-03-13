@@ -28,7 +28,7 @@ export function BottomSheet({ thought, onClose }: BottomSheetProps) {
 
           {/* Sheet */}
           <motion.div
-            className="absolute bottom-0 left-0 right-0 z-101 max-h-[65%] overflow-y-auto rounded-t-3xl bg-white px-6 pb-12 pt-4"
+            className="absolute bottom-0 left-1/2 z-101 w-full max-w-xl -translate-x-1/2 max-h-[65%] overflow-y-auto rounded-t-3xl bg-white px-6 pb-12 pt-4"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

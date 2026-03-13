@@ -25,6 +25,8 @@ This document defines exactly what that means in practice.
 | Timestamp (week number only) | Elastic Cloud | Temporal clustering | Indefinite |
 | Raw thought text | Device localStorage only | User's personal history | User-controlled |
 | Personal trends | Device localStorage only | Personal dashboard | User-controlled |
+| "Future You" letters | Device localStorage only | Personal self-reflection | User-controlled |
+| Theme aggregate counts | Elastic Cloud (computed) | Co-presence animation | Ephemeral (not stored as separate docs) |
 
 ### What we explicitly do NOT collect
 
@@ -133,6 +135,35 @@ Even with our server database, Elastic index, and source code simultaneously:
 - Without the user's device, the bridge between identity and content does not exist
 
 **Severity: Low-moderate.** An attacker with everything could potentially attempt to correlate message_ids across our DB and Elastic, but this only reveals theme categories (not content) mapped to email addresses.
+
+---
+
+## Privacy Implications of New Features
+
+### "Breathing With Others" (Aggregate Co-Presence)
+
+| Concern | Resolution |
+|---------|------------|
+| Can the aggregate count reveal individual activity? | No. Counts are per-theme per-week, aggregated across all users. Minimum threshold of 10 before visual change. |
+| Does fetching aggregates reveal user intent? | The aggregate endpoint returns counts for all themes. The client selects the relevant theme locally. |
+| Is the user's most recent theme leaked? | No. `getMostRecentTheme()` reads from localStorage. The API call fetches all aggregates — no filtering server-side. |
+
+### "Future You" (Local Letters)
+
+| Concern | Resolution |
+|---------|------------|
+| Where are letters stored? | localStorage only (`echo_future_letters` key). Never transmitted to any server. |
+| Are letters included in any API payload? | No. Letters are read and written exclusively by `storage.ts`. |
+| What happens on account deletion? | `clearAllData()` removes `echo_future_letters` alongside all other local data. |
+| Can letters leak in a device breach? | Yes — same risk profile as raw thought text. One user's letters exposed, no other user affected. |
+
+### "Guardrails of Care" (Safety Banner)
+
+| Concern | Resolution |
+|---------|------------|
+| Is the display of safety resources logged? | **No.** Deliberately not logged — not in analytics, not in localStorage, not in any API call. |
+| Could a server-side actor determine a user triggered the safety banner? | Only if they know the user's `theme_category` from the DB AND that category is in the risk set. The category is already stored in our DB as part of the core flow. The safety banner adds no new data exposure. |
+| Why not log safety banner displays? | Users in crisis must not fear that seeking help creates a record. Trust is paramount. |
 
 ---
 

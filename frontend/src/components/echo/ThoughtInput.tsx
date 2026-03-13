@@ -69,7 +69,7 @@ export function ThoughtInput({
 
           {/* Input area */}
           <motion.div
-            className="w-full"
+            className="w-full max-w-lg"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{

@@ -125,6 +125,69 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
+### 8. "Breathing With Others" — Ambient Co-Presence
+
+**What**: The breathing animation on the home screen is subtly influenced by how many other people are sharing thoughts in the same emotional space that week. This is ambient, anonymous co-presence — you can *feel* that others are here without seeing or identifying anyone.
+
+**Visual states** (mapped from aggregate weekly theme counts):
+
+| Presence Level | Threshold | Visual Change |
+|---|---|---|
+| 0 (quiet) | 0–9 | Default breathing animation |
+| 1 (present) | 10–49 | Slightly deeper arc hue, +5% opacity on ripples |
+| 2 (gathering) | 50–199 | Warmer arc colour, +10% ripple opacity, ambient glow more visible |
+| 3 (together) | 200–499 | Noticeably deeper hue, +15% ripples, slightly slower/deeper breathing |
+| 4 (resonant) | 500+ | Deepest hue, +20% ripples, strongest glow, slowest breathing rhythm |
+
+**Text indicator**: Below the logo, a subtle line: *"127 others breathing in this space this week"*
+
+**Data source**: `GET /api/v1/thoughts/aggregates` returns per-theme weekly counts from Elastic (no user IDs). Falls back to demo random data if backend is unavailable.
+
+**Privacy**: Aggregate-only. No individual tracking. The count cannot be attributed to any user.
+
+---
+
+### 9. "Future You" — One-Way Letters to Your Future Self
+
+**What**: After resolving a thought and writing "what helped", users see an optional prompt: *"Write a note to your future self?"* The note is stored locally and resurfaces when a similar theme appears again.
+
+**Flow**:
+1. User resolves a thought and submits "what helped"
+2. Below the resolution, a subtle trigger appears: envelope icon + "Write a note to your future self?"
+3. Tapping expands a textarea with prompt: *"If this feeling comes back, what would you want to remember?"*
+4. User writes and saves → stored in localStorage keyed by `message_id` and `theme_category`
+5. Next time the user submits a thought with a matching `theme_category`, the letter appears as a banner above the response cards: *"A note from past you"*
+
+**Storage**: `echo_future_letters` key in localStorage. Array of `{ message_id, theme_category, letter_text, timestamp }`.
+
+**Matching**: When results screen loads with a `theme_category`, local storage is checked for any letters with the same theme. Most recent match is shown.
+
+**Privacy**: 100% local. Never uploaded. Cleared on account deletion.
+
+---
+
+### 10. "Guardrails of Care" — Light-Touch Safety Layer
+
+**What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
+
+**Risk theme categories**: `self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`
+
+**Safety block content**:
+- Heading: *"You're not alone — and help is available"*
+- Body: *"If you or someone you know is in immediate danger, please reach out."*
+- Contact list:
+  - Lifeline (AU): 13 11 14
+  - Crisis Text Line: Text HOME to 741741
+  - Beyond Blue (AU): 1300 22 4636
+  - IASP: Find help near you (link)
+- Footer: *"This information is shown based on the topic of your thought. It is not logged or recorded in any way."*
+
+**Rendering**: Entirely client-side. The `theme_category` string is matched against a static set of risk categories. No API call, no event emitted, no log written.
+
+**Privacy**: Zero logging. The safety banner display is never recorded anywhere — not in localStorage, not in any API call, not in any analytics. This is a deliberate design choice: users in crisis should never worry that asking for help will leave a trace.
+
+---
+
 ## Features to Cut if Time-Poor (in order)
 
 1. **Personal trends dashboard** — nice to have, not core

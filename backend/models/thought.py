@@ -1,0 +1,104 @@
+"""
+Pydantic models for the thought pipeline.
+
+Matches frontend/src/lib/types.ts interfaces:
+- ThoughtResponse → ThoughtResponse
+- ThoughtSubmitResult → ThoughtSubmitResult
+- PaginatedThoughts → PaginatedThoughts
+
+Additional backend-only models:
+- ThoughtSubmitRequest: Input model for POST /api/v1/thoughts
+
+CRITICAL PRIVACY NOTE:
+ThoughtSubmitRequest.raw_text contains the user's original thought.
+This text MUST be:
+1. Passed IMMEDIATELY to the anonymizer service
+2. NEVER written to disk, logs, or any persistent storage
+3. NEVER passed to Claude or any external API
+4. Discarded after anonymization completes
+
+Only the anonymized + humanized output is stored in Elasticsearch.
+"""
+
+from typing import Optional
+from pydantic import BaseModel, Field
+
+
+class ThoughtSubmitRequest(BaseModel):
+    """
+    Request body for POST /api/v1/thoughts.
+
+    WARNING: raw_text contains PII and sensitive mental health content.
+    It MUST be anonymized immediately and NEVER persisted.
+    """
+
+    raw_text: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Raw user thought text. NEVER persisted. Anonymized immediately.",
+    )
+
+
+class ThoughtResponse(BaseModel):
+    """
+    Individual thought returned in search results.
+
+    Contains ONLY anonymized/humanized content. No user identifiers.
+    Corresponds to a document in Elasticsearch echo-thoughts index.
+    """
+
+    message_id: str = Field(..., description="Unique identifier for this thought")
+    humanised_text: str = Field(
+        ..., description="Claude-humanised version of anonymized thought"
+    )
+    theme_category: str = Field(
+        ..., description="Classified emotional theme (e.g., 'work_stress', 'self_harm')"
+    )
+    has_resolution: bool = Field(
+        ..., description="Whether this thought has 'what helped' advice attached"
+    )
+    resolution_text: Optional[str] = Field(
+        None, description="Verbatim 'what helped' text if has_resolution is True"
+    )
+
+
+class ThoughtSubmitResult(BaseModel):
+    """
+    Complete response for POST /api/v1/thoughts.
+
+    Returns the submitted thought's metadata plus similar thoughts from others.
+    """
+
+    message_id: str = Field(
+        ..., description="ID of the newly submitted thought (for local storage)"
+    )
+    theme_category: str = Field(
+        ..., description="Classified theme (stored locally for Future You letters)"
+    )
+    match_count: int = Field(
+        ..., description="Total number of similar thoughts found (for count reveal)"
+    )
+    similar_thoughts: list[ThoughtResponse] = Field(
+        ..., description="First page of similar thoughts (10-20 items)"
+    )
+    search_after: Optional[list] = Field(
+        None,
+        description="Elasticsearch search_after cursor for pagination (opaque to frontend)",
+    )
+
+
+class PaginatedThoughts(BaseModel):
+    """
+    Paginated response for GET /api/v1/thoughts/similar.
+
+    Used for infinite scroll on response cards.
+    """
+
+    thoughts: list[ThoughtResponse] = Field(..., description="Page of thought results")
+    search_after: Optional[list] = Field(
+        None, description="Cursor for next page (None if no more results)"
+    )
+    total: int = Field(
+        ..., description="Total count of matching thoughts (not necessarily all loaded)"
+    )

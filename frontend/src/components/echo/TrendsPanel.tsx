@@ -106,7 +106,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
         </h2>
       </div>
 
-      <div className="px-4 pb-12">
+      <div className="mx-auto w-full max-w-xl px-4 pb-12">
         {/* Privacy banner */}
         <div className="mb-3 flex items-center gap-2.5 rounded-xl bg-echo-highlight p-3 text-echo-text-soft">
           <Shield size={18} className="shrink-0" />

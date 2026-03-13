@@ -65,6 +65,8 @@ POST /api/v1/thoughts  (raw text in HTTPS request body only)
 | message_id → theme mapping | Our server DB | Links account to themes, not raw text |
 | Anonymised + humanised thoughts | Elastic | Zero account linkage |
 | "What helped" text | Elastic (after SLM pass) | Stored and shown verbatim |
+| "Future You" letters | Device only (localStorage) | Never uploaded, keyed by theme |
+| Theme aggregate counts | Elastic (anonymous) | No user IDs, weekly aggregates only |
 
 ### Breach impact analysis
 
@@ -97,6 +99,52 @@ When a user resolves an issue they can optionally share what helped others. This
 - A delayed opt-in prompt fires ~3 weeks after an unresolved thought, framed celebratorily: *"You haven't mentioned this in a while — did something shift for the better?"*
 - Users can also proactively tap the resolve (✓) button on any history item at any time and immediately submit their advice without waiting for the prompt
 - The resolve button lives inline on each history panel item
+
+---
+
+## "Breathing With Others" — Ambient Co-Presence
+
+The breathing animation on the home screen is influenced by how many other people shared thoughts in the same emotional space this week. This is a demo-ready ambient solidarity feature.
+
+**How it works**:
+1. On home screen load, the frontend calls `GET /api/v1/thoughts/aggregates` (falls back to demo data if unavailable)
+2. The user's most recent theme category is matched against aggregate weekly counts from Elastic
+3. Count ranges map to 5 visual "presence levels" (0–4), each adjusting:
+   - Arc hue (deeper/warmer at higher levels)
+   - Glow opacity (more visible ambient glow)
+   - Arc opacity boost (ripples become more prominent)
+   - Breathing speed (slightly slower/deeper at higher levels — as if breathing in sync)
+4. A subtle text line below the logo: *"127 others breathing in this space this week"*
+
+**Privacy**: Uses only aggregate counts per theme per week from Elastic. No user IDs, no individual tracking. The count is anonymous and cannot be attributed to any individual.
+
+---
+
+## "Future You" — One-Way Letters to Your Future Self
+
+After resolving a thought and writing "what helped", users can optionally write a short note to their future self. This note:
+1. Is stored **only in localStorage** — never uploaded
+2. Is keyed by theme category
+3. Resurfaces automatically when the user submits a new thought that matches the same theme
+4. Appears as a gentle banner: *"A note from past you"* with the letter text and the date it was written
+
+**Why this matters**: It turns the user's own past wisdom into a personal resource, using the architecture's strengths (local storage, theme classification) rather than fighting them.
+
+**Privacy**: Entirely local. Future letters never leave the device. They are cleared when the user deletes their account.
+
+---
+
+## "Guardrails of Care" — Safety Resource Layer
+
+When the theme classification indicates risk-related categories (self-harm, crisis, suicidal ideation, substance abuse, eating disorders, abuse, domestic violence), a static safety resource block is shown:
+- Displayed above the response cards on the results screen
+- Contains crisis helpline numbers (Lifeline AU, Crisis Text Line, Beyond Blue, IASP)
+- Country-agnostic language
+- Small disclaimer: *"This information is shown based on the topic of your thought. It is not logged or recorded in any way."*
+
+**Privacy**: The safety banner is rendered entirely client-side based on the `theme_category` string. No event is logged, no API call is made, no record of the display exists anywhere.
+
+**Risk themes**: `self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`
 
 ---
 
@@ -200,9 +248,9 @@ cd backend && uvicorn main:app --reload     # http://localhost:8000
 
 ## Prizes We're Targeting
 1. **AI Solutions Prize (Quantium)** — three-stage AI pipeline: SLM anonymisation, Claude humanisation, Elastic vector semantic retrieval
-2. **Best Use of Elastic Technology** — vector similarity search, sentiment clustering, `search_after` pagination, real-time aggregate counts
-3. **Social Impact Prize** — mental health, ambient solidarity, zero clinical gatekeeping, accessible to anyone
-4. **Best Design** — breathing animation, count reveal, card scroll, the logo-tap bubble interaction
+2. **Best Use of Elastic Technology** — vector similarity search, sentiment clustering, `search_after` pagination, real-time aggregate counts, theme-level co-presence
+3. **Social Impact Prize** — mental health, ambient solidarity, zero clinical gatekeeping, accessible to anyone, built-in safety guardrails
+4. **Best Design** — breathing animation influenced by co-presence, count reveal, card scroll, Future You letters, the logo-tap bubble interaction
 
 ---
 

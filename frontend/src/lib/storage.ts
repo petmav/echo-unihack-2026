@@ -6,11 +6,12 @@
  * except through these helpers — and only to/from localStorage.
  */
 
-import type { LocalThought } from "./types";
-import { JWT_KEY, RESOLUTION_PROMPT_WEEKS } from "./constants";
+import type { LocalThought, FutureLetter, PresenceLevel } from "./types";
+import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS } from "./constants";
 
 const THOUGHTS_KEY = "echo_thoughts";
 const ONBOARDING_KEY = "echo_onboarding_done";
+const FUTURE_LETTERS_KEY = "echo_future_letters";
 
 function readThoughts(): LocalThought[] {
   if (typeof window === "undefined") return [];
@@ -119,6 +120,7 @@ export function clearAllData(): void {
   localStorage.removeItem(THOUGHTS_KEY);
   localStorage.removeItem(JWT_KEY);
   localStorage.removeItem(ONBOARDING_KEY);
+  localStorage.removeItem(FUTURE_LETTERS_KEY);
 }
 
 export function hasCompletedOnboarding(): boolean {
@@ -129,4 +131,65 @@ export function hasCompletedOnboarding(): boolean {
 export function markOnboardingComplete(): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(ONBOARDING_KEY, "true");
+}
+
+/* ── Future You letters ── */
+
+function readFutureLetters(): FutureLetter[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(FUTURE_LETTERS_KEY);
+    return raw ? (JSON.parse(raw) as FutureLetter[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFutureLetters(letters: FutureLetter[]): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(FUTURE_LETTERS_KEY, JSON.stringify(letters));
+}
+
+export function saveFutureLetter(
+  messageId: string,
+  themeCategory: string,
+  letterText: string
+): void {
+  const letters = readFutureLetters();
+  letters.unshift({
+    message_id: messageId,
+    theme_category: themeCategory,
+    letter_text: letterText,
+    timestamp: Date.now(),
+  });
+  writeFutureLetters(letters);
+}
+
+export function getFutureLettersForTheme(
+  themeCategory: string
+): FutureLetter[] {
+  return readFutureLetters().filter(
+    (letter) => letter.theme_category === themeCategory
+  );
+}
+
+export function getAllFutureLetters(): FutureLetter[] {
+  return readFutureLetters();
+}
+
+/* ── Presence level ── */
+
+export function presenceLevelFromCount(count: number): PresenceLevel {
+  let level: PresenceLevel = 0;
+  for (const threshold of PRESENCE_THRESHOLDS) {
+    if (count >= threshold.min) {
+      level = threshold.level;
+    }
+  }
+  return level;
+}
+
+export function getMostRecentTheme(): string | null {
+  const thoughts = readThoughts();
+  return thoughts.length > 0 ? thoughts[0].theme_category : null;
 }

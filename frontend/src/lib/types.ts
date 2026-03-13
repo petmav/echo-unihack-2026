@@ -27,7 +27,23 @@ export interface LocalThought {
   timestamp: number;
   is_resolved: boolean;
   resolution_text?: string;
+  future_letter?: string;
 }
+
+export interface FutureLetter {
+  message_id: string;
+  theme_category: string;
+  letter_text: string;
+  timestamp: number;
+}
+
+export interface ThemePresence {
+  theme: string;
+  count: number;
+  level: PresenceLevel;
+}
+
+export type PresenceLevel = 0 | 1 | 2 | 3 | 4;
 
 export interface AuthCredentials {
   email: string;
