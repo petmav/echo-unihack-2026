@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Quick script to check registered routes"""
 import sys
+
 sys.path.insert(0, '.')
 
 from main import app

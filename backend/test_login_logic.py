@@ -3,13 +3,13 @@ Simple test to verify login endpoint logic without database.
 Tests password hashing and verification flow.
 """
 
-from services.auth import hash_password, verify_password, create_access_token
+from services.auth import create_access_token, hash_password, verify_password
 
 # Test 1: Password hashing and verification
 print("Test 1: Password hashing and verification")
 test_password = "testpass123"
 password_hash = hash_password(test_password)
-print(f"✓ Password hashed successfully")
+print("✓ Password hashed successfully")
 
 # Test 2: Verify correct password
 if verify_password(test_password, password_hash):
@@ -27,7 +27,7 @@ else:
 print("\nTest 2: JWT token creation")
 token = create_access_token(email="test@example.com")
 if token and len(token) > 0:
-    print(f"✓ JWT token created successfully")
+    print("✓ JWT token created successfully")
     print(f"  Token (first 50 chars): {token[:50]}...")
 else:
     print("✗ FAILED: Token creation failed")
