@@ -289,5 +289,6 @@ async def get_theme_aggregates(response: Response):
     response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
     aggregates = await elastic.get_aggregates()
     if not aggregates:
+        response.headers["X-Echo-Demo"] = "true"
         return _DEMO_AGGREGATES
     return aggregates

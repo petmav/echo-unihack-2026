@@ -29,7 +29,10 @@ class ResolutionSubmit(BaseModel):
     """
 
     message_id: str = Field(
-        ..., description="ID of the thought being resolved (from local storage)"
+        ...,
+        min_length=1,
+        max_length=200,
+        description="ID of the thought being resolved (from local storage)",
     )
     resolution_text: str = Field(
         ...,
@@ -43,6 +46,13 @@ class ResolutionSubmit(BaseModel):
     def strip_whitespace(cls, v: str) -> str:
         """Strip leading/trailing whitespace and normalize internal whitespace."""
         return " ".join(v.split())
+
+
+class ResolutionSubmitResponse(BaseModel):
+    """Response for POST /api/v1/resolution — confirms resolution was stored."""
+
+    success: bool = Field(..., description="Whether the resolution was stored")
+    message_id: str = Field(..., description="ID of the thought this resolution addresses")
 
 
 class ResolutionResponse(BaseModel):

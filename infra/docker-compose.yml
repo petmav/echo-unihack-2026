@@ -43,6 +43,8 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: echo-ollama
+    # Auto-pull the anonymizer model on first startup
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull qwen3.5:0.8b; wait"]
     ports:
       - "11434:11434"
     volumes:
@@ -55,8 +57,8 @@ services:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
-      retries: 3
+      start_period: 60s
+      retries: 5
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_HF_TOKEN=${OLLAMA_HF_TOKEN:-}
@@ -69,8 +71,14 @@ services:
     container_name: echo-elasticsearch
     environment:
       - discovery.type=single-node
+      # WARNING: Security is disabled for local dev only.
+      # MUST enable xpack.security for any non-local deployment.
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     ports:
       - "9200:9200"
     volumes:
@@ -93,6 +101,10 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     container_name: echo-backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     ports:
       - "8000:8000"
     environment:
@@ -132,7 +144,7 @@ services:
     image: node:20-alpine
     container_name: echo-frontend
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm ci && npm run dev"
     ports:
       - "3000:3000"
     environment:

@@ -122,6 +122,26 @@ async def init_elasticsearch() -> None:
         logger.warning(f"Elasticsearch index setup failed (service may be unavailable): {exc}")
 
 
+async def _reconnect_if_needed() -> AsyncElasticsearch | None:
+    """Attempt to reconnect if the ES client is unavailable."""
+    global _es_client
+    if _es_client is not None:
+        try:
+            await _es_client.info()
+            return _es_client
+        except Exception:
+            logger.warning("Elasticsearch connection lost, attempting reconnection...")
+            try:
+                await _es_client.close()
+            except Exception:
+                pass
+            _es_client = None
+
+    # Re-initialize
+    await init_elasticsearch()
+    return _es_client
+
+
 async def close_elasticsearch() -> None:
     """
     Close Elasticsearch client connection.

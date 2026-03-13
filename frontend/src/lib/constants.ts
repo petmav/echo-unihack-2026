@@ -9,7 +9,8 @@ export const CARDS_PER_PAGE = 15;
 export const JWT_KEY = "echo_jwt";
 export const JWT_EXPIRY_DAYS = 7;
 
-export const PROCESSING_MIN_DURATION_MS = 2800;
+// 3 phrases × 1200ms cycle = 3600ms = exactly 1 full phrase rotation
+export const PROCESSING_MIN_DURATION_MS = 3600;
 export const COUNT_ANIMATION_DURATION_MS = 1800;
 export const CARD_STAGGER_DELAY_MS = 80;
 

@@ -36,7 +36,14 @@ function authHeaders(): HeadersInit {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = await response.text().catch(() => "Unknown error");
+    const contentType = response.headers.get("content-type") ?? "";
+    let body: string;
+    if (contentType.includes("application/json")) {
+      const json = await response.json().catch(() => ({}));
+      body = json.detail ?? JSON.stringify(json);
+    } else {
+      body = await response.text().catch(() => "Unknown error");
+    }
     throw new ApiError(response.status, body);
   }
   return response.json() as Promise<T>;

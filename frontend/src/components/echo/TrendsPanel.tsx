@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ChevronLeft, Shield } from "lucide-react";
 
 import type { LocalThought } from "@/lib/types";
@@ -75,8 +76,8 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const resolutionRate =
     totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
 
-  const weeklyData = computeWeeklyData(thoughts);
-  const topThemes = getTopThemes(thoughts);
+  const weeklyData = useMemo(() => computeWeeklyData(thoughts), [thoughts]);
+  const topThemes = useMemo(() => getTopThemes(thoughts), [thoughts]);
   const mostFrequentTheme = topThemes[0];
 
   const maxWeekCount = Math.max(

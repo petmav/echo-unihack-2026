@@ -28,7 +28,8 @@ from middleware.cors import get_cors_middleware
 from middleware.logging import get_logging_config, setup_application_logging
 from middleware.request_size import add_request_size_middleware
 from routers import account, admin, auth, resolution, thoughts
-from routers.admin import api_router as admin_api_router, init_admin
+from routers.admin import api_router as admin_api_router
+from routers.admin import init_admin
 from services.elastic import close_elasticsearch, init_elasticsearch
 
 
@@ -74,7 +75,11 @@ async def lifespan(app: FastAPI):
     init_admin(admin_password)
     logger.info("=" * 60)
     logger.info("  ADMIN DASHBOARD : http://localhost:8000/admin")
-    logger.info("  ADMIN PASSWORD  : %s", admin_password)
+    # Print password to stderr only — never via the logging framework
+    # (logs may be aggregated/shipped to external systems)
+    import sys
+    print(f"  ADMIN PASSWORD  : {admin_password}", file=sys.stderr, flush=True)
+    logger.info("  ADMIN PASSWORD  : (set — check stderr)")
     logger.info("=" * 60)
 
     yield

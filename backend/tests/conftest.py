@@ -180,6 +180,11 @@ def client(mock_es_client: AsyncMock) -> TestClient:
             return_value=SEEDED_THEME,
         ),
         patch(
+            "routers.thoughts.ai.humanize_and_classify",
+            new_callable=AsyncMock,
+            return_value=(SEEDED_HUMANISED_TEXT, SEEDED_THEME),
+        ),
+        patch(
             "routers.thoughts.embeddings.embed",
             new_callable=AsyncMock,
             return_value=_SEEDED_VECTOR,
@@ -279,6 +284,10 @@ def mock_all_services():
             new_callable=AsyncMock,
         ) as mock_classify,
         patch(
+            "routers.thoughts.ai.humanize_and_classify",
+            new_callable=AsyncMock,
+        ) as mock_humanize_and_classify,
+        patch(
             "routers.thoughts.elastic.index_thought",
             new_callable=AsyncMock,
         ) as mock_index,
@@ -301,6 +310,10 @@ def mock_all_services():
             "Someone at work is making things consistently difficult for me."
         )
         mock_classify.return_value = SEEDED_THEME
+        mock_humanize_and_classify.return_value = (
+            "Someone at work is making things consistently difficult for me.",
+            SEEDED_THEME,
+        )
         mock_index.return_value = True
         mock_embed.return_value = _SEEDED_VECTOR
         mock_search.return_value = {
@@ -325,6 +338,7 @@ def mock_all_services():
             "anonymize": mock_anon,
             "humanize": mock_humanize,
             "classify": mock_classify,
+            "humanize_and_classify": mock_humanize_and_classify,
             "index": mock_index,
             "search": mock_search,
             "aggregates": mock_aggregates,

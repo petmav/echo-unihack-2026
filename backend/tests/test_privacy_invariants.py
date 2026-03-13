@@ -383,9 +383,9 @@ class TestNoRawTextInErrorResponses:
         PRIVACY: HTTP 502 from humanisation failure must not contain raw thought text.
         """
         with patch("routers.thoughts.anonymiser_service.anonymize_text") as mock_anon, \
-             patch("routers.thoughts.ai.humanize_thought") as mock_humanise:
+             patch("routers.thoughts.ai.humanize_and_classify") as mock_hc:
             mock_anon.return_value = ANONYMISED_TEXT
-            mock_humanise.side_effect = Exception("Claude API error")
+            mock_hc.side_effect = Exception("Claude API error")
 
             response = client.post(
                 "/api/v1/thoughts",
@@ -405,11 +405,9 @@ class TestNoRawTextInErrorResponses:
         PRIVACY: HTTP 502 from theme classification failure must not expose raw text.
         """
         with patch("routers.thoughts.anonymiser_service.anonymize_text") as mock_anon, \
-             patch("routers.thoughts.ai.humanize_thought") as mock_humanise, \
-             patch("routers.thoughts.ai.classify_theme") as mock_classify:
+             patch("routers.thoughts.ai.humanize_and_classify") as mock_hc:
             mock_anon.return_value = ANONYMISED_TEXT
-            mock_humanise.return_value = HUMANISED_TEXT
-            mock_classify.side_effect = Exception("classification failed")
+            mock_hc.side_effect = Exception("classification failed")
 
             response = client.post(
                 "/api/v1/thoughts",
@@ -502,10 +500,12 @@ class TestForbiddenFieldsNeverInElastic:
             "hits": {"hits": [], "total": {"value": 0, "relation": "eq"}}
         }
 
+        _SEEDED_VECTOR = [0.1] * 384
+
         with patch.object(elastic_module, "_es_client", mock_es_client), \
              patch("routers.thoughts.anonymiser_service.anonymize_text", return_value=ANONYMISED_TEXT), \
-             patch("routers.thoughts.ai.humanize_thought", return_value=HUMANISED_TEXT), \
-             patch("routers.thoughts.ai.classify_theme", return_value=THEME):
+             patch("routers.thoughts.ai.humanize_and_classify", return_value=(HUMANISED_TEXT, THEME)), \
+             patch("routers.thoughts.embeddings.embed", return_value=_SEEDED_VECTOR):
 
             client = TestClient(app)
             client.post(
@@ -536,10 +536,12 @@ class TestForbiddenFieldsNeverInElastic:
             "hits": {"hits": [], "total": {"value": 0, "relation": "eq"}}
         }
 
+        _SEEDED_VECTOR = [0.1] * 384
+
         with patch.object(elastic_module, "_es_client", mock_es_client), \
              patch("routers.thoughts.anonymiser_service.anonymize_text", return_value=ANONYMISED_TEXT), \
-             patch("routers.thoughts.ai.humanize_thought", return_value=HUMANISED_TEXT), \
-             patch("routers.thoughts.ai.classify_theme", return_value=THEME):
+             patch("routers.thoughts.ai.humanize_and_classify", return_value=(HUMANISED_TEXT, THEME)), \
+             patch("routers.thoughts.embeddings.embed", return_value=_SEEDED_VECTOR):
 
             client = TestClient(app)
             client.post(

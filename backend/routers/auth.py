@@ -17,7 +17,12 @@ from config import config
 from database import Account, get_async_db
 from middleware.rate_limit import make_rate_limit_dependency
 from models.auth import AuthCredentials, AuthResponse
-from services.auth import create_access_token, decode_access_token, hash_password, verify_password
+from services.auth import (
+    create_access_token,
+    decode_access_token_admin,
+    hash_password,
+    verify_password,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -78,9 +83,9 @@ async def refresh_token(authorization: str | None = Header(None)):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
 
     token = authorization.removeprefix("Bearer ")
-    user_id = decode_access_token(token)
+    user_id, was_admin = decode_access_token_admin(token)
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    new_token = create_access_token(user_id)
-    return AuthResponse(access_token=new_token)
+    new_token = create_access_token(user_id, is_admin=was_admin)
+    return AuthResponse(access_token=new_token, is_admin=was_admin)

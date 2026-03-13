@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from config import config
 from middleware.rate_limit import _rate_limiter, get_client_identifier
-from models.resolution import ResolutionResponse, ResolutionSubmit
+from models.resolution import ResolutionResponse, ResolutionSubmit, ResolutionSubmitResponse
 from services import anonymiser as anonymiser_service
 from services import auth as auth_service
 from services import elastic
@@ -66,7 +66,7 @@ async def resolution_rate_limit(request: Request) -> None:
         )
 
 
-@router.post("", response_model=dict)
+@router.post("", response_model=ResolutionSubmitResponse)
 async def submit_resolution(submission: ResolutionSubmit, _: None = Depends(resolution_rate_limit)):
     """
     Submit "what helped" advice for a resolved thought.

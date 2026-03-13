@@ -29,6 +29,9 @@ def client():
     return TestClient(app)
 
 
+_SEEDED_VECTOR = [0.1] * 384
+
+
 def _make_search_result(
     thoughts: list[dict] | None = None,
     total: int = 5,
@@ -50,6 +53,17 @@ def _make_search_result(
     }
 
 
+def _standard_pipeline_mocks():
+    """Return a context manager stack that patches the full thought pipeline."""
+    return (
+        patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock),
+        patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock),
+        patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+        patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
+        patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Happy-path tests
 # ---------------------------------------------------------------------------
@@ -62,14 +76,13 @@ class TestSubmitThoughtHappyPath:
         """Response must contain message_id, theme_category, match_count, similar_thoughts, search_after."""
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock) as mock_anon,
-            patch("routers.thoughts.ai.humanize_thought", new_callable=AsyncMock) as mock_humanize,
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock) as mock_classify,
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock) as mock_hc,
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_anon.return_value = "My [male name] at [tech company] undermines me"
-            mock_humanize.return_value = "Someone at work consistently undermines me."
-            mock_classify.return_value = "work_stress"
+            mock_hc.return_value = ("Someone at work consistently undermines me.", "work_stress")
             mock_search.return_value = _make_search_result(total=42, search_after=["cursor-val"])
 
             response = client.post(
@@ -91,14 +104,13 @@ class TestSubmitThoughtHappyPath:
         """Response values reflect what the mocked services return."""
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock) as mock_anon,
-            patch("routers.thoughts.ai.humanize_thought", new_callable=AsyncMock) as mock_humanize,
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock) as mock_classify,
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock) as mock_hc,
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_anon.return_value = "My [male name] at [tech company] undermines me"
-            mock_humanize.return_value = "Someone at work consistently undermines me."
-            mock_classify.return_value = "work_stress"
+            mock_hc.return_value = ("Someone at work consistently undermines me.", "work_stress")
             mock_search.return_value = _make_search_result(total=99, search_after=["ts123", "id456"])
 
             response = client.post(
@@ -118,14 +130,13 @@ class TestSubmitThoughtHappyPath:
         """Each item in similar_thoughts must have the expected fields."""
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock) as mock_anon,
-            patch("routers.thoughts.ai.humanize_thought", new_callable=AsyncMock) as mock_humanize,
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock) as mock_classify,
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock) as mock_hc,
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_anon.return_value = "I feel overwhelmed at [workplace]"
-            mock_humanize.return_value = "Work is crushing my spirit."
-            mock_classify.return_value = "burnout"
+            mock_hc.return_value = ("Work is crushing my spirit.", "burnout")
             mock_search.return_value = _make_search_result(
                 thoughts=[
                     {
@@ -154,14 +165,13 @@ class TestSubmitThoughtHappyPath:
         """search_after should be null in the response when elastic returns None."""
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock) as mock_anon,
-            patch("routers.thoughts.ai.humanize_thought", new_callable=AsyncMock) as mock_humanize,
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock) as mock_classify,
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock) as mock_hc,
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_anon.return_value = "I feel lonely"
-            mock_humanize.return_value = "Loneliness weighs on me."
-            mock_classify.return_value = "loneliness"
+            mock_hc.return_value = ("Loneliness weighs on me.", "loneliness")
             mock_search.return_value = _make_search_result(total=2, search_after=None)
 
             response = client.post("/api/v1/thoughts", json={"text": "I feel alone"})
@@ -191,19 +201,15 @@ class TestPrivacyInvariants:
             call_order.append("anonymize")
             return "anonymized text"
 
-        async def spy_humanize(text: str) -> str:
-            call_order.append("humanize")
-            return "humanised text"
-
-        async def spy_classify(text: str) -> str:
-            call_order.append("classify")
-            return "work_stress"
+        async def spy_humanize_and_classify(text: str) -> tuple[str, str]:
+            call_order.append("humanize_and_classify")
+            return "humanised text", "work_stress"
 
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", side_effect=spy_anonymize),
-            patch("routers.thoughts.ai.humanize_thought", side_effect=spy_humanize),
-            patch("routers.thoughts.ai.classify_theme", side_effect=spy_classify),
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", side_effect=spy_humanize_and_classify),
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_search.return_value = _make_search_result()
@@ -212,12 +218,12 @@ class TestPrivacyInvariants:
                 json={"text": "My boss Sarah at Facebook controls me"},
             )
 
-        # anonymize must appear before humanize in the call order
+        # anonymize must appear before humanize_and_classify in the call order
         assert "anonymize" in call_order
-        assert "humanize" in call_order
+        assert "humanize_and_classify" in call_order
         anon_index = call_order.index("anonymize")
-        humanize_index = call_order.index("humanize")
-        assert anon_index < humanize_index, (
+        hc_index = call_order.index("humanize_and_classify")
+        assert anon_index < hc_index, (
             "PRIVACY VIOLATION: humanizer was called before anonymizer"
         )
 
@@ -230,15 +236,15 @@ class TestPrivacyInvariants:
         async def mock_anonymize(text: str) -> str:
             return anonymized_text
 
-        async def mock_humanize(text: str) -> str:
+        async def mock_humanize_and_classify(text: str) -> tuple[str, str]:
             humanizer_received.append(text)
-            return "Someone at work undermines me in meetings."
+            return "Someone at work undermines me in meetings.", "work_stress"
 
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", side_effect=mock_anonymize),
-            patch("routers.thoughts.ai.humanize_thought", side_effect=mock_humanize),
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock, return_value="work_stress"),
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", side_effect=mock_humanize_and_classify),
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_search.return_value = _make_search_result()
@@ -260,14 +266,13 @@ class TestPrivacyInvariants:
 
         with (
             patch("routers.thoughts.anonymiser_service.anonymize_text", new_callable=AsyncMock) as mock_anon,
-            patch("routers.thoughts.ai.humanize_thought", new_callable=AsyncMock) as mock_humanize,
-            patch("routers.thoughts.ai.classify_theme", new_callable=AsyncMock) as mock_classify,
-            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock),
+            patch("routers.thoughts.ai.humanize_and_classify", new_callable=AsyncMock) as mock_hc,
+            patch("routers.thoughts.embeddings.embed", new_callable=AsyncMock, return_value=_SEEDED_VECTOR),
+            patch("routers.thoughts.elastic.index_thought", new_callable=AsyncMock, return_value=True),
             patch("routers.thoughts.elastic.search_similar_thoughts", new_callable=AsyncMock) as mock_search,
         ):
             mock_anon.return_value = "My [female name] at [bank] is [threatening me]"
-            mock_humanize.return_value = "A coworker is making me feel unsafe."
-            mock_classify.return_value = "work_stress"
+            mock_hc.return_value = ("A coworker is making me feel unsafe.", "work_stress")
             mock_search.return_value = _make_search_result()
 
             response = client.post("/api/v1/thoughts", json={"text": raw_text})
@@ -324,7 +329,7 @@ class TestThoughtPipelineErrors:
         assert "detail" in data
 
     def test_returns_502_on_humanizer_exception(self, client):
-        """Any exception in humanize_thought must yield HTTP 502."""
+        """Any exception in humanize_and_classify must yield HTTP 502."""
         with (
             patch(
                 "routers.thoughts.anonymiser_service.anonymize_text",
@@ -332,39 +337,11 @@ class TestThoughtPipelineErrors:
                 return_value="anonymized text",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-            ) as mock_humanize,
+            ) as mock_hc,
         ):
-            mock_humanize.side_effect = Exception("Claude API error")
-            response = client.post(
-                "/api/v1/thoughts",
-                json={"text": "I feel overwhelmed by work"},
-            )
-
-        assert response.status_code == 502
-        data = response.json()
-        assert "detail" in data
-
-    def test_returns_502_on_classify_theme_exception(self, client):
-        """Any exception in classify_theme must yield HTTP 502."""
-        with (
-            patch(
-                "routers.thoughts.anonymiser_service.anonymize_text",
-                new_callable=AsyncMock,
-                return_value="anonymized text",
-            ),
-            patch(
-                "routers.thoughts.ai.humanize_thought",
-                new_callable=AsyncMock,
-                return_value="humanised text",
-            ),
-            patch(
-                "routers.thoughts.ai.classify_theme",
-                new_callable=AsyncMock,
-            ) as mock_classify,
-        ):
-            mock_classify.side_effect = Exception("Theme classification API error")
+            mock_hc.side_effect = Exception("API error")
             response = client.post(
                 "/api/v1/thoughts",
                 json={"text": "I feel overwhelmed by work"},

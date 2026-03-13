@@ -160,14 +160,14 @@ class TestRequestSizeLimits:
                 return_value="[person] feels overwhelmed",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-                return_value="Someone feels completely overwhelmed by everything around them.",
+                return_value=("Someone feels completely overwhelmed by everything around them.", "overwhelm"),
             ),
             patch(
-                "routers.thoughts.ai.classify_theme",
+                "routers.thoughts.embeddings.embed",
                 new_callable=AsyncMock,
-                return_value="overwhelm",
+                return_value=[0.1] * 384,
             ),
             patch(
                 "routers.thoughts.elastic.index_thought",
@@ -335,7 +335,7 @@ class TestClaudeRateLimitHandling:
 
     def test_claude_rate_limit_on_humanize_returns_429(self, client):
         """
-        When humanize_thought raises ClaudeRateLimitError, the endpoint must
+        When humanize_and_classify raises ClaudeRateLimitError, the endpoint must
         return HTTP 429 with a user-friendly message.
         """
         with (
@@ -345,7 +345,7 @@ class TestClaudeRateLimitHandling:
                 return_value="[person] at [company] feels overwhelmed",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeRateLimitError("Rate limit exceeded"),
             ),
@@ -358,7 +358,7 @@ class TestClaudeRateLimitHandling:
 
     def test_claude_rate_limit_on_classify_returns_429(self, client):
         """
-        When classify_theme raises ClaudeRateLimitError, the endpoint must
+        When humanize_and_classify raises ClaudeRateLimitError, the endpoint must
         also return HTTP 429.
         """
         with (
@@ -368,12 +368,7 @@ class TestClaudeRateLimitHandling:
                 return_value="[person] at [company] feels overwhelmed",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
-                new_callable=AsyncMock,
-                return_value="Someone at work feels completely overwhelmed and undervalued.",
-            ),
-            patch(
-                "routers.thoughts.ai.classify_theme",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeRateLimitError("Rate limit exceeded"),
             ),
@@ -391,7 +386,7 @@ class TestClaudeRateLimitHandling:
                 return_value="[person] at [company] feels overwhelmed",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeAPIError("Claude API internal error"),
             ),
@@ -414,7 +409,7 @@ class TestClaudeRateLimitHandling:
                 return_value="[person] betrayed me and I cannot cope",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeRateLimitError("Rate limit exceeded"),
             ),
@@ -458,14 +453,14 @@ class TestElasticsearchFallback:
                 return_value="[person] feels overwhelmed at [company]",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-                return_value="Someone feels completely overwhelmed by work expectations.",
+                return_value=("Someone feels completely overwhelmed by work expectations.", "overwhelm"),
             ),
             patch(
-                "routers.thoughts.ai.classify_theme",
+                "routers.thoughts.embeddings.embed",
                 new_callable=AsyncMock,
-                return_value="overwhelm",
+                return_value=[0.1] * 384,
             ),
             patch(
                 "routers.thoughts.elastic.index_thought",
@@ -500,14 +495,14 @@ class TestElasticsearchFallback:
                 return_value="[person] feels overwhelmed",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-                return_value="Someone feels completely overwhelmed by everything.",
+                return_value=("Someone feels completely overwhelmed by everything.", "overwhelm"),
             ),
             patch(
-                "routers.thoughts.ai.classify_theme",
+                "routers.thoughts.embeddings.embed",
                 new_callable=AsyncMock,
-                return_value="overwhelm",
+                return_value=[0.1] * 384,
             ),
             patch(
                 "routers.thoughts.elastic.index_thought",
@@ -540,14 +535,14 @@ class TestElasticsearchFallback:
                 return_value="[person] at [company] treats me terribly",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-                return_value="Someone in my family treats me with consistent disrespect.",
+                return_value=("Someone in my family treats me with consistent disrespect.", "family_tension"),
             ),
             patch(
-                "routers.thoughts.ai.classify_theme",
+                "routers.thoughts.embeddings.embed",
                 new_callable=AsyncMock,
-                return_value="family_tension",
+                return_value=[0.1] * 384,
             ),
             patch(
                 "routers.thoughts.elastic.index_thought",
@@ -618,7 +613,7 @@ class TestPrivacyInvariantErrorResponses:
                 return_value="[person] at [company] is unhappy",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeRateLimitError("Rate limit"),
             ),
@@ -640,7 +635,7 @@ class TestPrivacyInvariantErrorResponses:
                 return_value="[person] at [company] is unhappy",
             ),
             patch(
-                "routers.thoughts.ai.humanize_thought",
+                "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
                 side_effect=ClaudeAPIError("Claude API error"),
             ),

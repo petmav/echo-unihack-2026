@@ -140,10 +140,10 @@ class TestClaudeAPIFailure:
 
     def test_humanize_failure_returns_502(self, client):
         """
-        An exception from services.ai.humanize_thought must surface as HTTP 502.
+        An exception from services.ai.humanize_and_classify must surface as HTTP 502.
         """
         with patch(
-            "routers.thoughts.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_and_classify",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: 529 overloaded"),
         ):
@@ -158,7 +158,7 @@ class TestClaudeAPIFailure:
     def test_humanize_failure_detail_is_user_friendly(self, client):
         """Humanization error detail must not expose internal exception details."""
         with patch(
-            "routers.thoughts.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_and_classify",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: 529 overloaded"),
         ):
@@ -171,10 +171,10 @@ class TestClaudeAPIFailure:
 
     def test_classify_theme_failure_returns_502(self, client):
         """
-        An exception from services.ai.classify_theme must surface as HTTP 502.
+        An exception from services.ai.humanize_and_classify must surface as HTTP 502.
         """
         with patch(
-            "routers.thoughts.ai.classify_theme",
+            "routers.thoughts.ai.humanize_and_classify",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error: rate limited"),
         ):
@@ -187,7 +187,7 @@ class TestClaudeAPIFailure:
     def test_claude_failure_no_raw_text_in_response(self, client):
         """CRITICAL PRIVACY: raw input text must NOT appear in Claude error response."""
         with patch(
-            "routers.thoughts.ai.humanize_thought",
+            "routers.thoughts.ai.humanize_and_classify",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Anthropic API error"),
         ):

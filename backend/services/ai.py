@@ -80,7 +80,7 @@ CRISIS_THEMES: frozenset[str] = frozenset({
     "domestic_violence",
 })
 
-_NANOGPT_BASE_URL = "https://nano-gpt.com/api/v1"
+_NANOGPT_BASE_URL = getattr(config, "NANOGPT_BASE_URL", "https://nano-gpt.com/api/v1")
 _MODEL = "qwen3.5-122b-a10b"
 
 _HUMANISE_SYSTEM_PROMPT = (

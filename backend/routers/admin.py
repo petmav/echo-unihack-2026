@@ -237,10 +237,12 @@ async def admin_login(password: str = Form(...)):
             "echo_admin",
             _admin_token,
             httponly=True,
-            samesite="lax",
+            samesite="strict",
             max_age=86400 * 7,
         )
         return response
+    import logging
+    logging.getLogger("echo").warning("Admin login attempt failed")
     return HTMLResponse(_login_html(error="Incorrect password."), status_code=401)
 
 

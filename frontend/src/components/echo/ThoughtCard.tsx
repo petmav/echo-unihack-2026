@@ -41,6 +41,12 @@ export function ThoughtCard({
         ease: [0.22, 1, 0.36, 1],
       }}
       onClick={() => hasResolution && onTap?.(thought)}
+      onKeyDown={(e) => {
+        if (hasResolution && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onTap?.(thought);
+        }
+      }}
       role={hasResolution ? "button" : undefined}
       tabIndex={hasResolution ? 0 : undefined}
       aria-label={

@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTClaimsError, JWTError
 
 from config import config
 
@@ -94,7 +95,7 @@ def decode_access_token(token: str | None) -> str | None:
         payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
         user_id: str | None = payload.get("sub")
         return user_id
-    except Exception:
+    except (JWTError, JWTClaimsError, ExpiredSignatureError):
         return None
 
 
@@ -112,5 +113,5 @@ def decode_access_token_admin(token: str | None) -> tuple[str | None, bool]:
         user_id: str | None = payload.get("sub")
         is_admin: bool = bool(payload.get("adm", False))
         return user_id, is_admin
-    except Exception:
+    except (JWTError, JWTClaimsError, ExpiredSignatureError):
         return None, False

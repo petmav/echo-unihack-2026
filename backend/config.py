@@ -90,15 +90,21 @@ class Config(BaseSettings):
         Validate that required configuration is present.
 
         Returns:
-            List of missing required configuration keys.
+            List of missing required configuration keys (critical items first).
         """
+        import logging
+
         missing = []
 
         if not self.NANOGPT_API_KEY:
             missing.append("NANOGPT_API_KEY")
 
         if self.JWT_SECRET == "dev-secret-key-change-in-production":
-            missing.append("JWT_SECRET (using default dev key)")
+            logging.getLogger("echo").error(
+                "JWT_SECRET is using the insecure default value. "
+                "Set JWT_SECRET in .env before deploying."
+            )
+            missing.append("JWT_SECRET (INSECURE DEFAULT — set in .env)")
 
         return missing
 
