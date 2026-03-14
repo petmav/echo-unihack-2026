@@ -331,11 +331,13 @@ async def search_similar_thoughts(
         thoughts = []
         for hit in hits:
             source = hit["_source"]
+            score = hit.get("_score")
             thoughts.append({
                 "message_id": source["message_id"],
                 "humanised_text": source["humanised_text"],
                 "theme_category": source["theme_category"],
                 "has_resolution": source.get("has_resolution", False),
+                "similarity_score": float(score) if score is not None else None,
             })
 
         next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None
@@ -425,7 +427,8 @@ async def get_aggregates() -> list[dict[str, Any]]:
     Get weekly aggregate counts for all theme categories in the current ISO week.
 
     Returns:
-        List of dicts with keys 'theme' (str) and 'count' (int), one per theme
+        List of dicts with keys 'theme' (str), 'count' (int),
+        'resolution_count' (int), and 'resolution_rate' (int), one per theme
         that has at least one thought indexed this week. Returns empty list if
         Elasticsearch is unavailable or an error occurs.
 
@@ -452,7 +455,14 @@ async def get_aggregates() -> list[dict[str, Any]]:
                 "terms": {
                     "field": "theme_category",
                     "size": 100,
-                }
+                },
+                "aggs": {
+                    "resolved": {
+                        "filter": {
+                            "term": {"has_resolution": True}
+                        }
+                    }
+                },
             }
         },
     }
@@ -463,10 +473,74 @@ async def get_aggregates() -> list[dict[str, Any]]:
             body=query_body,
         )
         buckets = response.get("aggregations", {}).get("themes", {}).get("buckets", [])
-        return [{"theme": bucket["key"], "count": bucket["doc_count"]} for bucket in buckets]
+        return [
+            {
+                "theme": bucket["key"],
+                "count": bucket["doc_count"],
+                "resolution_count": int(bucket.get("resolved", {}).get("doc_count", 0)),
+                "resolution_rate": (
+                    round(
+                        (int(bucket.get("resolved", {}).get("doc_count", 0)) / bucket["doc_count"]) * 100
+                    )
+                    if bucket["doc_count"] > 0
+                    else 0
+                ),
+            }
+            for bucket in buckets
+        ]
     except Exception as exc:
         logger.error(f"Failed to get theme aggregates for week {current_week}: {exc}")
         return []
+
+
+async def get_total_theme_resolution_stats(theme_category: str) -> dict[str, int]:
+    """
+    Get all-time anonymous stats for a theme, including shared-resolution counts.
+
+    Args:
+        theme_category: Theme to aggregate (e.g., "work_stress").
+
+    Returns:
+        Dict with count, resolution_count, and resolution_rate. Returns zeros
+        if Elasticsearch is unavailable or an error occurs.
+    """
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized; returning zero theme stats")
+        return {"count": 0, "resolution_count": 0, "resolution_rate": 0}
+
+    query_body: dict[str, Any] = {
+        "size": 0,
+        "query": {
+            "term": {"theme_category": theme_category}
+        },
+        "aggs": {
+            "resolved": {
+                "filter": {
+                    "term": {"has_resolution": True}
+                }
+            }
+        },
+    }
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body=query_body,
+        )
+        total_value = response.get("hits", {}).get("total", 0)
+        total = total_value["value"] if isinstance(total_value, dict) else int(total_value)
+        resolution_count = int(
+            response.get("aggregations", {}).get("resolved", {}).get("doc_count", 0)
+        )
+        resolution_rate = round((resolution_count / total) * 100) if total > 0 else 0
+        return {
+            "count": total,
+            "resolution_count": resolution_count,
+            "resolution_rate": resolution_rate,
+        }
+    except Exception as exc:
+        logger.error(f"Failed to get total theme resolution stats for {theme_category}: {exc}")
+        return {"count": 0, "resolution_count": 0, "resolution_rate": 0}
 
 
 async def get_thought_by_id(message_id: str) -> dict[str, Any] | None:

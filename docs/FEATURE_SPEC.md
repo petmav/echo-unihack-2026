@@ -16,7 +16,7 @@
 - Character count shown when approaching limit
 - Submit on tap of send button or keyboard submit
 
-**Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through:
+**Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through (≈2.8s per phrase):
 - *"finding your people..."*
 - *"you're not alone in this..."*
 - *"others have been here too..."*
@@ -33,11 +33,15 @@ Duration: 2-3 seconds minimum regardless of actual processing time. This pause i
 
 Each card displays the Claude-humanised anonymised thought from another user (50-60 words). Cards are full-width, comfortable padding, soft card shadow.
 
+**Match strength labels**: Each card shows a label based on Elastic similarity score (0–1): *very close* (≥0.9), *close* (≥0.75), or *same space* (≥0.5). Labels appear above the thought text in muted uppercase.
+
 **Visual states**:
 - Standard card: no resolution attached
 - Highlighted card: has "what helped" attached — subtle warm background tint, small badge e.g. *"someone found a way through"*
 
 **Pagination**: 15 cards on initial load. On scroll-to-bottom, next 15 are appended silently (no loading indicator unless slow — use skeleton cards if >500ms).
+
+**Advice-first toggle**: Above the cards, a block card contains the switch *"Show only what helped"*. When on, the list filters to cards that have an attached resolution. Client-side filter only.
 
 **Tap behaviour**: Tapping a standard card does nothing (or a subtle expand animation showing full text if truncated). Tapping a highlighted card opens a bottom sheet showing the verbatim "what helped" text.
 
@@ -94,9 +98,16 @@ Accessed from the history panel or hamburger menu.
 - Most frequent emotional themes over time
 - Frequency chart (simple bar or line, last 12 weeks)
 - Resolution rate (% of thoughts marked resolved)
+- Resolution timeline: recent resolved thoughts shown with when they were first written, when they were marked resolved, and how long the shift took
 - Streak/cadence info if applicable
 
 **Privacy note visible in UI**: *"This data lives only on your device and is never uploaded."*
+
+**Resolution timeline rules**:
+- Uses a local `resolution_timestamp` recorded only when the user marks a thought resolved on-device
+- Shows recent resolved thoughts as a timeline of *wrote -> resolved* moments
+- Includes average time-to-resolution across tracked local entries
+- Older resolved thoughts saved before timeline tracking began may still count toward the resolution rate, but are labelled as pre-timeline history rather than given a fake duration
 
 ---
 
@@ -167,7 +178,88 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 10. "Quiet Wins" — Local Reflection on Time Between Returns
+### 10. "Saved Anchors" — Local Advice You Chose to Keep
+
+**What**: When a response card includes a verbatim "what helped" note, the user can save that advice locally as an anchor. The next time the same theme returns, those saved lines are surfaced above the response cards.
+
+**Flow**:
+1. User taps a highlighted response card with "what helped"
+2. Bottom sheet opens with the verbatim advice
+3. User taps *"Save as anchor"*
+4. The anonymised card text + verbatim advice are stored locally on-device, keyed by `message_id` and `theme_category`
+5. On a future matching `theme_category`, the saved anchors appear near the top of the results stack
+
+**What the user sees**:
+- Results banner heading: *"Saved anchors for this space"*
+- Supporting line: *"These are lines you chose to keep nearby for self worth."*
+- Up to the two most recent saved anchors, each showing:
+  - The verbatim advice text
+  - The anonymised card context it came from
+  - The local save date
+- Footer note: *"Stored only on this device."*
+
+**Rules**:
+- Only cards with attached verbatim "what helped" text can be saved
+- Saving is entirely local — no API call, no server write, no analytics
+- Saving the same card again overwrites the local save timestamp rather than duplicating it
+- Saved anchors are cleared when local data is cleared or the account is deleted from the device
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the local-history conditions are met
+4. Recurrence pattern banner appears if the same theme has been repeating recently
+5. Saved anchors appear if the user has previously saved any matching advice lines
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
+
+**Storage**: `echo_saved_anchors` in localStorage. Array of `{ message_id, theme_category, humanised_text, resolution_text, saved_at }`.
+
+**Privacy**: 100% local. Uses already-anonymised response content only. Never uploaded. Never linked to an account on the server.
+
+---
+
+### 11. Per-Theme Resolution Aggregates
+
+**What**: After the count reveal, the results screen shows an anonymous aggregate about how often people in the same emotional space later shared verbatim "what helped" advice. This turns the result from just *"you are not alone"* into *"some people in this space found language for what shifted."*
+
+**What the user sees**:
+- A cool-toned banner above the local-only reflection banners
+- Heading: *"What helped in this space"*
+- Body example: *"Across self-worth, 94 people later shared what helped. That's 24% of similar thoughts so far."*
+- Two supporting stat chips:
+  - Number of people who shared what helped
+  - Percentage of similar thoughts with shared advice
+- Footer note: *"Anonymous aggregate from similar thoughts only."*
+
+**Data source**:
+- `GET /api/v1/thoughts/count?theme=X`
+- Returns:
+  - `count`: all-time number of similar thoughts in that theme
+  - `resolution_count`: all-time number of those thoughts with attached verbatim "what helped"
+  - `resolution_rate`: rounded percentage of thoughts in that theme with attached advice
+
+**Rules**:
+- Uses only anonymous Elastic aggregates derived from `theme_category` and `has_resolution`
+- Never exposes user IDs, account IDs, raw text, or message-to-user linkage
+- If backend aggregates are unavailable, the frontend falls back to demo-safe aggregate values so the demo flow stays legible
+- The copy must say *"shared what helped"* rather than implying clinical recovery
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Per-theme resolution aggregate banner appears if `resolution_count > 0`
+4. Quiet wins banner appears if the local-history conditions are met
+5. Recurrence pattern banner appears if the same theme has been repeating recently
+6. Saved anchors appear if the user has previously saved any matching advice lines
+7. Future You letter appears if a matching local letter exists
+8. Response cards render below
+
+**Privacy**: Aggregate-only. The feature is powered by anonymous Elastic counts and does not introduce any new user-level storage or tracking.
+
+---
+
+### 12. "Quiet Wins" — Local Reflection on Time Between Returns
 
 **What**: When a familiar non-risk theme returns after being absent for a meaningful stretch, the results screen shows a gentle reflection banner. The tone is intentionally non-clinical: the app notices that a period of quiet happened, and counts it.
 
@@ -186,8 +278,10 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 1. Count reveal completes
 2. Safety banner appears if the theme is risk-related
 3. Quiet wins banner appears if the local-history conditions are met
-4. Future You letter appears if a matching local letter exists
-5. Response cards render below
+4. Recurrence pattern banner appears if the same theme has shown up repeatedly in the last two weeks
+5. Saved anchors appear if any matching advice lines were previously saved locally
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
 
 **Rules**:
 - Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
@@ -199,7 +293,41 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 11. "Guardrails of Care" — Light-Touch Safety Layer
+### 13. "Recurrence Pattern" — Local Signal for a Theme That Keeps Returning
+
+**What**: When the same non-risk theme has come up repeatedly in a short recent window, the results screen surfaces a local-only banner that gently points out the pattern. The goal is not to diagnose or dramatise it, only to make repetition visible.
+
+**Trigger conditions**:
+- The newly submitted thought is classified into a non-risk `theme_category`
+- That same theme appears in the user's local history at least **twice in the last 14 days**
+- The current submission becomes at least the **third mention** of that theme in the same 14-day window
+
+**What the user sees**:
+- A neutral warm banner above the response cards
+- Heading: *"A returning pattern"*
+- Body: *"Self worth has come up 3 times in the last 14 days. The most recent mention before today was 2 days ago."*
+- Footer note: *"Noticed only from your local history on this device."*
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the theme had been absent for a meaningful stretch
+4. Recurrence pattern banner appears if the theme has been recurring recently
+5. Saved anchors appear if matching advice was previously saved locally
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
+
+**Rules**:
+- Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
+- Never show unless there are at least 2 prior mentions of the same theme inside the last 14 days
+- Uses only local history already stored on device
+- Can naturally coexist with saved anchors and Future You letters
+
+**Privacy**: Entirely local. No API call. No logging. No persistence beyond the thought history already on device.
+
+---
+
+### 14. "Guardrails of Care" — Light-Touch Safety Layer
 
 **What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
 
@@ -221,7 +349,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 12. Surrounding Topics & Topic Exploration
+### 15. Surrounding Topics & Topic Exploration
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 

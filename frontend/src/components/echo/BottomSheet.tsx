@@ -1,15 +1,35 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
 import type { ThoughtResponse } from "@/lib/types";
 
 interface BottomSheetProps {
   thought: ThoughtResponse | null;
   onClose: () => void;
+  onSaveAnchor?: (thought: ThoughtResponse) => void;
+  isAnchorSaved?: boolean;
 }
 
-export function BottomSheet({ thought, onClose }: BottomSheetProps) {
+export function BottomSheet({
+  thought,
+  onClose,
+  onSaveAnchor,
+  isAnchorSaved = false,
+}: BottomSheetProps) {
+  const resolutionText = thought?.resolution_text?.trim();
+
+  useEffect(() => {
+    if (!thought) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [thought, onClose]);
+
   return (
     <AnimatePresence>
       {thought && (
@@ -42,13 +62,34 @@ export function BottomSheet({ thought, onClose }: BottomSheetProps) {
             {/* Handle */}
             <div className="mx-auto mb-5 h-1 w-9 rounded-full bg-echo-text-muted opacity-35" />
 
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-echo-text-soft transition-colors active:bg-black/5"
+              aria-label="Close sheet"
+            >
+              <X size={18} />
+            </button>
+
             <h3 className="mb-3.5 font-serif text-[17px] font-normal text-echo-text">
               What helped
             </h3>
 
             <p className="mb-4.5 text-[14.5px] font-light leading-[1.75] text-echo-text">
-              {thought.resolution_text}
+              {resolutionText ?? "We couldn't load what helped this time."}
             </p>
+
+            {resolutionText && (
+              <button
+                type="button"
+                className="mb-4 inline-flex min-h-[44px] items-center justify-center rounded-full border border-echo-highlight-border bg-echo-highlight px-4 py-2.5 text-[12.5px] font-medium text-echo-accent transition-opacity disabled:cursor-default disabled:opacity-70"
+                onClick={() => onSaveAnchor?.(thought)}
+                disabled={isAnchorSaved}
+                data-testid="save-anchor-button"
+              >
+                {isAnchorSaved ? "Saved on this device" : "Save as anchor"}
+              </button>
+            )}
 
             <p className="text-xs italic text-echo-text-muted">
               Written by someone who&apos;s been there.

@@ -4,6 +4,8 @@ export interface ThoughtResponse {
   theme_category: string;
   has_resolution: boolean;
   resolution_text?: string;
+  /** Elastic similarity score (0-1). Used for match strength labels. */
+  similarity_score?: number;
 }
 
 export interface ThoughtSubmitResult {
@@ -28,6 +30,7 @@ export interface LocalThought {
   theme_category: string;
   timestamp: number;
   is_resolved: boolean;
+  resolution_timestamp?: number;
   resolution_text?: string;
   future_letter?: string;
   /** Number of people who felt something like this (from search at submit time). */
@@ -39,6 +42,14 @@ export interface FutureLetter {
   theme_category: string;
   letter_text: string;
   timestamp: number;
+}
+
+export interface SavedAnchor {
+  message_id: string;
+  theme_category: string;
+  humanised_text: string;
+  resolution_text: string;
+  saved_at: number;
 }
 
 export interface ThemePresence {

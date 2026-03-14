@@ -6,12 +6,21 @@ import { Capacitor } from "@capacitor/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Target } from "lucide-react";
 
-import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
+import type { ThemeCountSummary } from "@/lib/api";
+import type {
+  AppScreen,
+  ThoughtResponse,
+  PresenceLevel,
+  FutureLetter,
+  LocalThought,
+  SavedAnchor,
+} from "@/lib/types";
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
   DEMO_FUTURE_LETTER,
   inferThemeFromText,
+  RISK_THEMES,
 } from "@/lib/constants";
 import {
   saveThought,
@@ -25,6 +34,9 @@ import {
   markOnboardingComplete,
   saveFutureLetter,
   getFutureLettersForTheme,
+  saveAnchor,
+  getSavedAnchorsForTheme,
+  getAllSavedAnchors,
   getMostRecentTheme,
   presenceLevelFromCount,
   getNotificationOptIn,
@@ -53,6 +65,10 @@ import {
 import { THEME_DISPLAY_LABELS } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
 import { findQuietWin, type QuietWin } from "@/lib/quietWins";
+import {
+  findRecurrencePattern,
+  type RecurrencePattern,
+} from "@/lib/recurrencePattern";
 
 import { EchoLogo } from "@/components/echo/EchoLogo";
 import { ThoughtInput } from "@/components/echo/ThoughtInput";
@@ -73,6 +89,10 @@ import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
+import { RecurrencePatternBanner } from "@/components/echo/RecurrencePatternBanner";
+import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
+import { ThemeResolutionAggregateBanner } from "@/components/echo/ThemeResolutionAggregateBanner";
+import { DataModeBadge } from "@/components/echo/DataModeBadge";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 import { ThoughtGraph } from "@/components/echo/ThoughtGraph";
@@ -94,20 +114,77 @@ const PATH_TO_SCREEN: Record<string, AppScreen> = Object.fromEntries(
 
 /* ── Demo seed data for when backend is unavailable ── */
 const SEED_THOUGHTS: ThoughtResponse[] = [
-  { message_id: "t1", humanised_text: "There's this constant feeling that I'm falling behind while everyone around me seems to be moving forward effortlessly. I compare myself to others and wonder if I'll ever measure up to where I should be.", theme_category: "comparison", has_resolution: true, resolution_text: "I started writing down three things I did well each week, no matter how small. After a couple of months, I realised I was comparing my beginning to everyone else's middle. The comparison didn't stop completely but it lost its teeth." },
-  { message_id: "t2", humanised_text: "I feel invisible at work. I contribute ideas and effort but it's like nobody notices. The recognition always goes to someone louder, someone more confident, and I'm left wondering if my work even matters.", theme_category: "professional_worth", has_resolution: false },
-  { message_id: "t3", humanised_text: "Sometimes I lie awake replaying every awkward thing I've ever said in a conversation. The shame hits me physically and I convince myself everyone remembers those moments as vividly as I do.", theme_category: "self_worth", has_resolution: true, resolution_text: "Honestly what helped was asking a close friend if they remembered a specific moment I'd been agonizing over for years. They had absolutely no idea what I was talking about. That one conversation did more than months of overthinking." },
-  { message_id: "t4", humanised_text: "I moved to a new city for an opportunity that felt right at the time but now I'm surrounded by strangers and the loneliness is heavier than I expected. I smile through the day and fall apart at night.", theme_category: "relationship_loss", has_resolution: false },
-  { message_id: "t5", humanised_text: "My family expects me to follow a path I never chose. Every conversation turns into pressure about careers, relationships, timelines. I love them but I feel like I'm disappearing into their version of who I should be.", theme_category: "family_pressure", has_resolution: true, resolution_text: "I wrote a letter to my parents. Not to send — just for me. It helped me separate what I actually wanted from what I thought I was supposed to want. Then I had one honest conversation. Just one. It didn't fix everything but it cracked the door open." },
-  { message_id: "t6", humanised_text: "I keep starting things with so much energy and then abandoning them halfway through. Projects, hobbies, relationships. I'm terrified that I'm fundamentally incapable of following through on anything that matters.", theme_category: "self_worth", has_resolution: false },
-  { message_id: "t7", humanised_text: "There's a person in my life who makes me feel small in ways that are hard to explain to anyone else. It's not dramatic or obvious — it's subtle, constant, and I'm starting to believe the things they imply about me.", theme_category: "relationship_loss", has_resolution: true, resolution_text: "I started keeping a note on my phone of every time they said something that made me feel bad. Reading it back after a month made the pattern undeniable. It's easier to trust your own perception when you have the receipts." },
-  { message_id: "t8", humanised_text: "I graduated months ago and still don't know what I'm doing. Everyone posts about their new jobs and achievements and I'm here applying to things I don't even want, wondering if the version of me that had ambitions still exists somewhere.", theme_category: "professional_worth", has_resolution: false },
-  { message_id: "t9", humanised_text: "I catch myself performing happiness around people because the alternative — being honest about how I feel — sounds exhausting and risky. I'm tired of being the person who's always fine.", theme_category: "self_worth", has_resolution: false },
-  { message_id: "t10", humanised_text: "I helped someone through the hardest time of their life and when I needed the same they weren't there. The imbalance in who I am for others versus who they are for me is a loneliness I can't articulate.", theme_category: "relationship_loss", has_resolution: true, resolution_text: "I had to grieve the friendship I thought I had separately from the person. Once I stopped expecting reciprocity from that specific person, I could actually see the people who do show up for me. They were there all along." },
-  { message_id: "t11", humanised_text: "I look at old photos of myself and feel a deep sadness for how harshly I judged that person. I was so much kinder to everyone else than I was to myself, and I'm still doing it.", theme_category: "self_worth", has_resolution: false },
-  { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones." },
+  { message_id: "t1", humanised_text: "There's this constant feeling that I'm falling behind while everyone around me seems to be moving forward effortlessly. I compare myself to others and wonder if I'll ever measure up to where I should be.", theme_category: "comparison", has_resolution: true, resolution_text: "I started writing down three things I did well each week, no matter how small. After a couple of months, I realised I was comparing my beginning to everyone else's middle. The comparison didn't stop completely but it lost its teeth.", similarity_score: 0.94 },
+  { message_id: "t2", humanised_text: "I feel invisible at work. I contribute ideas and effort but it's like nobody notices. The recognition always goes to someone louder, someone more confident, and I'm left wondering if my work even matters.", theme_category: "professional_worth", has_resolution: false, similarity_score: 0.82 },
+  { message_id: "t3", humanised_text: "Sometimes I lie awake replaying every awkward thing I've ever said in a conversation. The shame hits me physically and I convince myself everyone remembers those moments as vividly as I do.", theme_category: "self_worth", has_resolution: true, resolution_text: "Honestly what helped was asking a close friend if they remembered a specific moment I'd been agonizing over for years. They had absolutely no idea what I was talking about. That one conversation did more than months of overthinking.", similarity_score: 0.91 },
+  { message_id: "t4", humanised_text: "I moved to a new city for an opportunity that felt right at the time but now I'm surrounded by strangers and the loneliness is heavier than I expected. I smile through the day and fall apart at night.", theme_category: "relationship_loss", has_resolution: false, similarity_score: 0.78 },
+  { message_id: "t5", humanised_text: "My family expects me to follow a path I never chose. Every conversation turns into pressure about careers, relationships, timelines. I love them but I feel like I'm disappearing into their version of who I should be.", theme_category: "family_pressure", has_resolution: true, resolution_text: "I wrote a letter to my parents. Not to send — just for me. It helped me separate what I actually wanted from what I thought I was supposed to want. Then I had one honest conversation. Just one. It didn't fix everything but it cracked the door open.", similarity_score: 0.88 },
+  { message_id: "t6", humanised_text: "I keep starting things with so much energy and then abandoning them halfway through. Projects, hobbies, relationships. I'm terrified that I'm fundamentally incapable of following through on anything that matters.", theme_category: "self_worth", has_resolution: false, similarity_score: 0.65 },
+  { message_id: "t7", humanised_text: "There's a person in my life who makes me feel small in ways that are hard to explain to anyone else. It's not dramatic or obvious — it's subtle, constant, and I'm starting to believe the things they imply about me.", theme_category: "relationship_loss", has_resolution: true, resolution_text: "I started keeping a note on my phone of every time they said something that made me feel bad. Reading it back after a month made the pattern undeniable. It's easier to trust your own perception when you have the receipts.", similarity_score: 0.79 },
+  { message_id: "t8", humanised_text: "I graduated months ago and still don't know what I'm doing. Everyone posts about their new jobs and achievements and I'm here applying to things I don't even want, wondering if the version of me that had ambitions still exists somewhere.", theme_category: "professional_worth", has_resolution: false, similarity_score: 0.72 },
+  { message_id: "t9", humanised_text: "I catch myself performing happiness around people because the alternative — being honest about how I feel — sounds exhausting and risky. I'm tired of being the person who's always fine.", theme_category: "self_worth", has_resolution: false, similarity_score: 0.58 },
+  { message_id: "t10", humanised_text: "I helped someone through the hardest time of their life and when I needed the same they weren't there. The imbalance in who I am for others versus who they are for me is a loneliness I can't articulate.", theme_category: "relationship_loss", has_resolution: true, resolution_text: "I had to grieve the friendship I thought I had separately from the person. Once I stopped expecting reciprocity from that specific person, I could actually see the people who do show up for me. They were there all along.", similarity_score: 0.85 },
+  { message_id: "t11", humanised_text: "I look at old photos of myself and feel a deep sadness for how harshly I judged that person. I was so much kinder to everyone else than I was to myself, and I'm still doing it.", theme_category: "self_worth", has_resolution: false, similarity_score: 0.62 },
+  { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones.", similarity_score: 0.93 },
 ];
 const SEED_MATCH_COUNT = 847;
+
+const DEMO_THEME_RESOLUTION_SUMMARIES: Record<string, ThemeCountSummary> = {
+  work_stress: { theme: "work_stress", count: 847, resolution_count: 186, resolution_rate: 22 },
+  anxiety: { theme: "anxiety", count: 634, resolution_count: 120, resolution_rate: 19 },
+  loneliness: { theme: "loneliness", count: 521, resolution_count: 99, resolution_rate: 19 },
+  relationship_conflict: {
+    theme: "relationship_conflict",
+    count: 478,
+    resolution_count: 101,
+    resolution_rate: 21,
+  },
+  relationship_loss: {
+    theme: "relationship_loss",
+    count: 478,
+    resolution_count: 101,
+    resolution_rate: 21,
+  },
+  self_worth: { theme: "self_worth", count: 392, resolution_count: 94, resolution_rate: 24 },
+  grief: { theme: "grief", count: 287, resolution_count: 49, resolution_rate: 17 },
+  family_pressure: {
+    theme: "family_pressure",
+    count: 253,
+    resolution_count: 56,
+    resolution_rate: 22,
+  },
+  burnout: { theme: "burnout", count: 219, resolution_count: 39, resolution_rate: 18 },
+  fear_of_failure: {
+    theme: "fear_of_failure",
+    count: 184,
+    resolution_count: 35,
+    resolution_rate: 19,
+  },
+  social_anxiety: {
+    theme: "social_anxiety",
+    count: 161,
+    resolution_count: 37,
+    resolution_rate: 23,
+  },
+  comparison: { theme: "comparison", count: 184, resolution_count: 35, resolution_rate: 19 },
+  professional_worth: {
+    theme: "professional_worth",
+    count: 847,
+    resolution_count: 186,
+    resolution_rate: 22,
+  },
+};
+
+function getDemoThemeResolutionSummary(theme: string): ThemeCountSummary {
+  return (
+    DEMO_THEME_RESOLUTION_SUMMARIES[theme] ?? {
+      theme,
+      count: SEED_MATCH_COUNT,
+      resolution_count: 186,
+      resolution_rate: 22,
+    }
+  );
+}
 
 /** Extra thoughts cycled in during live demo when the backend is unavailable. */
 const LIVE_DEMO_POOL: ThoughtResponse[] = [
@@ -121,13 +198,13 @@ const LIVE_DEMO_POOL: ThoughtResponse[] = [
 /** Demo thoughts per theme when API returns no data (e.g. unseeded Elasticsearch). */
 const DEMO_TOPIC_THOUGHTS: Record<string, ThoughtResponse[]> = {
   loneliness: [
-    { message_id: "d-l1", humanised_text: "I moved to a new city and I'm surrounded by strangers. The loneliness is heavier than I expected. I smile through the day and fall apart at night.", theme_category: "loneliness", has_resolution: false },
-    { message_id: "d-l2", humanised_text: "I helped someone through the hardest time of their life and when I needed the same they weren't there. The imbalance in who I am for others versus who they are for me is a loneliness I can't articulate.", theme_category: "loneliness", has_resolution: true, resolution_text: "I had to grieve the friendship I thought I had. Once I stopped expecting reciprocity from that person, I could see the people who do show up for me." },
-    { message_id: "d-l3", humanised_text: "I've been feeling disconnected from everyone around me. Like I'm watching life through a window.", theme_category: "loneliness", has_resolution: false },
+    { message_id: "d-l1", humanised_text: "I moved to a new city and I'm surrounded by strangers. The loneliness is heavier than I expected. I smile through the day and fall apart at night.", theme_category: "loneliness", has_resolution: false, similarity_score: 0.81 },
+    { message_id: "d-l2", humanised_text: "I helped someone through the hardest time of their life and when I needed the same they weren't there. The imbalance in who I am for others versus who they are for me is a loneliness I can't articulate.", theme_category: "loneliness", has_resolution: true, resolution_text: "I had to grieve the friendship I thought I had. Once I stopped expecting reciprocity from that person, I could see the people who do show up for me.", similarity_score: 0.87 },
+    { message_id: "d-l3", humanised_text: "I've been feeling disconnected from everyone around me. Like I'm watching life through a window.", theme_category: "loneliness", has_resolution: false, similarity_score: 0.64 },
   ],
   work_stress: [
-    { message_id: "d-w1", humanised_text: "I feel invisible at work. I contribute ideas and effort but nobody notices. The recognition always goes to someone louder.", theme_category: "work_stress", has_resolution: false },
-    { message_id: "d-w2", humanised_text: "I'm exhausted before the day even starts. The pressure to perform is constant.", theme_category: "work_stress", has_resolution: false },
+    { message_id: "d-w1", humanised_text: "I feel invisible at work. I contribute ideas and effort but nobody notices. The recognition always goes to someone louder.", theme_category: "work_stress", has_resolution: false, similarity_score: 0.76 },
+    { message_id: "d-w2", humanised_text: "I'm exhausted before the day even starts. The pressure to perform is constant.", theme_category: "work_stress", has_resolution: false, similarity_score: 0.59 },
   ],
   anxiety: SEED_THOUGHTS.filter((t) => t.theme_category === "self_worth").slice(0, 4),
   self_worth: SEED_THOUGHTS.filter((t) => t.theme_category === "self_worth"),
@@ -135,16 +212,16 @@ const DEMO_TOPIC_THOUGHTS: Record<string, ThoughtResponse[]> = {
   family_pressure: SEED_THOUGHTS.filter((t) => t.theme_category === "family_pressure"),
   comparison: SEED_THOUGHTS.filter((t) => t.theme_category === "comparison"),
   grief: [
-    { message_id: "d-g1", humanised_text: "I'm still carrying a loss that nobody talks about anymore. It feels like everyone has moved on except me.", theme_category: "grief", has_resolution: false },
+    { message_id: "d-g1", humanised_text: "I'm still carrying a loss that nobody talks about anymore. It feels like everyone has moved on except me.", theme_category: "grief", has_resolution: false, similarity_score: 0.68 },
   ],
   burnout: [
-    { message_id: "d-b1", humanised_text: "I used to love what I do. Now I'm running on empty and can't remember the last time I felt rested.", theme_category: "burnout", has_resolution: false },
+    { message_id: "d-b1", humanised_text: "I used to love what I do. Now I'm running on empty and can't remember the last time I felt rested.", theme_category: "burnout", has_resolution: false, similarity_score: 0.71 },
   ],
   fear_of_failure: [
-    { message_id: "d-f1", humanised_text: "I'm terrified of not measuring up. Every decision feels like it could be the wrong one.", theme_category: "fear_of_failure", has_resolution: false },
+    { message_id: "d-f1", humanised_text: "I'm terrified of not measuring up. Every decision feels like it could be the wrong one.", theme_category: "fear_of_failure", has_resolution: false, similarity_score: 0.74 },
   ],
   social_anxiety: [
-    { message_id: "d-s1", humanised_text: "I lie awake replaying every awkward thing I've said. I convince myself everyone remembers those moments as vividly as I do.", theme_category: "social_anxiety", has_resolution: true, resolution_text: "Asking a friend if they remembered a moment I'd been agonizing over for years — they had no idea what I was talking about. That did more than months of overthinking." },
+    { message_id: "d-s1", humanised_text: "I lie awake replaying every awkward thing I've said. I convince myself everyone remembers those moments as vividly as I do.", theme_category: "social_anxiety", has_resolution: true, resolution_text: "Asking a friend if they remembered a moment I'd been agonizing over for years — they had no idea what I was talking about. That did more than months of overthinking.", similarity_score: 0.89 },
   ],
   relationship_conflict: SEED_THOUGHTS.filter((t) => t.theme_category === "relationship_loss"),
   professional_worth: SEED_THOUGHTS.filter((t) => t.theme_category === "professional_worth"),
@@ -210,9 +287,17 @@ export default function EchoApp() {
   const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
   const [presenceCount, setPresenceCount] = useState(0);
+  const [presenceDataMode, setPresenceDataMode] = useState<"live" | "demo">("live");
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
+  const [recurrencePattern, setRecurrencePattern] =
+    useState<RecurrencePattern | null>(null);
+  const [themeResolutionStats, setThemeResolutionStats] =
+    useState<ThemeCountSummary | null>(null);
+  const [resultsDataMode, setResultsDataMode] = useState<"live" | "demo" | null>(null);
+  const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
+  const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
   const [topicTheme, setTopicTheme] = useState<{ themeKey: string; label: string } | null>(null);
   const [topicSeedMessageId, setTopicSeedMessageId] = useState<string | null>(null);
@@ -221,7 +306,15 @@ export default function EchoApp() {
   const [topicSearchAfter, setTopicSearchAfter] = useState<string[] | undefined>(undefined);
   const [topicHasMore, setTopicHasMore] = useState(false);
   const [topicLoading, setTopicLoading] = useState(false);
+  const [topicDataMode, setTopicDataMode] = useState<"live" | "demo">("live");
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
+  const [adviceFirstOnly, setAdviceFirstOnly] = useState(false);
+
+  const refreshSavedAnchorIds = useCallback(() => {
+    getAllSavedAnchors().then((anchors) => {
+      setSavedAnchorIds(new Set(anchors.map((anchor) => anchor.message_id)));
+    });
+  }, []);
 
   /* ── Resolve initial URL path to screen ── */
   const initialPathResolved = useRef(false);
@@ -248,7 +341,8 @@ export default function EchoApp() {
     initialPathResolved.current = true;
 
     getThoughtHistory().then(setThoughtHistory);
-  }, []);
+    refreshSavedAnchorIds();
+  }, [refreshSavedAnchorIds]);
 
   /* ── Sync URL when screen changes ── */
   useEffect(() => {
@@ -317,7 +411,9 @@ export default function EchoApp() {
     async function fetchPresence() {
       const recentTheme = await getMostRecentTheme();
       try {
-        const aggregates = await getThemeAggregates();
+        const aggregateResult = await getThemeAggregates();
+        const aggregates = aggregateResult.items;
+        setPresenceDataMode(aggregateResult.isDemo ? "demo" : "live");
         const match = recentTheme
           ? aggregates.find((a) => a.theme === recentTheme)
           : aggregates[0];
@@ -328,6 +424,7 @@ export default function EchoApp() {
       } catch {
         /* Demo fallback: simulate presence based on seed data */
         const demoCount = 127 + Math.floor(Math.random() * 400);
+        setPresenceDataMode("demo");
         setPresenceCount(demoCount);
         setPresenceLevel(presenceLevelFromCount(demoCount));
       }
@@ -377,10 +474,16 @@ export default function EchoApp() {
       // 1. Update live count — always increment so the demo always feels live
       try {
         const result = await getThemeCount(currentThemeCategory);
+        setThemeResolutionStats(result);
+        setResultsDataMode(result.isDemo ? "demo" : "live");
         setLiveMatchCount((prev: number) =>
           result.count > prev ? result.count : prev + Math.floor(Math.random() * 3) + 1
         );
       } catch {
+        setThemeResolutionStats((prev) =>
+          prev ?? getDemoThemeResolutionSummary(currentThemeCategory)
+        );
+        setResultsDataMode("demo");
         setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
       }
 
@@ -434,6 +537,11 @@ export default function EchoApp() {
   const handleUnauthorized = useCallback(() => {
     clearKey();
     clearAllData();
+    setRecurrencePattern(null);
+    setThemeResolutionStats(null);
+    setResultsDataMode(null);
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
     setScreen("auth");
   }, []);
@@ -452,16 +560,42 @@ export default function EchoApp() {
       timestamp,
     }));
 
-    const showResults = async (themeCategory: string, initialCount: number, initialThoughts: ThoughtResponse[]) => {
+    const showResults = async (
+      themeCategory: string,
+      initialCount: number,
+      initialThoughts: ThoughtResponse[],
+      initialMode: "live" | "demo"
+    ) => {
       setCurrentThemeCategory(themeCategory);
       setQuietWin(findQuietWin(priorThoughts, themeCategory));
+      setRecurrencePattern(findRecurrencePattern(priorThoughts, themeCategory));
       setLiveMatchCount(initialCount);
+      setResultsDataMode(initialMode);
       setNewThoughtIds(new Set());
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
       demoLivePoolRef.current = [...LIVE_DEMO_POOL];
 
-      const letters = await getFutureLettersForTheme(themeCategory);
-      setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
+      const [lettersResult, anchorsResult, statsResult] = await Promise.allSettled([
+        getFutureLettersForTheme(themeCategory),
+        getSavedAnchorsForTheme(themeCategory),
+        getThemeCount(themeCategory),
+      ]);
+      setFutureLetterMatch(
+        lettersResult.status === "fulfilled" && lettersResult.value.length > 0
+          ? lettersResult.value[0]
+          : null
+      );
+      setSavedAnchors(
+        anchorsResult.status === "fulfilled" ? anchorsResult.value : []
+      );
+      if (statsResult.status === "fulfilled") {
+        setThemeResolutionStats(statsResult.value);
+        setResultsDataMode(statsResult.value.isDemo ? "demo" : initialMode);
+      } else {
+        setThemeResolutionStats(getDemoThemeResolutionSummary(themeCategory));
+        setResultsDataMode("demo");
+      }
+      refreshSavedAnchorIds();
 
       setCardsVisible(0);
       setCountAnimDone(false);
@@ -480,7 +614,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(result.theme_category, result.match_count, result.similar_thoughts), remainingDelay);
+      setTimeout(() => showResults(result.theme_category, result.match_count, result.similar_thoughts, "live"), remainingDelay);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
@@ -506,12 +640,12 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT, SEED_THOUGHTS), remainingDelay);
+      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT, SEED_THOUGHTS, "demo"), remainingDelay);
     }
 
     setThoughtText("");
     refreshHistory();
-  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized]);
+  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized, refreshSavedAnchorIds]);
 
   const loadMoreThoughts = useCallback(async () => {
     if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
@@ -545,6 +679,27 @@ export default function EchoApp() {
     }
   }, []);
 
+  const handleSaveAnchor = useCallback(
+    async (thought: ThoughtResponse) => {
+      if (!thought.resolution_text) return;
+
+      await saveAnchor({
+        message_id: thought.message_id,
+        theme_category: thought.theme_category,
+        humanised_text: thought.humanised_text,
+        resolution_text: thought.resolution_text,
+      });
+
+      refreshSavedAnchorIds();
+
+      if (thought.theme_category === currentThemeCategory) {
+        const anchors = await getSavedAnchorsForTheme(thought.theme_category);
+        setSavedAnchors(anchors);
+      }
+    },
+    [currentThemeCategory, refreshSavedAnchorIds]
+  );
+
   const handleAuth = useCallback(
     async (email: string, password: string, mode: "login" | "signup") => {
       setAuthLoading(true);
@@ -559,6 +714,8 @@ export default function EchoApp() {
         const admin = result.is_admin ?? false;
         saveAdminStatus(admin);
         setIsAdmin(admin);
+        refreshHistory();
+        refreshSavedAnchorIds();
         setScreen("home");
       } catch (err) {
         if (err instanceof ApiError) {
@@ -578,7 +735,7 @@ export default function EchoApp() {
         setAuthLoading(false);
       }
     },
-    []
+    [refreshHistory, refreshSavedAnchorIds]
   );
 
   const handleOnboardingComplete = useCallback(() => {
@@ -618,6 +775,11 @@ export default function EchoApp() {
     }
     clearKey();
     clearAllData();
+    setRecurrencePattern(null);
+    setThemeResolutionStats(null);
+    setResultsDataMode(null);
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setScreen("auth");
   }, []);
 
@@ -640,6 +802,7 @@ export default function EchoApp() {
             try {
               const byTheme = await getThoughtsByTheme(themeKey);
               if (byTheme.thoughts.length > 0) {
+                setTopicDataMode("live");
                 setTopicThoughts(byTheme.thoughts);
                 setTopicTotal(byTheme.total);
                 setTopicSearchAfter(byTheme.search_after ?? undefined);
@@ -651,6 +814,7 @@ export default function EchoApp() {
               /* fall through to demo */
             }
             const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+            setTopicDataMode("demo");
             setTopicThoughts(demo);
             setTopicTotal(demo.length);
             setTopicHasMore(false);
@@ -671,6 +835,7 @@ export default function EchoApp() {
           try {
             const byTheme = await getThoughtsByTheme(themeKey);
             if (byTheme.thoughts.length > 0) {
+              setTopicDataMode("live");
               setTopicThoughts(byTheme.thoughts);
               setTopicTotal(byTheme.total);
               setTopicSearchAfter(byTheme.search_after ?? undefined);
@@ -682,12 +847,14 @@ export default function EchoApp() {
             /* fall through to demo */
           }
           const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+          setTopicDataMode("demo");
           setTopicThoughts(demo);
           setTopicTotal(demo.length);
           setTopicHasMore(false);
           setTopicCardsVisible(demo.length);
           return;
         }
+        setTopicDataMode("live");
         setTopicThoughts((prev) =>
           searchAfter ? [...prev, ...result.thoughts] : result.thoughts
         );
@@ -703,6 +870,7 @@ export default function EchoApp() {
           return;
         }
         const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+        setTopicDataMode("demo");
         setTopicThoughts(demo);
         setTopicTotal(demo.length);
         setTopicHasMore(false);
@@ -724,6 +892,7 @@ export default function EchoApp() {
       setTopicTotal(0);
       setTopicSearchAfter(undefined);
       setTopicHasMore(false);
+      setTopicDataMode("live");
       setTopicCardsVisible(0);
       setScreen("topic");
       loadTopicThoughts(themeKey, null);
@@ -742,6 +911,19 @@ export default function EchoApp() {
     },
     [handleResolve]
   );
+
+  const visibleResultThoughts = adviceFirstOnly
+    ? similarThoughts.filter((thought) => thought.has_resolution)
+    : similarThoughts;
+
+  const hasSupportSection =
+    countAnimDone &&
+    ((currentThemeCategory != null && RISK_THEMES.has(currentThemeCategory)) ||
+      (themeResolutionStats?.resolution_count ?? 0) > 0 ||
+      quietWin != null ||
+      recurrencePattern != null ||
+      savedAnchors.length > 0 ||
+      futureLetterMatch != null);
 
   const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
   const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "graph", "account", "about", "privacy", "admin"];
@@ -797,10 +979,25 @@ export default function EchoApp() {
                 Others on {topicTheme.label}
               </h1>
             </div>
+            <div className="mb-3">
+              <DataModeBadge
+                mode={topicDataMode}
+                liveLabel="Live topic"
+                demoLabel="Demo topic"
+                testId="topic-data-mode"
+              />
+            </div>
             {topicTotal > 0 && (
               <p className="mb-4 text-[13px] font-light text-echo-text-muted">
                 {topicTotal} {topicTotal === 1 ? "thought" : "thoughts"} in this space
               </p>
+            )}
+            {!topicLoading && topicThoughts.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-[14px] font-light text-echo-text-soft">
+                  No thoughts in this space yet.
+                </p>
+              </div>
             )}
             <ThoughtCardList
               thoughts={topicThoughts}
@@ -855,14 +1052,62 @@ export default function EchoApp() {
               onAnimationComplete={() => setCountAnimDone(true)}
             />
 
+            {countAnimDone && resultsDataMode && (
+              <div className="mb-3 px-4">
+                <DataModeBadge
+                  mode={resultsDataMode}
+                  liveLabel="Live results"
+                  demoLabel="Demo results"
+                  testId="results-data-mode"
+                />
+              </div>
+            )}
+
+            {hasSupportSection && (
+              <div className="mb-3 px-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-echo-text-muted">
+                  For you right now
+                </p>
+              </div>
+            )}
+
             {/* Guardrails of Care — safety resources for risk themes */}
             {countAnimDone && currentThemeCategory && (
               <SafetyBanner themeCategory={currentThemeCategory} />
             )}
 
+            {countAnimDone &&
+              currentThemeCategory &&
+              themeResolutionStats &&
+              themeResolutionStats.resolution_count > 0 && (
+                <ThemeResolutionAggregateBanner
+                  stats={themeResolutionStats}
+                  themeLabel={
+                    THEME_DISPLAY_LABELS[currentThemeCategory] ??
+                    currentThemeCategory.replace(/_/g, " ")
+                  }
+                />
+              )}
+
             {/* Quiet wins — local reflection when a recurring theme stayed quiet for a while */}
             {countAnimDone && quietWin && (
               <QuietWinBanner quietWin={quietWin} />
+            )}
+
+            {/* Recurrence pattern — local signal when the same theme keeps returning recently */}
+            {countAnimDone && recurrencePattern && (
+              <RecurrencePatternBanner pattern={recurrencePattern} />
+            )}
+
+            {/* Saved anchors — advice lines the user chose to keep for this theme */}
+            {countAnimDone && currentThemeCategory && savedAnchors.length > 0 && (
+              <SavedAnchorsBanner
+                anchors={savedAnchors}
+                themeLabel={
+                  THEME_DISPLAY_LABELS[currentThemeCategory] ??
+                  currentThemeCategory.replace(/_/g, " ")
+                }
+              />
             )}
 
             {/* Future You — letter from past self on matching theme */}
@@ -870,9 +1115,52 @@ export default function EchoApp() {
               <FutureYouBanner letter={futureLetterMatch} />
             )}
 
+            {/* Advice-first toggle — filter to cards with resolutions */}
             {countAnimDone && (
+              <div className="mb-3 px-4">
+                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[14px] font-normal text-echo-text">
+                      Show only what helped
+                    </span>
+                    <button
+                      onClick={() => setAdviceFirstOnly((v) => !v)}
+                      className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${
+                        adviceFirstOnly
+                          ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
+                          : "bg-echo-text-muted/30"
+                      }`}
+                      role="switch"
+                      aria-checked={adviceFirstOnly}
+                      aria-label="Show only cards with what helped"
+                    >
+                      <span
+                        className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_6px_rgba(44,40,37,0.15)] transition-all duration-200 ease-out ${
+                          adviceFirstOnly ? "left-[22px]" : "left-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {countAnimDone && adviceFirstOnly && visibleResultThoughts.length === 0 && (
+              <div className="mb-4 px-4">
+                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                  <p className="text-[14px] font-normal text-echo-text">
+                    No one in this space has shared what helped yet.
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] font-light leading-relaxed text-echo-text-muted">
+                    You can switch the filter off to read nearby thoughts, or keep checking back as more people share.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {countAnimDone && visibleResultThoughts.length > 0 && (
               <ThoughtCardList
-                thoughts={similarThoughts}
+                thoughts={visibleResultThoughts}
                 visibleCount={cardsVisible}
                 newThoughtIds={newThoughtIds}
                 onCardTap={handleCardTap}
@@ -881,6 +1169,31 @@ export default function EchoApp() {
                 isLoadingMore={isLoadingMore}
               />
             )}
+            {countAnimDone && (() => {
+              const displayedThoughts = adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts;
+              return (
+                <>
+                  {displayedThoughts.length === 0 && (
+                    <div className="px-4 py-10 text-center">
+                      <p className="text-[14px] font-light text-echo-text-soft">
+                        {adviceFirstOnly
+                          ? "No one has shared what helped yet in this set. Turn off the filter to see all thoughts."
+                          : "No similar thoughts yet."}
+                      </p>
+                    </div>
+                  )}
+                  <ThoughtCardList
+                    thoughts={displayedThoughts}
+                    visibleCount={cardsVisible}
+                    newThoughtIds={newThoughtIds}
+                    onCardTap={handleCardTap}
+                    onLoadMore={loadMoreThoughts}
+                    hasMore={hasMoreThoughts}
+                    isLoadingMore={isLoadingMore}
+                  />
+                </>
+              );
+            })()}
           </div>
 
           {/* FAB to return home */}
@@ -917,12 +1230,22 @@ export default function EchoApp() {
             tap to share what&apos;s on your mind
           </p>
           {presenceCount > 0 && (
-            <p
-              className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
-              data-testid="presence-indicator"
-            >
-              {presenceCount} others breathing in this space this week
-            </p>
+            <>
+              <p
+                className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
+                data-testid="presence-indicator"
+              >
+                {presenceCount} others breathing in this space this week
+              </p>
+              <div className="mt-2 animate-[fadeIn_1.8s_ease_1.35s_both]">
+                <DataModeBadge
+                  mode={presenceDataMode}
+                  liveLabel="Live presence"
+                  demoLabel="Demo estimate"
+                  testId="presence-data-mode"
+                />
+              </div>
+            </>
           )}
         </motion.div>
       )}
@@ -1092,6 +1415,12 @@ export default function EchoApp() {
           <BottomSheet
             thought={bottomSheetThought}
             onClose={() => setBottomSheetThought(null)}
+            onSaveAnchor={handleSaveAnchor}
+            isAnchorSaved={
+              bottomSheetThought
+                ? savedAnchorIds.has(bottomSheetThought.message_id)
+                : false
+            }
           />
 
           {/* Delayed opt-in prompt */}
@@ -1185,6 +1514,12 @@ export default function EchoApp() {
         <BottomSheet
           thought={bottomSheetThought}
           onClose={() => setBottomSheetThought(null)}
+          onSaveAnchor={handleSaveAnchor}
+          isAnchorSaved={
+            bottomSheetThought
+              ? savedAnchorIds.has(bottomSheetThought.message_id)
+              : false
+          }
         />
 
         {/* Delayed opt-in prompt */}

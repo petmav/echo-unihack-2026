@@ -179,23 +179,45 @@ export async function deleteThoughtFromServer(messageId: string): Promise<{ dele
 export interface ThemeAggregate {
   theme: string;
   count: number;
+  resolution_count: number;
+  resolution_rate: number;
 }
 
-export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
+export interface ThemeAggregatesResult {
+  items: ThemeAggregate[];
+  isDemo: boolean;
+}
+
+export async function getThemeAggregates(): Promise<ThemeAggregatesResult> {
   const response = await fetch(`${API_BASE_URL}/thoughts/aggregates`, {
     headers: authHeaders(),
   });
-  return handleResponse<ThemeAggregate[]>(response);
+  const isDemo = response.headers.get("x-echo-demo") === "true";
+  const items = await handleResponse<ThemeAggregate[]>(response);
+  return { items, isDemo };
+}
+
+export interface ThemeCountSummary {
+  theme: string;
+  count: number;
+  resolution_count: number;
+  resolution_rate: number;
+}
+
+export interface ThemeCountResult extends ThemeCountSummary {
+  isDemo: boolean;
 }
 
 export async function getThemeCount(
   theme: string
-): Promise<{ theme: string; count: number }> {
+): Promise<ThemeCountResult> {
   const response = await fetch(
     `${API_BASE_URL}/thoughts/count?theme=${encodeURIComponent(theme)}`,
     { headers: authHeaders() }
   );
-  return handleResponse<{ theme: string; count: number }>(response);
+  const isDemo = response.headers.get("x-echo-demo") === "true";
+  const summary = await handleResponse<ThemeCountSummary>(response);
+  return { ...summary, isDemo };
 }
 
 export async function getGraphData(): Promise<GraphData> {
