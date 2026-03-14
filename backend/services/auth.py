@@ -18,6 +18,8 @@ JWT tokens contain only:
 No sensitive data in JWT payload.
 """
 
+import base64
+import binascii
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -28,6 +30,33 @@ from config import config
 
 # Bcrypt cost factor
 _BCRYPT_ROUNDS = 12
+
+
+def _is_canonical_base64url(segment: str) -> bool:
+    """
+    Return True when a JWT segment uses a canonical base64url encoding.
+
+    This rejects alternate textual encodings that decode to the same bytes,
+    which closes off signature "tampering" that only mutates unused trailing
+    base64url bits.
+    """
+    if not segment or "=" in segment:
+        return False
+
+    try:
+        padded = segment + ("=" * (-len(segment) % 4))
+        decoded = base64.urlsafe_b64decode(padded.encode("ascii"))
+    except (ValueError, binascii.Error):
+        return False
+
+    canonical = base64.urlsafe_b64encode(decoded).decode("ascii").rstrip("=")
+    return canonical == segment
+
+
+def _is_canonical_jwt(token: str) -> bool:
+    """Return True when a JWT has exactly 3 canonically encoded segments."""
+    parts = token.split(".")
+    return len(parts) == 3 and all(_is_canonical_base64url(part) for part in parts)
 
 
 def hash_password(password: str) -> str:
@@ -91,6 +120,8 @@ def decode_access_token(token: str | None) -> str | None:
     """
     if not token:
         return None
+    if not _is_canonical_jwt(token):
+        return None
     try:
         payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
         user_id: str | None = payload.get("sub")
@@ -107,6 +138,8 @@ def decode_access_token_admin(token: str | None) -> tuple[str | None, bool]:
         (None, False) if token is invalid or missing.
     """
     if not token:
+        return None, False
+    if not _is_canonical_jwt(token):
         return None, False
     try:
         payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
