@@ -207,6 +207,7 @@ export function ThoughtInput({
                   </button>
                 </div>
               </div>
+            </div>
           </motion.div>
         </motion.div>
       )}

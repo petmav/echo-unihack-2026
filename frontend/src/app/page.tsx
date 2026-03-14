@@ -1405,10 +1405,6 @@ export default function EchoApp() {
             onChange={setThoughtText}
             onSubmit={handleSubmitThought}
             onClose={() => setInputOpen(false)}
-            onTopicClick={(themeKey) => {
-              setInputOpen(false);
-              handleTopicOpen(themeKey);
-            }}
           />
 
           {/* Bottom sheet */}
@@ -1504,10 +1500,6 @@ export default function EchoApp() {
           onChange={setThoughtText}
           onSubmit={handleSubmitThought}
           onClose={() => setInputOpen(false)}
-          onTopicClick={(themeKey) => {
-            setInputOpen(false);
-            handleTopicOpen(themeKey);
-          }}
         />
 
         {/* Bottom sheet */}
