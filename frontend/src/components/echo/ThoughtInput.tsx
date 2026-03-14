@@ -3,10 +3,11 @@
 import { useRef, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, X } from "lucide-react";
+import { Send, X, Mic, MicOff } from "lucide-react";
 
 import { MAX_THOUGHT_LENGTH } from "@/lib/constants";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface ThoughtInputProps {
   isOpen: boolean;
@@ -26,13 +27,39 @@ export function ThoughtInput({
   onClose,
 }: ThoughtInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { isListening, transcript, isSupported, toggleListening } = useSpeechRecognition();
+  const preRecordValueRef = useRef("");
 
   useEffect(() => {
-    if (isOpen && textareaRef.current) {
+    if (isOpen && textareaRef.current && !isListening) {
       const timer = setTimeout(() => textareaRef.current?.focus(), 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, isListening]);
+
+  const handleMicClick = () => {
+    if (!isListening) {
+      preRecordValueRef.current = value;
+    }
+    toggleListening();
+  };
+
+  useEffect(() => {
+    if (isListening && transcript) {
+      const separator =
+        preRecordValueRef.current && !preRecordValueRef.current.endsWith(" ") && preRecordValueRef.current.length > 0 && !preRecordValueRef.current.endsWith("\n")
+          ? " "
+          : "";
+      const newText = preRecordValueRef.current + separator + transcript;
+      onChange(newText.slice(0, MAX_THOUGHT_LENGTH));
+    }
+  }, [transcript, isListening, onChange]);
+
+  useEffect(() => {
+    if (!isOpen && isListening) {
+      toggleListening();
+    }
+  }, [isOpen, isListening, toggleListening]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && value.trim()) {
@@ -101,14 +128,33 @@ export function ThoughtInput({
                 {value.length}/{MAX_THOUGHT_LENGTH}
               </span>
 
-              <button
-                disabled={!isSubmittable}
-                onClick={onSubmit}
-                className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-echo-accent text-white shadow-[0_4px_16px_rgba(200,133,108,0.3)] transition-all active:scale-[0.93] disabled:opacity-35"
-                aria-label="Submit thought"
-              >
-                <Send size={20} />
-              </button>
+              <div className="flex items-center gap-3">
+                {isSupported && (
+                  <button
+                    onClick={handleMicClick}
+                    className={`flex h-[50px] w-[50px] items-center justify-center rounded-full transition-all active:scale-[0.93] ${
+                      isListening
+                        ? "bg-red-50 text-red-500 shadow-[0_4px_16px_rgba(239,68,68,0.2)]"
+                        : "bg-black/5 text-echo-text-soft hover:bg-black/10"
+                    }`}
+                    title={isListening ? "Stop listening" : "Start dictating"}
+                    aria-label={isListening ? "Stop dictating" : "Start dictating"}
+                  >
+                    {isListening ? <MicOff size={20} className="animate-pulse" /> : <Mic size={20} />}
+                  </button>
+                )}
+                <button
+                  disabled={!isSubmittable}
+                  onClick={() => {
+                    if (isListening) toggleListening();
+                    onSubmit();
+                  }}
+                  className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-echo-accent text-white shadow-[0_4px_16px_rgba(200,133,108,0.3)] transition-all active:scale-[0.93] disabled:opacity-35"
+                  aria-label="Submit thought"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
