@@ -215,6 +215,7 @@ async def get_thought_count(
     response.headers["Cache-Control"] = "no-store"
     stats = await elastic.get_total_theme_resolution_stats(theme)
     if stats["count"] == 0:
+        response.headers["X-Echo-Demo"] = "true"
         demo_stats = next(
             (aggregate for aggregate in _DEMO_AGGREGATES if aggregate["theme"] == theme),
             None,

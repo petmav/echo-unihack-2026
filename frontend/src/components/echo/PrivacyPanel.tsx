@@ -13,8 +13,8 @@ const PIPELINE_STAGES = [
     color: "bg-[#E8F5E9]",
     iconColor: "text-[#388E3C]",
     enters: "Your exact words",
-    exits: "Stays here — never sent",
-    note: "Your raw thought is typed and held only in your phone's memory. It is never saved to any server or external service.",
+    exits: "Encrypted request",
+    note: "Your raw thought starts in your phone's memory. When you submit, it travels over HTTPS for immediate anonymisation. It is never stored in any external service before that step.",
   },
   {
     icon: Server,
@@ -127,12 +127,12 @@ export function PrivacyPanel({ onBack }: PrivacyPanelProps) {
         {/* Intro */}
         <div className="mb-5 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
           <h3 className="mb-2 text-sm font-medium text-echo-text">
-            Your words never leave your device
+            Your raw words are never stored
           </h3>
           <p className="text-[13.5px] font-light leading-relaxed text-echo-text-soft">
-            Echo was designed from the ground up so that what you type stays
-            yours. The pipeline below shows exactly what happens at each step —
-            no hidden steps, no surprises.
+            Echo was designed so that what you type is anonymised immediately
+            and never written to disk or tied to your identity. The pipeline
+            below shows exactly what happens at each step.
           </p>
         </div>
 

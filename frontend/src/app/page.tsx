@@ -20,6 +20,7 @@ import {
   CARD_STAGGER_DELAY_MS,
   DEMO_FUTURE_LETTER,
   inferThemeFromText,
+  RISK_THEMES,
 } from "@/lib/constants";
 import {
   saveThought,
@@ -89,6 +90,7 @@ import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
 import { RecurrencePatternBanner } from "@/components/echo/RecurrencePatternBanner";
 import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
 import { ThemeResolutionAggregateBanner } from "@/components/echo/ThemeResolutionAggregateBanner";
+import { DataModeBadge } from "@/components/echo/DataModeBadge";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
@@ -267,6 +269,7 @@ export default function EchoApp() {
   const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
   const [presenceCount, setPresenceCount] = useState(0);
+  const [presenceDataMode, setPresenceDataMode] = useState<"live" | "demo">("live");
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
@@ -274,6 +277,7 @@ export default function EchoApp() {
     useState<RecurrencePattern | null>(null);
   const [themeResolutionStats, setThemeResolutionStats] =
     useState<ThemeCountSummary | null>(null);
+  const [resultsDataMode, setResultsDataMode] = useState<"live" | "demo" | null>(null);
   const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
   const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
@@ -284,6 +288,7 @@ export default function EchoApp() {
   const [topicSearchAfter, setTopicSearchAfter] = useState<string[] | undefined>(undefined);
   const [topicHasMore, setTopicHasMore] = useState(false);
   const [topicLoading, setTopicLoading] = useState(false);
+  const [topicDataMode, setTopicDataMode] = useState<"live" | "demo">("live");
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
   const [adviceFirstOnly, setAdviceFirstOnly] = useState(false);
 
@@ -347,7 +352,9 @@ export default function EchoApp() {
     async function fetchPresence() {
       const recentTheme = await getMostRecentTheme();
       try {
-        const aggregates = await getThemeAggregates();
+        const aggregateResult = await getThemeAggregates();
+        const aggregates = aggregateResult.items;
+        setPresenceDataMode(aggregateResult.isDemo ? "demo" : "live");
         const match = recentTheme
           ? aggregates.find((a) => a.theme === recentTheme)
           : aggregates[0];
@@ -358,6 +365,7 @@ export default function EchoApp() {
       } catch {
         /* Demo fallback: simulate presence based on seed data */
         const demoCount = 127 + Math.floor(Math.random() * 400);
+        setPresenceDataMode("demo");
         setPresenceCount(demoCount);
         setPresenceLevel(presenceLevelFromCount(demoCount));
       }
@@ -408,6 +416,7 @@ export default function EchoApp() {
       try {
         const result = await getThemeCount(currentThemeCategory);
         setThemeResolutionStats(result);
+        setResultsDataMode(result.isDemo ? "demo" : "live");
         setLiveMatchCount((prev: number) =>
           result.count > prev ? result.count : prev + Math.floor(Math.random() * 3) + 1
         );
@@ -415,6 +424,7 @@ export default function EchoApp() {
         setThemeResolutionStats((prev) =>
           prev ?? getDemoThemeResolutionSummary(currentThemeCategory)
         );
+        setResultsDataMode("demo");
         setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
       }
 
@@ -460,6 +470,7 @@ export default function EchoApp() {
     clearAllData();
     setRecurrencePattern(null);
     setThemeResolutionStats(null);
+    setResultsDataMode(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
@@ -480,11 +491,17 @@ export default function EchoApp() {
       timestamp,
     }));
 
-    const showResults = async (themeCategory: string, initialCount: number, initialThoughts: ThoughtResponse[]) => {
+    const showResults = async (
+      themeCategory: string,
+      initialCount: number,
+      initialThoughts: ThoughtResponse[],
+      initialMode: "live" | "demo"
+    ) => {
       setCurrentThemeCategory(themeCategory);
       setQuietWin(findQuietWin(priorThoughts, themeCategory));
       setRecurrencePattern(findRecurrencePattern(priorThoughts, themeCategory));
       setLiveMatchCount(initialCount);
+      setResultsDataMode(initialMode);
       setNewThoughtIds(new Set());
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
       demoLivePoolRef.current = [...LIVE_DEMO_POOL];
@@ -502,11 +519,13 @@ export default function EchoApp() {
       setSavedAnchors(
         anchorsResult.status === "fulfilled" ? anchorsResult.value : []
       );
-      setThemeResolutionStats(
-        statsResult.status === "fulfilled"
-          ? statsResult.value
-          : getDemoThemeResolutionSummary(themeCategory)
-      );
+      if (statsResult.status === "fulfilled") {
+        setThemeResolutionStats(statsResult.value);
+        setResultsDataMode(statsResult.value.isDemo ? "demo" : initialMode);
+      } else {
+        setThemeResolutionStats(getDemoThemeResolutionSummary(themeCategory));
+        setResultsDataMode("demo");
+      }
       refreshSavedAnchorIds();
 
       setCardsVisible(0);
@@ -526,7 +545,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(result.theme_category, result.match_count, result.similar_thoughts), remainingDelay);
+      setTimeout(() => showResults(result.theme_category, result.match_count, result.similar_thoughts, "live"), remainingDelay);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
@@ -552,7 +571,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT, SEED_THOUGHTS), remainingDelay);
+      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT, SEED_THOUGHTS, "demo"), remainingDelay);
     }
 
     setThoughtText("");
@@ -689,6 +708,7 @@ export default function EchoApp() {
     clearAllData();
     setRecurrencePattern(null);
     setThemeResolutionStats(null);
+    setResultsDataMode(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setScreen("auth");
@@ -713,6 +733,7 @@ export default function EchoApp() {
             try {
               const byTheme = await getThoughtsByTheme(themeKey);
               if (byTheme.thoughts.length > 0) {
+                setTopicDataMode("live");
                 setTopicThoughts(byTheme.thoughts);
                 setTopicTotal(byTheme.total);
                 setTopicSearchAfter(byTheme.search_after ?? undefined);
@@ -724,6 +745,7 @@ export default function EchoApp() {
               /* fall through to demo */
             }
             const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+            setTopicDataMode("demo");
             setTopicThoughts(demo);
             setTopicTotal(demo.length);
             setTopicHasMore(false);
@@ -744,6 +766,7 @@ export default function EchoApp() {
           try {
             const byTheme = await getThoughtsByTheme(themeKey);
             if (byTheme.thoughts.length > 0) {
+              setTopicDataMode("live");
               setTopicThoughts(byTheme.thoughts);
               setTopicTotal(byTheme.total);
               setTopicSearchAfter(byTheme.search_after ?? undefined);
@@ -755,12 +778,14 @@ export default function EchoApp() {
             /* fall through to demo */
           }
           const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+          setTopicDataMode("demo");
           setTopicThoughts(demo);
           setTopicTotal(demo.length);
           setTopicHasMore(false);
           setTopicCardsVisible(demo.length);
           return;
         }
+        setTopicDataMode("live");
         setTopicThoughts((prev) =>
           searchAfter ? [...prev, ...result.thoughts] : result.thoughts
         );
@@ -776,6 +801,7 @@ export default function EchoApp() {
           return;
         }
         const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+        setTopicDataMode("demo");
         setTopicThoughts(demo);
         setTopicTotal(demo.length);
         setTopicHasMore(false);
@@ -797,6 +823,7 @@ export default function EchoApp() {
       setTopicTotal(0);
       setTopicSearchAfter(undefined);
       setTopicHasMore(false);
+      setTopicDataMode("live");
       setTopicCardsVisible(0);
       setScreen("topic");
       loadTopicThoughts(themeKey, null);
@@ -815,6 +842,19 @@ export default function EchoApp() {
     },
     [handleResolve]
   );
+
+  const visibleResultThoughts = adviceFirstOnly
+    ? similarThoughts.filter((thought) => thought.has_resolution)
+    : similarThoughts;
+
+  const hasSupportSection =
+    countAnimDone &&
+    ((currentThemeCategory != null && RISK_THEMES.has(currentThemeCategory)) ||
+      (themeResolutionStats?.resolution_count ?? 0) > 0 ||
+      quietWin != null ||
+      recurrencePattern != null ||
+      savedAnchors.length > 0 ||
+      futureLetterMatch != null);
 
   const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
   const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy", "admin"];
@@ -868,6 +908,14 @@ export default function EchoApp() {
               <h1 className="text-base font-light tracking-wide text-echo-text sm:text-lg">
                 Others on {topicTheme.label}
               </h1>
+            </div>
+            <div className="mb-3">
+              <DataModeBadge
+                mode={topicDataMode}
+                liveLabel="Live topic"
+                demoLabel="Demo topic"
+                testId="topic-data-mode"
+              />
             </div>
             {topicTotal > 0 && (
               <p className="mb-4 text-[13px] font-light text-echo-text-muted">
@@ -926,6 +974,25 @@ export default function EchoApp() {
               liveCount={liveMatchCount}
               onAnimationComplete={() => setCountAnimDone(true)}
             />
+
+            {countAnimDone && resultsDataMode && (
+              <div className="mb-3 px-4">
+                <DataModeBadge
+                  mode={resultsDataMode}
+                  liveLabel="Live results"
+                  demoLabel="Demo results"
+                  testId="results-data-mode"
+                />
+              </div>
+            )}
+
+            {hasSupportSection && (
+              <div className="mb-3 px-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-echo-text-muted">
+                  For you right now
+                </p>
+              </div>
+            )}
 
             {/* Guardrails of Care — safety resources for risk themes */}
             {countAnimDone && currentThemeCategory && (
@@ -1001,9 +1068,22 @@ export default function EchoApp() {
               </div>
             )}
 
-            {countAnimDone && (
+            {countAnimDone && adviceFirstOnly && visibleResultThoughts.length === 0 && (
+              <div className="mb-4 px-4">
+                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                  <p className="text-[14px] font-normal text-echo-text">
+                    No one in this space has shared what helped yet.
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] font-light leading-relaxed text-echo-text-muted">
+                    You can switch the filter off to read nearby thoughts, or keep checking back as more people share.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {countAnimDone && visibleResultThoughts.length > 0 && (
               <ThoughtCardList
-                thoughts={adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts}
+                thoughts={visibleResultThoughts}
                 visibleCount={cardsVisible}
                 newThoughtIds={newThoughtIds}
                 onCardTap={handleCardTap}
@@ -1048,12 +1128,22 @@ export default function EchoApp() {
             tap to share what&apos;s on your mind
           </p>
           {presenceCount > 0 && (
-            <p
-              className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
-              data-testid="presence-indicator"
-            >
-              {presenceCount} others breathing in this space this week
-            </p>
+            <>
+              <p
+                className="mt-2.5 animate-[fadeIn_1.5s_ease_1.2s_both] text-[11.5px] font-light tracking-wide text-echo-text-muted/60"
+                data-testid="presence-indicator"
+              >
+                {presenceCount} others breathing in this space this week
+              </p>
+              <div className="mt-2 animate-[fadeIn_1.8s_ease_1.35s_both]">
+                <DataModeBadge
+                  mode={presenceDataMode}
+                  liveLabel="Live presence"
+                  demoLabel="Demo estimate"
+                  testId="presence-data-mode"
+                />
+              </div>
+            </>
           )}
         </motion.div>
       )}
