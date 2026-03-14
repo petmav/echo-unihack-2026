@@ -67,6 +67,7 @@ export type AppScreen =
   | "home"
   | "processing"
   | "results"
+  | "topic"
   | "thoughts"
   | "trends"
   | "account"

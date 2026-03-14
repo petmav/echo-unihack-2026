@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, X } from "lucide-react";
 
 import { MAX_THOUGHT_LENGTH } from "@/lib/constants";
+import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
 interface ThoughtInputProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export function ThoughtInput({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
+          <SurroundingTopics animate />
           {/* Close button */}
           <button
             onClick={onClose}

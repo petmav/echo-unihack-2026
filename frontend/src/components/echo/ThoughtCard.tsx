@@ -24,9 +24,9 @@ export function ThoughtCard({
 
   return (
     <motion.div
-      className={`mb-2.5 rounded-[18px] p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] ${
+      className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] sm:p-5 touch-manipulation ${
         hasResolution
-          ? "cursor-pointer border border-echo-highlight-border bg-echo-highlight active:scale-[0.985]"
+          ? "cursor-pointer border border-echo-highlight-border bg-echo-highlight active:scale-[0.985] min-h-[44px]"
           : "bg-white"
       }`}
       initial={{ opacity: 0, y: 14 }}
@@ -55,7 +55,7 @@ export function ThoughtCard({
           : undefined
       }
     >
-      <p className="text-[14.5px] font-light leading-[1.7] text-echo-text">
+      <p className="text-[14px] font-light leading-[1.7] text-echo-text sm:text-[14.5px]">
         {thought.humanised_text}
       </p>
       {hasResolution && (
@@ -107,7 +107,10 @@ export function ThoughtCardList({
   }, [onLoadMore, hasMore, isLoadingMore]);
 
   return (
-    <div className="px-4 pb-24 pt-5">
+    <div
+      className="px-4 pt-5"
+      style={{ paddingBottom: "max(6rem, calc(env(safe-area-inset-bottom) + 5rem))" }}
+    >
       {thoughts.map((thought, index) => (
         <ThoughtCard
           key={thought.message_id}
@@ -126,10 +129,8 @@ export function ThoughtCardList({
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-echo-accent/40"
-                    style={{
-                      animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
-                    }}
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-echo-accent/40"
+                    style={{ animationDelay: `${i * 200}ms` }}
                   />
                 ))}
               </div>

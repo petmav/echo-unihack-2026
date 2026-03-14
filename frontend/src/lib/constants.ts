@@ -190,3 +190,41 @@ export const SAFETY_RESOURCES = {
     { label: "International Association for Suicide Prevention", value: "https://www.iasp.info/resources/Crisis_Centres/", type: "url" as const },
   ],
 } as const;
+
+/**
+ * Human-readable labels for theme categories. Used for "topics surrounding
+ * the page" and any UI that shows theme names. Kept in sync with backend
+ * theme categories.
+ */
+export const THEME_DISPLAY_LABELS: Record<string, string> = {
+  work_stress: "work stress",
+  anxiety: "anxiety",
+  general_anxiety: "anxiety",
+  loneliness: "loneliness",
+  relationship_conflict: "relationship conflict",
+  self_worth: "self worth",
+  grief: "grief",
+  family_pressure: "family pressure",
+  burnout: "burnout",
+  fear_of_failure: "fear of failure",
+  social_anxiety: "social anxiety",
+  comparison: "comparison",
+  professional_worth: "professional worth",
+  relationship_loss: "relationship loss",
+  other: "other",
+};
+
+/** Topics for surrounding bubbles: theme key (API) + display label. Non-risk only. */
+export const SURROUNDING_TOPICS: { themeKey: string; label: string }[] = [
+  { themeKey: "work_stress", label: "work stress" },
+  { themeKey: "anxiety", label: "anxiety" },
+  { themeKey: "loneliness", label: "loneliness" },
+  { themeKey: "relationship_conflict", label: "relationship conflict" },
+  { themeKey: "self_worth", label: "self worth" },
+  { themeKey: "grief", label: "grief" },
+  { themeKey: "family_pressure", label: "family pressure" },
+  { themeKey: "burnout", label: "burnout" },
+  { themeKey: "fear_of_failure", label: "fear of failure" },
+  { themeKey: "social_anxiety", label: "social anxiety" },
+  { themeKey: "comparison", label: "comparison" },
+];

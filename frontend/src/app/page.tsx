@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Target } from "lucide-react";
+import { ChevronLeft, Target } from "lucide-react";
 
 import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
 import {
@@ -37,6 +37,8 @@ import { initializeKey, clearKey } from "@/lib/crypto";
 import {
   submitThought,
   getSimilarThoughts,
+  getSeedForTheme,
+  getThoughtsByTheme,
   submitResolution,
   getResolution,
   login,
@@ -46,6 +48,7 @@ import {
   getThemeCount,
   ApiError,
 } from "@/lib/api";
+import { THEME_DISPLAY_LABELS } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
 
 import { EchoLogo } from "@/components/echo/EchoLogo";
@@ -67,6 +70,7 @@ import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
+import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
 /* ── Demo seed data for when backend is unavailable ── */
 const SEED_THOUGHTS: ThoughtResponse[] = [
@@ -84,6 +88,38 @@ const SEED_THOUGHTS: ThoughtResponse[] = [
   { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones." },
 ];
 const SEED_MATCH_COUNT = 847;
+
+/** Demo thoughts per theme when API returns no data (e.g. unseeded Elasticsearch). */
+const DEMO_TOPIC_THOUGHTS: Record<string, ThoughtResponse[]> = {
+  loneliness: [
+    { message_id: "d-l1", humanised_text: "I moved to a new city and I'm surrounded by strangers. The loneliness is heavier than I expected. I smile through the day and fall apart at night.", theme_category: "loneliness", has_resolution: false },
+    { message_id: "d-l2", humanised_text: "I helped someone through the hardest time of their life and when I needed the same they weren't there. The imbalance in who I am for others versus who they are for me is a loneliness I can't articulate.", theme_category: "loneliness", has_resolution: true, resolution_text: "I had to grieve the friendship I thought I had. Once I stopped expecting reciprocity from that person, I could see the people who do show up for me." },
+    { message_id: "d-l3", humanised_text: "I've been feeling disconnected from everyone around me. Like I'm watching life through a window.", theme_category: "loneliness", has_resolution: false },
+  ],
+  work_stress: [
+    { message_id: "d-w1", humanised_text: "I feel invisible at work. I contribute ideas and effort but nobody notices. The recognition always goes to someone louder.", theme_category: "work_stress", has_resolution: false },
+    { message_id: "d-w2", humanised_text: "I'm exhausted before the day even starts. The pressure to perform is constant.", theme_category: "work_stress", has_resolution: false },
+  ],
+  anxiety: SEED_THOUGHTS.filter((t) => t.theme_category === "self_worth").slice(0, 4),
+  self_worth: SEED_THOUGHTS.filter((t) => t.theme_category === "self_worth"),
+  relationship_loss: SEED_THOUGHTS.filter((t) => t.theme_category === "relationship_loss"),
+  family_pressure: SEED_THOUGHTS.filter((t) => t.theme_category === "family_pressure"),
+  comparison: SEED_THOUGHTS.filter((t) => t.theme_category === "comparison"),
+  grief: [
+    { message_id: "d-g1", humanised_text: "I'm still carrying a loss that nobody talks about anymore. It feels like everyone has moved on except me.", theme_category: "grief", has_resolution: false },
+  ],
+  burnout: [
+    { message_id: "d-b1", humanised_text: "I used to love what I do. Now I'm running on empty and can't remember the last time I felt rested.", theme_category: "burnout", has_resolution: false },
+  ],
+  fear_of_failure: [
+    { message_id: "d-f1", humanised_text: "I'm terrified of not measuring up. Every decision feels like it could be the wrong one.", theme_category: "fear_of_failure", has_resolution: false },
+  ],
+  social_anxiety: [
+    { message_id: "d-s1", humanised_text: "I lie awake replaying every awkward thing I've said. I convince myself everyone remembers those moments as vividly as I do.", theme_category: "social_anxiety", has_resolution: true, resolution_text: "Asking a friend if they remembered a moment I'd been agonizing over for years — they had no idea what I was talking about. That did more than months of overthinking." },
+  ],
+  relationship_conflict: SEED_THOUGHTS.filter((t) => t.theme_category === "relationship_loss"),
+  professional_worth: SEED_THOUGHTS.filter((t) => t.theme_category === "professional_worth"),
+};
 
 /**
  * Ensures the demo Future You seed letter exists in localStorage.
@@ -142,6 +178,15 @@ export default function EchoApp() {
   const [presenceCount, setPresenceCount] = useState(0);
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
+
+  const [topicTheme, setTopicTheme] = useState<{ themeKey: string; label: string } | null>(null);
+  const [topicSeedMessageId, setTopicSeedMessageId] = useState<string | null>(null);
+  const [topicThoughts, setTopicThoughts] = useState<ThoughtResponse[]>([]);
+  const [topicTotal, setTopicTotal] = useState(0);
+  const [topicSearchAfter, setTopicSearchAfter] = useState<string[] | undefined>(undefined);
+  const [topicHasMore, setTopicHasMore] = useState(false);
+  const [topicLoading, setTopicLoading] = useState(false);
+  const [topicCardsVisible, setTopicCardsVisible] = useState(0);
 
   useEffect(() => {
     const hasOnboarded = hasCompletedOnboarding();
@@ -455,6 +500,108 @@ export default function EchoApp() {
     setScreen("home");
   }, []);
 
+  const loadTopicThoughts = useCallback(
+    async (themeKey: string, seedMessageId: string | null, searchAfter?: string[]) => {
+      setTopicLoading(true);
+      try {
+        let messageId = seedMessageId;
+        if (!messageId && !searchAfter) {
+          const seed = await getSeedForTheme(themeKey);
+          if (!seed) {
+            try {
+              const byTheme = await getThoughtsByTheme(themeKey);
+              if (byTheme.thoughts.length > 0) {
+                setTopicThoughts(byTheme.thoughts);
+                setTopicTotal(byTheme.total);
+                setTopicSearchAfter(byTheme.search_after ?? undefined);
+                setTopicHasMore(byTheme.search_after != null);
+                setTopicCardsVisible(byTheme.thoughts.length);
+                return;
+              }
+            } catch {
+              /* fall through to demo */
+            }
+            const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+            setTopicThoughts(demo);
+            setTopicTotal(demo.length);
+            setTopicHasMore(false);
+            setTopicCardsVisible(demo.length);
+            return;
+          }
+          messageId = seed.message_id;
+          setTopicSeedMessageId(messageId);
+        }
+        if (!messageId) {
+          setTopicThoughts([]);
+          setTopicTotal(0);
+          setTopicHasMore(false);
+          return;
+        }
+        const result = await getSimilarThoughts(messageId, searchAfter);
+        if (result.thoughts.length === 0 && !searchAfter) {
+          try {
+            const byTheme = await getThoughtsByTheme(themeKey);
+            if (byTheme.thoughts.length > 0) {
+              setTopicThoughts(byTheme.thoughts);
+              setTopicTotal(byTheme.total);
+              setTopicSearchAfter(byTheme.search_after ?? undefined);
+              setTopicHasMore(byTheme.search_after != null);
+              setTopicCardsVisible(byTheme.thoughts.length);
+              return;
+            }
+          } catch {
+            /* fall through to demo */
+          }
+          const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+          setTopicThoughts(demo);
+          setTopicTotal(demo.length);
+          setTopicHasMore(false);
+          setTopicCardsVisible(demo.length);
+          return;
+        }
+        setTopicThoughts((prev) =>
+          searchAfter ? [...prev, ...result.thoughts] : result.thoughts
+        );
+        setTopicTotal(result.total);
+        setTopicSearchAfter(result.search_after ?? undefined);
+        setTopicHasMore(result.search_after != null);
+        setTopicCardsVisible((prev) =>
+          searchAfter ? prev + result.thoughts.length : result.thoughts.length
+        );
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+        const demo = DEMO_TOPIC_THOUGHTS[themeKey] ?? [];
+        setTopicThoughts(demo);
+        setTopicTotal(demo.length);
+        setTopicHasMore(false);
+        setTopicCardsVisible(demo.length);
+      } finally {
+        setTopicLoading(false);
+      }
+    },
+    [handleUnauthorized]
+  );
+
+  const handleTopicOpen = useCallback(
+    (themeKey: string) => {
+      hapticTap();
+      const label = THEME_DISPLAY_LABELS[themeKey] ?? themeKey.replace(/_/g, " ");
+      setTopicTheme({ themeKey, label });
+      setTopicSeedMessageId(null);
+      setTopicThoughts([]);
+      setTopicTotal(0);
+      setTopicSearchAfter(undefined);
+      setTopicHasMore(false);
+      setTopicCardsVisible(0);
+      setScreen("topic");
+      loadTopicThoughts(themeKey, null);
+    },
+    [loadTopicThoughts]
+  );
+
   const handlePromptDismiss = useCallback(() => {
     setPromptThought(null);
   }, []);
@@ -467,7 +614,7 @@ export default function EchoApp() {
     [handleResolve]
   );
 
-  const isMainScreen = screen === "home" || screen === "results";
+  const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
   const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy", "admin"];
   const isPanel = PANEL_SCREENS.includes(screen);
 
@@ -498,6 +645,51 @@ export default function EchoApp() {
       )}
 
       {screen === "processing" && <ProcessingScreen />}
+
+      {screen === "topic" && topicTheme && (
+        <div className="echo-scroll-area flex-1 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+          <div
+            className="mx-auto w-full max-w-xl flex-1 px-4 min-h-0"
+            style={{ paddingBottom: "max(2rem, calc(env(safe-area-inset-bottom) + 1.5rem))" }}
+          >
+            <div
+              className="flex items-center gap-3 pt-2 pb-4"
+              style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+            >
+              <button
+                onClick={handleBackToHome}
+                className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-echo-text-soft transition-colors hover:bg-black/5 active:bg-black/10 touch-manipulation -ml-1"
+                aria-label="Back to home"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <h1 className="text-base font-light tracking-wide text-echo-text sm:text-lg">
+                Others on {topicTheme.label}
+              </h1>
+            </div>
+            {topicTotal > 0 && (
+              <p className="mb-4 text-[13px] font-light text-echo-text-muted">
+                {topicTotal} {topicTotal === 1 ? "thought" : "thoughts"} in this space
+              </p>
+            )}
+            <ThoughtCardList
+              thoughts={topicThoughts}
+              visibleCount={topicCardsVisible}
+              onCardTap={handleCardTap}
+              onLoadMore={() =>
+                topicTheme &&
+                loadTopicThoughts(
+                  topicTheme.themeKey,
+                  topicSeedMessageId,
+                  topicSearchAfter
+                )
+              }
+              hasMore={topicHasMore}
+              isLoadingMore={topicLoading}
+            />
+          </div>
+        </div>
+      )}
 
       {screen === "results" && (
         <div className="echo-scroll-area flex-1 overflow-y-auto overflow-x-hidden">
@@ -549,10 +741,11 @@ export default function EchoApp() {
       {/* ── Home — stays rendered behind panel overlays so it's visible on slide-back ── */}
       {(screen === "home" || isPanel) && (
         <motion.div
-          className="flex flex-1 flex-col items-center justify-center"
+          className="relative flex flex-1 flex-col items-center justify-center"
           animate={{ scale: isPanel ? 0.97 : 1, opacity: isPanel ? 0.65 : 1 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
         >
+          <SurroundingTopics animate onTopicClick={handleTopicOpen} />
           <EchoLogo
             size={isDesktop ? 200 : 150}
             animate

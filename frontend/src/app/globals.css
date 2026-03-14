@@ -70,6 +70,10 @@
   --radius: 1rem;
 }
 
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
 @layer base {
   * {
     @apply border-border;

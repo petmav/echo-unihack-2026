@@ -284,6 +284,79 @@ async def search_similar_thoughts(
         return {"thoughts": [], "total": 0, "search_after": None}
 
 
+async def search_thoughts_by_theme(
+    theme_category: str,
+    limit: int = 20,
+    search_after: list | None = None,
+) -> dict[str, Any]:
+    """
+    Return paginated thoughts filtered by theme (for topic-bubble exploration).
+    No vector or user context — anonymous browse by theme only.
+    """
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized")
+        return {"thoughts": [], "total": 0, "search_after": None}
+
+    query_body: dict[str, Any] = {
+        "query": {"term": {"theme_category": theme_category}},
+        "sort": [{"message_id": {"order": "asc"}}],
+        "size": limit,
+        "_source": ["message_id", "humanised_text", "theme_category", "has_resolution"],
+        "track_total_hits": True,
+    }
+    if search_after is not None:
+        query_body["search_after"] = search_after
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body=query_body,
+        )
+        hits = response["hits"]["hits"]
+        total_value = response["hits"]["total"]
+        total = total_value["value"] if isinstance(total_value, dict) else int(total_value)
+        thoughts = []
+        for hit in hits:
+            source = hit["_source"]
+            thoughts.append({
+                "message_id": source["message_id"],
+                "humanised_text": source["humanised_text"],
+                "theme_category": source["theme_category"],
+                "has_resolution": source.get("has_resolution", False),
+            })
+        next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None
+        return {"thoughts": thoughts, "total": total, "search_after": next_cursor}
+    except TransportError as exc:
+        logger.error(f"Failed to search thoughts by theme {theme_category}: {exc}")
+        return {"thoughts": [], "total": 0, "search_after": None}
+
+
+async def get_seed_message_id_for_theme(theme_category: str) -> str | None:
+    """
+    Return one message_id from the given theme for use as seed in /similar.
+    Enables topic exploration via GET /thoughts/similar.
+    """
+    if _es_client is None:
+        return None
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body={
+                "query": {"term": {"theme_category": theme_category}},
+                "_source": ["message_id"],
+                "size": 1,
+                "sort": [{"message_id": {"order": "asc"}}],
+            },
+        )
+        hits = response["hits"]["hits"]
+        if not hits:
+            return None
+        return hits[0]["_source"]["message_id"]
+    except TransportError as exc:
+        logger.error(f"Failed to get seed for theme {theme_category}: {exc}")
+        return None
+
+
 async def get_aggregates() -> list[dict[str, Any]]:
     """
     Get weekly aggregate counts for all theme categories in the current ISO week.

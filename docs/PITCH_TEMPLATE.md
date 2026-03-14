@@ -41,7 +41,7 @@ Three-stage privacy-preserving pipeline: self-hosted SLM anonymisation → NanoG
 *"Most of us have. And most of us believe we're the only one who's ever had it."*
 
 **[0:20 — Open the app]**
-Show the breathing logo. Tap it. Type a thought live on stage (prepare a relatable one).
+Show the breathing logo and floating topic bubbles. Tap a bubble (e.g. "loneliness") to show topic exploration — *"You can browse without typing."* Then tap the logo and type a thought live on stage (prepare a relatable one).
 
 **[0:40 — The moment]**
 Let the breathing animation play. Don't rush it. Then: the count reveal.

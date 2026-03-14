@@ -284,6 +284,71 @@ async def get_similar_thoughts(
     )
 
 
+@router.get("/seed-for-theme")
+async def get_seed_for_theme(
+    theme: str = Query(..., description="Theme category key (e.g. work_stress, anxiety)"),
+):
+    """
+    Return one message_id from this theme for use with GET /thoughts/similar.
+    Enables topic exploration: use this seed with /similar for semantic matching.
+    Returns 404 if the theme has no thoughts.
+    """
+    message_id = await elastic.get_seed_message_id_for_theme(theme)
+    if message_id is None:
+        raise HTTPException(status_code=404, detail="No thoughts found for this theme.")
+    return {"message_id": message_id}
+
+
+@router.get("/by-theme", response_model=PaginatedThoughts)
+async def get_thoughts_by_theme(
+    theme: str = Query(..., description="Theme category key (e.g. work_stress, anxiety)"),
+    size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    search_after: str | None = Query(
+        None, description="Elasticsearch search_after cursor (JSON array)"
+    ),
+):
+    """
+    Get paginated thoughts for a theme (topic-bubble exploration).
+    No user context — anonymous browse by theme only.
+
+    PRIVACY: Returns only anonymized/humanized thoughts with no user linkage.
+    """
+    parsed_cursor: list | None = None
+    if search_after is not None:
+        try:
+            parsed_cursor = json.loads(search_after)
+            if not isinstance(parsed_cursor, list):
+                raise ValueError("search_after must be a JSON array")
+        except (json.JSONDecodeError, ValueError) as err:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid search_after cursor: must be a JSON array string.",
+            ) from err
+
+    search_result = await elastic.search_thoughts_by_theme(
+        theme_category=theme,
+        limit=size,
+        search_after=parsed_cursor,
+    )
+
+    thoughts = [
+        ThoughtResponse(
+            message_id=t["message_id"],
+            humanised_text=t["humanised_text"],
+            theme_category=t["theme_category"],
+            has_resolution=t.get("has_resolution", False),
+            resolution_text=t.get("resolution_text"),
+        )
+        for t in search_result["thoughts"]
+    ]
+
+    return PaginatedThoughts(
+        thoughts=thoughts,
+        search_after=search_result["search_after"],
+        total=search_result["total"],
+    )
+
+
 _DEMO_AGGREGATES: list[dict] = [
     {"theme": "work_stress", "count": 847},
     {"theme": "anxiety", "count": 634},
