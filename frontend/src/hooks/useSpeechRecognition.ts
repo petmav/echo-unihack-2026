@@ -28,10 +28,10 @@ interface SpeechRecognition extends EventTarget {
 declare global {
   interface Window {
     SpeechRecognition: {
-      new (): SpeechRecognition;
+      new(): SpeechRecognition;
     };
     webkitSpeechRecognition: {
-      new (): SpeechRecognition;
+      new(): SpeechRecognition;
     };
   }
 }
@@ -41,6 +41,23 @@ export function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const isManuallyStoppedRef = useRef(false);
+  const finalTranscriptRef = useRef("");
+  const inactivityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetInactivityTimeout = useCallback(() => {
+    if (inactivityTimeoutRef.current) {
+      clearTimeout(inactivityTimeoutRef.current);
+    }
+    // 5 minutes = 300,000 ms
+    inactivityTimeoutRef.current = setTimeout(() => {
+      if (recognitionRef.current) {
+        isManuallyStoppedRef.current = true;
+        recognitionRef.current.stop();
+        setIsListening(false);
+      }
+    }, 6000);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -59,28 +76,51 @@ export function useSpeechRecognition() {
     recognition.lang = "en-US";
 
     recognition.onresult = (event) => {
-      let currentTranscript = "";
+      let interimTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        currentTranscript += event.results[i][0].transcript;
+        const transcriptSegment = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += transcriptSegment + " ";
+        } else {
+          interimTranscript += transcriptSegment;
+        }
       }
-      setTranscript(currentTranscript);
+      setTranscript(finalTranscriptRef.current + interimTranscript);
+      resetInactivityTimeout();
     };
 
     recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
-      setIsListening(false);
+      if (event.error !== "no-speech") {
+        console.error("Speech recognition error:", event.error);
+        isManuallyStoppedRef.current = true;
+        setIsListening(false);
+      }
     };
 
     // When voice input pauses/ends natively
     recognition.onend = () => {
-      setIsListening(false);
+      if (!isManuallyStoppedRef.current) {
+        // Auto-restart to simulate continuous listening
+        try {
+          recognition.start();
+        } catch (error) {
+          console.error("Failed to restart speech recognition:", error);
+          setIsListening(false);
+        }
+      } else {
+        setIsListening(false);
+      }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
+        isManuallyStoppedRef.current = true;
         recognitionRef.current.abort();
+      }
+      if (inactivityTimeoutRef.current) {
+        clearTimeout(inactivityTimeoutRef.current);
       }
     };
   }, []);
@@ -88,9 +128,12 @@ export function useSpeechRecognition() {
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
       setTranscript("");
+      finalTranscriptRef.current = "";
+      isManuallyStoppedRef.current = false;
       try {
         recognitionRef.current.start();
         setIsListening(true);
+        resetInactivityTimeout();
       } catch (error) {
         console.error("Failed to start speech recognition:", error);
       }
@@ -99,8 +142,12 @@ export function useSpeechRecognition() {
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
+      isManuallyStoppedRef.current = true;
       recognitionRef.current.stop();
       setIsListening(false);
+      if (inactivityTimeoutRef.current) {
+        clearTimeout(inactivityTimeoutRef.current);
+      }
     }
   }, [isListening]);
 
@@ -119,6 +166,9 @@ export function useSpeechRecognition() {
     startListening,
     stopListening,
     toggleListening,
-    resetTranscript: () => setTranscript(""),
+    resetTranscript: () => {
+      setTranscript("");
+      finalTranscriptRef.current = "";
+    },
   };
 }

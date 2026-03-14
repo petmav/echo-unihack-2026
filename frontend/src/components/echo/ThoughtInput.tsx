@@ -49,11 +49,12 @@ export function ThoughtInput({
 
   useEffect(() => {
     if (isListening && transcript) {
+      const baseText = preRecordValueRef.current;
       const separator =
-        preRecordValueRef.current && !preRecordValueRef.current.endsWith(" ") && preRecordValueRef.current.length > 0 && !preRecordValueRef.current.endsWith("\n")
+        baseText && !baseText.endsWith(" ") && baseText.length > 0 && !baseText.endsWith("\n")
           ? " "
           : "";
-      const newText = preRecordValueRef.current + separator + transcript;
+      const newText = baseText + separator + transcript;
       onChange(newText.slice(0, MAX_THOUGHT_LENGTH));
     }
   }, [transcript, isListening, onChange]);
