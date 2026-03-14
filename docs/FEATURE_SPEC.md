@@ -199,9 +199,10 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 1. Count reveal completes
 2. Safety banner appears if the theme is risk-related
 3. Quiet wins banner appears if the local-history conditions are met
-4. Saved anchors appear if the user has previously saved any matching advice lines
-5. Future You letter appears if a matching local letter exists
-6. Response cards render below
+4. Recurrence pattern banner appears if the same theme has been repeating recently
+5. Saved anchors appear if the user has previously saved any matching advice lines
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
 
 **Storage**: `echo_saved_anchors` in localStorage. Array of `{ message_id, theme_category, humanised_text, resolution_text, saved_at }`.
 
@@ -228,9 +229,10 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 1. Count reveal completes
 2. Safety banner appears if the theme is risk-related
 3. Quiet wins banner appears if the local-history conditions are met
-4. Saved anchors appear if any matching advice lines were previously saved locally
-5. Future You letter appears if a matching local letter exists
-6. Response cards render below
+4. Recurrence pattern banner appears if the same theme has shown up repeatedly in the last two weeks
+5. Saved anchors appear if any matching advice lines were previously saved locally
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
 
 **Rules**:
 - Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
@@ -242,7 +244,41 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 12. "Guardrails of Care" — Light-Touch Safety Layer
+### 12. "Recurrence Pattern" — Local Signal for a Theme That Keeps Returning
+
+**What**: When the same non-risk theme has come up repeatedly in a short recent window, the results screen surfaces a local-only banner that gently points out the pattern. The goal is not to diagnose or dramatise it, only to make repetition visible.
+
+**Trigger conditions**:
+- The newly submitted thought is classified into a non-risk `theme_category`
+- That same theme appears in the user's local history at least **twice in the last 14 days**
+- The current submission becomes at least the **third mention** of that theme in the same 14-day window
+
+**What the user sees**:
+- A neutral warm banner above the response cards
+- Heading: *"A returning pattern"*
+- Body: *"Self worth has come up 3 times in the last 14 days. The most recent mention before today was 2 days ago."*
+- Footer note: *"Noticed only from your local history on this device."*
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the theme had been absent for a meaningful stretch
+4. Recurrence pattern banner appears if the theme has been recurring recently
+5. Saved anchors appear if matching advice was previously saved locally
+6. Future You letter appears if a matching local letter exists
+7. Response cards render below
+
+**Rules**:
+- Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
+- Never show unless there are at least 2 prior mentions of the same theme inside the last 14 days
+- Uses only local history already stored on device
+- Can naturally coexist with saved anchors and Future You letters
+
+**Privacy**: Entirely local. No API call. No logging. No persistence beyond the thought history already on device.
+
+---
+
+### 13. "Guardrails of Care" — Light-Touch Safety Layer
 
 **What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
 
@@ -264,7 +300,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 13. Surrounding Topics & Topic Exploration
+### 14. Surrounding Topics & Topic Exploration
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 
