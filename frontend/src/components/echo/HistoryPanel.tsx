@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ChevronLeft, Shield } from "lucide-react";
+import { Check, ChevronLeft, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 
-import type { LocalThought } from "@/lib/types";
+import type { LocalThought, ThoughtResponse } from "@/lib/types";
 import { MAX_RESOLUTION_LENGTH, RESOLUTION_PROMPT_WEEKS } from "@/lib/constants";
+import { getSimilarThoughts, getThemeCount } from "@/lib/api";
 
 import { FutureLetterInput } from "./FutureLetterInput";
 
@@ -15,6 +16,7 @@ interface HistoryPanelProps {
   onBack: () => void;
   onResolve: (messageId: string, resolutionText: string) => void;
   onSaveFutureLetter: (messageId: string, theme: string, text: string) => void;
+  onDelete?: (messageId: string) => void;
 }
 
 function isOlderThanThreshold(timestamp: number): boolean {
@@ -40,12 +42,45 @@ export function HistoryPanel({
   onBack,
   onResolve,
   onSaveFutureLetter,
+  onDelete,
 }: HistoryPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resolveText, setResolveText] = useState("");
   const [optimisticResolved, setOptimisticResolved] = useState<
     Record<string, string>
   >({});
+
+  // Live match counts — refresh from backend on mount
+  const [liveCounts, setLiveCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Collect unique themes to fetch counts for
+    const themes = [...new Set(thoughts.map((t) => t.theme_category))];
+    let cancelled = false;
+    Promise.all(
+      themes.map(async (theme) => {
+        try {
+          const result = await getThemeCount(theme);
+          return { theme, count: result.count };
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const counts: Record<string, number> = {};
+      for (const r of results) {
+        if (r) counts[r.theme] = r.count;
+      }
+      setLiveCounts(counts);
+    });
+    return () => { cancelled = true; };
+  }, [thoughts]);
+
+  // Similar thoughts expansion state
+  const [similarExpandedId, setSimilarExpandedId] = useState<string | null>(null);
+  const [similarThoughts, setSimilarThoughts] = useState<Record<string, ThoughtResponse[]>>({});
+  const [similarLoading, setSimilarLoading] = useState<string | null>(null);
 
   const handleResolve = useCallback(
     (messageId: string) => {
@@ -72,12 +107,34 @@ export function HistoryPanel({
     }
   };
 
+  const handleToggleSimilar = useCallback(async (messageId: string) => {
+    if (similarExpandedId === messageId) {
+      setSimilarExpandedId(null);
+      return;
+    }
+
+    setSimilarExpandedId(messageId);
+
+    // If already loaded, don't re-fetch
+    if (similarThoughts[messageId]) return;
+
+    setSimilarLoading(messageId);
+    try {
+      const result = await getSimilarThoughts(messageId);
+      setSimilarThoughts((prev) => ({ ...prev, [messageId]: result.thoughts }));
+    } catch {
+      setSimilarThoughts((prev) => ({ ...prev, [messageId]: [] }));
+    } finally {
+      setSimilarLoading(null);
+    }
+  }, [similarExpandedId, similarThoughts]);
+
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       {/* Header */}
       <div
         className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl"
-        style={{ background: "rgba(250, 247, 242, 0.88)" }}
+        style={{ background: "var(--echo-header-blur)" }}
       >
         <button
           onClick={onBack}
@@ -92,15 +149,7 @@ export function HistoryPanel({
       </div>
 
       <div className="mx-auto w-full max-w-xl px-4 pb-12">
-        {/* Privacy banner */}
-        <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-echo-highlight p-3 text-echo-text-soft">
-          <Shield size={18} className="shrink-0" />
-          <p className="text-[11.5px] font-light leading-snug">
-            This data lives only on your device and is never uploaded.
-          </p>
-        </div>
-
-        {thoughts.length === 0 && (
+{thoughts.length === 0 && (
           <div className="mt-16 text-center">
             <p className="text-sm font-light text-echo-text-muted">
               No thoughts yet. Tap the logo to share one.
@@ -116,26 +165,96 @@ export function HistoryPanel({
             optimisticResolved[item.message_id] ?? item.resolution_text;
           const shouldPulse =
             !isResolved && isOlderThanThreshold(item.timestamp);
+          const isSimilarExpanded = similarExpandedId === item.message_id;
+          const loadedSimilar = similarThoughts[item.message_id];
+          const isLoadingSimilar = similarLoading === item.message_id;
 
           return (
             <motion.div
               key={item.message_id}
               layout
-              className={`mb-2 rounded-2xl bg-white p-4 shadow-[0_1px_6px_rgba(44,40,37,0.04)]`}
+              className={`mb-2 rounded-2xl bg-echo-card p-4 shadow-[0_1px_6px_rgba(44,40,37,0.04)] dark:shadow-[0_1px_6px_rgba(0,0,0,0.15)]`}
               animate={{ opacity: isResolved ? 0.55 : 1 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
             >
               {/* Thought text (truncated) */}
-              <p className="mb-2.5 line-clamp-2 text-sm font-normal leading-relaxed text-echo-text">
+              <p className="mb-1.5 line-clamp-2 text-sm font-normal leading-relaxed text-echo-text">
                 {item.raw_text}
               </p>
 
-              {/* Match count — shown when available */}
-              {item.match_count != null && item.match_count > 0 && (
-                <p className="mb-2.5 text-[11.5px] font-light text-echo-text-muted">
-                  {item.match_count} {item.match_count === 1 ? "person has" : "people have"} felt something like this
-                </p>
-              )}
+
+              {/* Match count — clickable to expand similar thoughts */}
+              {(() => {
+                const displayCount = liveCounts[item.theme_category] ?? item.match_count;
+                return displayCount != null && displayCount > 0 ? (
+                <button
+                  onClick={() => handleToggleSimilar(item.message_id)}
+                  className="mb-2.5 flex items-center gap-1 text-[11.5px] font-light text-echo-text-muted transition-colors hover:text-echo-text"
+                >
+                  <span>
+                    {displayCount} {displayCount === 1 ? "person has" : "people have"} felt something like this
+                  </span>
+                  {isSimilarExpanded ? (
+                    <ChevronUp size={12} className="shrink-0" />
+                  ) : (
+                    <ChevronDown size={12} className="shrink-0" />
+                  )}
+                </button>
+              ) : null;
+              })()}
+
+              {/* Expanded similar thoughts */}
+              <AnimatePresence>
+                {isSimilarExpanded && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="mb-3 overflow-hidden"
+                  >
+                    {isLoadingSimilar && (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-echo-accent border-t-transparent" />
+                        <span className="ml-2 text-[11px] text-echo-text-muted">Finding others...</span>
+                      </div>
+                    )}
+
+                    {!isLoadingSimilar && loadedSimilar && loadedSimilar.length === 0 && (
+                      <p className="py-3 text-center text-[11px] text-echo-text-muted">
+                        No similar thoughts found right now.
+                      </p>
+                    )}
+
+                    {!isLoadingSimilar && loadedSimilar && loadedSimilar.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10.5px] font-medium uppercase tracking-wider text-echo-text-muted">
+                          Others who felt this way
+                        </p>
+                        <div className="max-h-[280px] space-y-1.5 overflow-y-auto rounded-xl bg-echo-bg/50 p-2">
+                          {loadedSimilar.map((thought) => (
+                            <div
+                              key={thought.message_id}
+                              className={`rounded-lg px-3 py-2.5 text-[12px] font-light leading-relaxed text-echo-text ${
+                                thought.has_resolution
+                                  ? "border border-echo-green-soft/60 bg-echo-card"
+                                  : "bg-echo-card"
+                              }`}
+                            >
+                              <p>&quot;{thought.humanised_text}&quot;</p>
+                              {thought.has_resolution && thought.resolution_text && (
+                                <p className="mt-1.5 text-[11px] italic text-echo-text-muted">
+                                  What helped: &quot;{thought.resolution_text}&quot;
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Meta row */}
               <div className="flex items-center justify-between">
@@ -143,6 +262,16 @@ export function HistoryPanel({
                   {formatRelativeDate(item.timestamp)}
                 </span>
 
+                <div className="flex items-center gap-2">
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(item.message_id)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-echo-text-muted transition-colors hover:text-red-400"
+                      aria-label="Delete thought"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 <motion.button
                   onClick={() =>
                     !isResolved && handleToggleExpand(item.message_id)
@@ -177,6 +306,7 @@ export function HistoryPanel({
                 >
                   <Check size={16} />
                 </motion.button>
+                </div>
               </div>
 
               {/* Resolution text — shows after optimistic resolve or from data */}
