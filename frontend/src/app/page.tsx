@@ -50,6 +50,7 @@ import {
 } from "@/lib/api";
 import { THEME_DISPLAY_LABELS } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
+import { findQuietWin, type QuietWin } from "@/lib/quietWins";
 
 import { EchoLogo } from "@/components/echo/EchoLogo";
 import { ThoughtInput } from "@/components/echo/ThoughtInput";
@@ -69,6 +70,7 @@ import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
+import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
@@ -192,6 +194,7 @@ export default function EchoApp() {
   const [presenceCount, setPresenceCount] = useState(0);
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
+  const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
 
   const [topicTheme, setTopicTheme] = useState<{ themeKey: string; label: string } | null>(null);
   const [topicSeedMessageId, setTopicSeedMessageId] = useState<string | null>(null);
@@ -375,9 +378,14 @@ export default function EchoApp() {
     setScreen("processing");
 
     const processingStart = Date.now();
+    const priorThoughts = thoughtHistory.map(({ theme_category, timestamp }) => ({
+      theme_category,
+      timestamp,
+    }));
 
     const showResults = async (themeCategory: string, initialCount: number, initialThoughts: ThoughtResponse[]) => {
       setCurrentThemeCategory(themeCategory);
+      setQuietWin(findQuietWin(priorThoughts, themeCategory));
       setLiveMatchCount(initialCount);
       setNewThoughtIds(new Set());
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
@@ -434,7 +442,7 @@ export default function EchoApp() {
 
     setThoughtText("");
     refreshHistory();
-  }, [thoughtText, refreshHistory, handleUnauthorized]);
+  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized]);
 
   const loadMoreThoughts = useCallback(async () => {
     if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
@@ -780,6 +788,11 @@ export default function EchoApp() {
             {/* Guardrails of Care — safety resources for risk themes */}
             {countAnimDone && currentThemeCategory && (
               <SafetyBanner themeCategory={currentThemeCategory} />
+            )}
+
+            {/* Quiet wins — local reflection when a recurring theme stayed quiet for a while */}
+            {countAnimDone && quietWin && (
+              <QuietWinBanner quietWin={quietWin} />
             )}
 
             {/* Future You — letter from past self on matching theme */}
