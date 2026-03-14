@@ -68,6 +68,9 @@ class Config(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://192.9.165.173:8000",
+        "https://localhost",
+        "capacitor://localhost",
+        "http://localhost",
     ]
 
     # Admin access — email address that receives the admin flag on login

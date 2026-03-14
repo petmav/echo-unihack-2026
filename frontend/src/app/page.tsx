@@ -10,6 +10,7 @@ import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThou
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
+  POLL_INTERVAL_MS,
   DEMO_FUTURE_LETTER,
   inferThemeFromText,
 } from "@/lib/constants";
@@ -183,6 +184,13 @@ export default function EchoApp() {
   const [searchAfterCursor, setSearchAfterCursor] = useState<string[] | undefined>(undefined);
   const [hasMoreThoughts, setHasMoreThoughts] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const staggerBaseRef = useRef(0);
+
+  // Refs for polling — avoids resetting the interval on every state change
+  const matchCountRef = useRef(matchCount);
+  const similarThoughtsRef = useRef(similarThoughts);
+  matchCountRef.current = matchCount;
+  similarThoughtsRef.current = similarThoughts;
 
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -350,8 +358,12 @@ export default function EchoApp() {
   useEffect(() => {
     if (!countAnimDone || similarThoughts.length === 0) return;
 
+    const base = staggerBaseRef.current;
+    const newCount = similarThoughts.length - base;
+    if (newCount <= 0) return;
+
     const timers: NodeJS.Timeout[] = [];
-    for (let i = 0; i < similarThoughts.length; i++) {
+    for (let i = 0; i < newCount; i++) {
       timers.push(
         setTimeout(
           () => setCardsVisible((v) => v + 1),
@@ -359,8 +371,42 @@ export default function EchoApp() {
         )
       );
     }
+    staggerBaseRef.current = similarThoughts.length;
     return () => timers.forEach(clearTimeout);
   }, [countAnimDone, similarThoughts.length]);
+
+  /* Poll for real-time updates while on results screen */
+  useEffect(() => {
+    if (screen !== "results" || !currentMessageId || !countAnimDone) return;
+    // Don't poll in demo/offline mode
+    if (currentMessageId.startsWith("demo-")) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await getSimilarThoughts(currentMessageId);
+
+        // Update count if new thoughts were indexed
+        if (result.total > matchCountRef.current) {
+          setMatchCount(result.total);
+        }
+
+        // Append any thoughts not already in our list
+        const existingIds = new Set(
+          similarThoughtsRef.current.map((t) => t.message_id)
+        );
+        const newThoughts = result.thoughts.filter(
+          (t) => !existingIds.has(t.message_id)
+        );
+        if (newThoughts.length > 0) {
+          setSimilarThoughts((prev) => [...prev, ...newThoughts]);
+        }
+      } catch {
+        /* Silently ignore polling errors */
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [screen, currentMessageId, countAnimDone]);
 
   const handleUnauthorized = useCallback(() => {
     clearKey();
@@ -394,6 +440,7 @@ export default function EchoApp() {
       const letters = await getFutureLettersForTheme(themeCategory);
       setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
 
+      staggerBaseRef.current = 0;
       setCardsVisible(0);
       setCountAnimDone(false);
       setScreen("results");
