@@ -37,6 +37,14 @@ export interface FutureLetter {
   timestamp: number;
 }
 
+export interface SavedAnchor {
+  message_id: string;
+  theme_category: string;
+  humanised_text: string;
+  resolution_text: string;
+  saved_at: number;
+}
+
 export interface ThemePresence {
   theme: string;
   count: number;

@@ -6,7 +6,14 @@ import { Capacitor } from "@capacitor/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Target } from "lucide-react";
 
-import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
+import type {
+  AppScreen,
+  ThoughtResponse,
+  PresenceLevel,
+  FutureLetter,
+  LocalThought,
+  SavedAnchor,
+} from "@/lib/types";
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
@@ -24,6 +31,9 @@ import {
   markOnboardingComplete,
   saveFutureLetter,
   getFutureLettersForTheme,
+  saveAnchor,
+  getSavedAnchorsForTheme,
+  getAllSavedAnchors,
   getMostRecentTheme,
   presenceLevelFromCount,
   getNotificationOptIn,
@@ -71,6 +81,7 @@ import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
+import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
@@ -195,6 +206,8 @@ export default function EchoApp() {
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
+  const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
+  const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
   const [topicTheme, setTopicTheme] = useState<{ themeKey: string; label: string } | null>(null);
   const [topicSeedMessageId, setTopicSeedMessageId] = useState<string | null>(null);
@@ -204,6 +217,12 @@ export default function EchoApp() {
   const [topicHasMore, setTopicHasMore] = useState(false);
   const [topicLoading, setTopicLoading] = useState(false);
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
+
+  const refreshSavedAnchorIds = useCallback(() => {
+    getAllSavedAnchors().then((anchors) => {
+      setSavedAnchorIds(new Set(anchors.map((anchor) => anchor.message_id)));
+    });
+  }, []);
 
   useEffect(() => {
     const hasOnboarded = hasCompletedOnboarding();
@@ -219,7 +238,8 @@ export default function EchoApp() {
     }
 
     getThoughtHistory().then(setThoughtHistory);
-  }, []);
+    refreshSavedAnchorIds();
+  }, [refreshSavedAnchorIds]);
 
   /* Capacitor native platform setup (Android back button, status bar) */
   const screenRef = useRef(screen);
@@ -365,6 +385,8 @@ export default function EchoApp() {
   const handleUnauthorized = useCallback(() => {
     clearKey();
     clearAllData();
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
     setScreen("auth");
   }, []);
@@ -391,8 +413,13 @@ export default function EchoApp() {
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
       demoLivePoolRef.current = [...LIVE_DEMO_POOL];
 
-      const letters = await getFutureLettersForTheme(themeCategory);
+      const [letters, anchors] = await Promise.all([
+        getFutureLettersForTheme(themeCategory),
+        getSavedAnchorsForTheme(themeCategory),
+      ]);
       setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
+      setSavedAnchors(anchors);
+      refreshSavedAnchorIds();
 
       setCardsVisible(0);
       setCountAnimDone(false);
@@ -442,7 +469,7 @@ export default function EchoApp() {
 
     setThoughtText("");
     refreshHistory();
-  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized]);
+  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized, refreshSavedAnchorIds]);
 
   const loadMoreThoughts = useCallback(async () => {
     if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
@@ -476,6 +503,27 @@ export default function EchoApp() {
     }
   }, []);
 
+  const handleSaveAnchor = useCallback(
+    async (thought: ThoughtResponse) => {
+      if (!thought.resolution_text) return;
+
+      await saveAnchor({
+        message_id: thought.message_id,
+        theme_category: thought.theme_category,
+        humanised_text: thought.humanised_text,
+        resolution_text: thought.resolution_text,
+      });
+
+      refreshSavedAnchorIds();
+
+      if (thought.theme_category === currentThemeCategory) {
+        const anchors = await getSavedAnchorsForTheme(thought.theme_category);
+        setSavedAnchors(anchors);
+      }
+    },
+    [currentThemeCategory, refreshSavedAnchorIds]
+  );
+
   const handleAuth = useCallback(
     async (email: string, password: string, mode: "login" | "signup") => {
       setAuthLoading(true);
@@ -490,6 +538,8 @@ export default function EchoApp() {
         const admin = result.is_admin ?? false;
         saveAdminStatus(admin);
         setIsAdmin(admin);
+        refreshHistory();
+        refreshSavedAnchorIds();
         setScreen("home");
       } catch (err) {
         if (err instanceof ApiError) {
@@ -509,7 +559,7 @@ export default function EchoApp() {
         setAuthLoading(false);
       }
     },
-    []
+    [refreshHistory, refreshSavedAnchorIds]
   );
 
   const handleOnboardingComplete = useCallback(() => {
@@ -549,6 +599,8 @@ export default function EchoApp() {
     }
     clearKey();
     clearAllData();
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setScreen("auth");
   }, []);
 
@@ -795,6 +847,17 @@ export default function EchoApp() {
               <QuietWinBanner quietWin={quietWin} />
             )}
 
+            {/* Saved anchors — advice lines the user chose to keep for this theme */}
+            {countAnimDone && currentThemeCategory && savedAnchors.length > 0 && (
+              <SavedAnchorsBanner
+                anchors={savedAnchors}
+                themeLabel={
+                  THEME_DISPLAY_LABELS[currentThemeCategory] ??
+                  currentThemeCategory.replace(/_/g, " ")
+                }
+              />
+            )}
+
             {/* Future You — letter from past self on matching theme */}
             {countAnimDone && futureLetterMatch && (
               <FutureYouBanner letter={futureLetterMatch} />
@@ -1007,6 +1070,12 @@ export default function EchoApp() {
           <BottomSheet
             thought={bottomSheetThought}
             onClose={() => setBottomSheetThought(null)}
+            onSaveAnchor={handleSaveAnchor}
+            isAnchorSaved={
+              bottomSheetThought
+                ? savedAnchorIds.has(bottomSheetThought.message_id)
+                : false
+            }
           />
 
           {/* Delayed opt-in prompt */}
@@ -1100,6 +1169,12 @@ export default function EchoApp() {
         <BottomSheet
           thought={bottomSheetThought}
           onClose={() => setBottomSheetThought(null)}
+          onSaveAnchor={handleSaveAnchor}
+          isAnchorSaved={
+            bottomSheetThought
+              ? savedAnchorIds.has(bottomSheetThought.message_id)
+              : false
+          }
         />
 
         {/* Delayed opt-in prompt */}
