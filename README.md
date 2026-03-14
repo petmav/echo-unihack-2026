@@ -66,6 +66,7 @@ cd backend && python seed_elastic.py
 - [`docs/PRIVACY_SPEC.md`](docs/PRIVACY_SPEC.md) — Privacy model and breach analysis
 - [`docs/FEATURE_SPEC.md`](docs/FEATURE_SPEC.md) — Full feature specification
 - [`docs/PITCH_TEMPLATE.md`](docs/PITCH_TEMPLATE.md) — Demo script and submission checklist
+- [`docs/TEST.md`](docs/TEST.md) — Testing and demo guide (demo mode, Future You, Safety Banner)
 - [`CLAUDE.md`](CLAUDE.md) — Context for Claude Code
 
 ## Prizes Targeting

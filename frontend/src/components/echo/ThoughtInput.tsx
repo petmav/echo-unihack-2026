@@ -15,6 +15,8 @@ interface ThoughtInputProps {
   onChange: (value: string) => void;
   onSubmit: () => void;
   onClose: () => void;
+  /** When provided, topic bubbles are clickable and open the topic screen. */
+  onTopicClick?: (themeKey: string) => void;
 }
 
 const WARN_THRESHOLD = 250;
@@ -25,6 +27,7 @@ export function ThoughtInput({
   onChange,
   onSubmit,
   onClose,
+  onTopicClick,
 }: ThoughtInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { isListening, transcript, isSupported, toggleListening } = useSpeechRecognition();
@@ -86,7 +89,7 @@ export function ThoughtInput({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
-          <SurroundingTopics animate />
+          <SurroundingTopics animate onTopicClick={onTopicClick} />
           {/* Close button */}
           <button
             onClick={onClose}
