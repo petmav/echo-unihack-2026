@@ -80,6 +80,9 @@ class ThoughtSubmitResult(BaseModel):
     message_id: str = Field(
         ..., description="ID of the newly submitted thought (for local storage)"
     )
+    anonymised_text: str = Field(
+        ..., description="SLM-anonymised version of the raw thought (shown to user for transparency)"
+    )
     theme_category: str = Field(
         ..., description="Classified theme (stored locally for Future You letters)"
     )
