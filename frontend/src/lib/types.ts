@@ -28,6 +28,7 @@ export interface LocalThought {
   theme_category: string;
   timestamp: number;
   is_resolved: boolean;
+  resolution_timestamp?: number;
   resolution_text?: string;
   future_letter?: string;
   /** Number of people who felt something like this (from search at submit time). */

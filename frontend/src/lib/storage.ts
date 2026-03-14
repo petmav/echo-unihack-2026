@@ -113,6 +113,8 @@ export async function resolveThought(
   const index = thoughts.findIndex((t) => t.message_id === messageId);
   if (index === -1) return;
   thoughts[index].is_resolved = true;
+  thoughts[index].resolution_timestamp =
+    thoughts[index].resolution_timestamp ?? Date.now();
   thoughts[index].resolution_text = resolutionText;
   await writeThoughts(thoughts);
 }

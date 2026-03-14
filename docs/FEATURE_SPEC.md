@@ -98,9 +98,16 @@ Accessed from the history panel or hamburger menu.
 - Most frequent emotional themes over time
 - Frequency chart (simple bar or line, last 12 weeks)
 - Resolution rate (% of thoughts marked resolved)
+- Resolution timeline: recent resolved thoughts shown with when they were first written, when they were marked resolved, and how long the shift took
 - Streak/cadence info if applicable
 
 **Privacy note visible in UI**: *"This data lives only on your device and is never uploaded."*
+
+**Resolution timeline rules**:
+- Uses a local `resolution_timestamp` recorded only when the user marks a thought resolved on-device
+- Shows recent resolved thoughts as a timeline of *wrote -> resolved* moments
+- Includes average time-to-resolution across tracked local entries
+- Older resolved thoughts saved before timeline tracking began may still count toward the resolution rate, but are labelled as pre-timeline history rather than given a fake duration
 
 ---
 
