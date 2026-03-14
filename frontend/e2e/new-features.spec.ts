@@ -33,6 +33,25 @@ function seedThoughtHistory(
   );
 }
 
+function seedThoughtHistoryEntries(
+  page: import("@playwright/test").Page,
+  thoughts: Array<{
+    message_id: string;
+    raw_text: string;
+    theme_category: string;
+    timestamp: number;
+    is_resolved: boolean;
+    resolution_text?: string;
+  }>
+) {
+  return page.evaluate(
+    ({ thoughts }) => {
+      localStorage.setItem("echo_thoughts", JSON.stringify(thoughts));
+    },
+    { thoughts }
+  );
+}
+
 function seedFutureLetter(
   page: import("@playwright/test").Page,
   theme = "self_worth"
@@ -209,6 +228,231 @@ test.describe("Future You", () => {
       path: path.join(SCREENSHOT_DIR, "feature-e-banner.png"),
       fullPage: true,
     });
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   F. "Saved anchors" — local advice snippets
+   ═══════════════════════════════════════════════ */
+
+test.describe("Saved anchors", () => {
+  test("can save a helpful card and see it return for the same theme", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    await page
+      .getByText(
+        "Sometimes I lie awake replaying every awkward thing I've ever said in a conversation."
+      )
+      .click();
+
+    const saveButton = page.getByTestId("save-anchor-button");
+    await expect(saveButton).toBeVisible();
+    await saveButton.click();
+    await expect(saveButton).toContainText("Saved on this device");
+
+    await page.getByLabel("Close sheet").click();
+
+    await page.getByRole("button", { name: "Return home" }).click();
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I keep spiralling about every social interaction");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("saved-anchors-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("Saved anchors for this space");
+    await expect(banner).toContainText(
+      "They had absolutely no idea what I was talking about."
+    );
+
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("echo_saved_anchors")
+    );
+    expect(stored).toBeTruthy();
+
+    await page.screenshot({
+      path: path.join(SCREENSHOT_DIR, "feature-f-saved-anchors.png"),
+      fullPage: true,
+    });
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   G. "Quiet wins" — local-only reflection banner
+   ═══════════════════════════════════════════════ */
+
+test.describe("Quiet wins", () => {
+  test("shows a quiet win banner when a recurring theme returns after a long gap", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "quiet-self-worth-1",
+        raw_text: "I feel small around everyone else",
+        theme_category: "self_worth",
+        timestamp: now - 18 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "quiet-self-worth-2",
+        raw_text: "I keep doubting my own value",
+        theme_category: "self_worth",
+        timestamp: now - 22 * dayMs,
+        is_resolved: true,
+        resolution_text: "I spoke to someone I trust.",
+      },
+      {
+        message_id: "quiet-other",
+        raw_text: "Work has been loud lately",
+        theme_category: "work_stress",
+        timestamp: now - 2 * dayMs,
+        is_resolved: false,
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("quiet-win-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("A quiet win");
+    await expect(banner).toContainText("18 days");
+    await expect(banner).toContainText("self worth");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   H. Local emotion trends
+   ═══════════════════════════════════════════════ */
+
+test.describe("Emotion trends", () => {
+  test("switches between weekly, monthly, and yearly emotion views", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "trend-week-1",
+        raw_text: "I keep doubting myself",
+        theme_category: "self_worth",
+        timestamp: now - dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "trend-week-2",
+        raw_text: "Work has been loud in my head",
+        theme_category: "self_worth",
+        timestamp: now - 3 * dayMs,
+        is_resolved: true,
+        resolution_text: "I slowed down and asked for help.",
+      },
+      {
+        message_id: "trend-month",
+        raw_text: "My family expectations are crushing me",
+        theme_category: "family_pressure",
+        timestamp: now - 10 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "trend-year",
+        raw_text: "I still miss them more than I say",
+        theme_category: "relationship_loss",
+        timestamp: now - 40 * dayMs,
+        is_resolved: true,
+        resolution_text: "I stopped pretending I was over it.",
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.waitForTimeout(400);
+    await page.getByText("Trends").click();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("trend-range-weekly")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This week"
+    );
+    await expect(page.getByTestId("trend-dominant-theme")).toContainText(
+      "Self-worth"
+    );
+
+    await page.getByTestId("trend-range-monthly").click();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This month"
+    );
+    await expect(page.getByText("Family pressure")).toBeVisible();
+
+    await page.getByTestId("trend-range-yearly").click();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This year"
+    );
+    await expect(page.getByText("Relationship loss")).toBeVisible();
   });
 });
 

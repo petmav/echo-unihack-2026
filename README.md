@@ -8,7 +8,7 @@ Built for **UNIHACK 2026** · March 13–15, 2026
 
 Echo is a mental health app that shows you how many people have felt exactly what you're feeling right now — and what helped them get through it.
 
-You type a thought. Echo finds everyone who felt the same. Or tap a topic bubble (work stress, loneliness, anxiety, etc.) to explore others' thoughts without typing. No accounts required to feel less alone.
+You type a thought. Echo finds everyone who felt the same. Or tap a topic bubble (work stress, loneliness, anxiety, etc.) to explore others' thoughts without typing. No account required to connect with others.
 
 ## Team
 | Name | Role |

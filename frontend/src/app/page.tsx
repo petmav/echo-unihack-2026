@@ -6,7 +6,14 @@ import { Capacitor } from "@capacitor/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Target } from "lucide-react";
 
-import type { AppScreen, ThoughtResponse, PresenceLevel, FutureLetter, LocalThought } from "@/lib/types";
+import type {
+  AppScreen,
+  ThoughtResponse,
+  PresenceLevel,
+  FutureLetter,
+  LocalThought,
+  SavedAnchor,
+} from "@/lib/types";
 import {
   PROCESSING_MIN_DURATION_MS,
   CARD_STAGGER_DELAY_MS,
@@ -24,6 +31,9 @@ import {
   markOnboardingComplete,
   saveFutureLetter,
   getFutureLettersForTheme,
+  saveAnchor,
+  getSavedAnchorsForTheme,
+  getAllSavedAnchors,
   getMostRecentTheme,
   presenceLevelFromCount,
   getNotificationOptIn,
@@ -45,10 +55,12 @@ import {
   register,
   deleteAccount,
   getThemeAggregates,
+  getThemeCount,
   ApiError,
 } from "@/lib/api";
 import { THEME_DISPLAY_LABELS } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
+import { findQuietWin, type QuietWin } from "@/lib/quietWins";
 
 import { EchoLogo } from "@/components/echo/EchoLogo";
 import { ThoughtInput } from "@/components/echo/ThoughtInput";
@@ -68,6 +80,8 @@ import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
+import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
+import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
@@ -87,6 +101,15 @@ const SEED_THOUGHTS: ThoughtResponse[] = [
   { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones." },
 ];
 const SEED_MATCH_COUNT = 847;
+
+/** Extra thoughts cycled in during live demo when the backend is unavailable. */
+const LIVE_DEMO_POOL: ThoughtResponse[] = [
+  { message_id: "live-1", humanised_text: "I keep waiting to feel ready for the next step and I'm starting to wonder if that feeling ever actually comes, or if readiness is something you decide rather than something that arrives.", theme_category: "self_worth", has_resolution: false },
+  { message_id: "live-2", humanised_text: "Every time I try to explain how I'm feeling to someone close to me, the words come out wrong and I end up reassuring them instead of the other way around.", theme_category: "relationship_loss", has_resolution: true, resolution_text: "I started writing it down first. Not to send — just to get the words right. When I finally said it out loud, I actually meant it." },
+  { message_id: "live-3", humanised_text: "I've been carrying something heavy for so long that I've started to mistake the weight for just being who I am. I don't know what I'd feel like without it.", theme_category: "self_worth", has_resolution: false },
+  { message_id: "live-4", humanised_text: "There are whole parts of my day that I perform for other people — how I look, how I sound, how okay I seem. I'm exhausted by the performance and I can't figure out how to stop.", theme_category: "self_worth", has_resolution: true, resolution_text: "Therapy helped me name it. Once I could see the performance clearly, I started choosing one small moment each day to just… not perform. It gets easier." },
+  { message_id: "live-5", humanised_text: "I said yes to something I didn't want to do and now I'm trapped in a version of my life that belongs to someone else's expectations.", theme_category: "family_pressure", has_resolution: false },
+];
 
 /** Demo thoughts per theme when API returns no data (e.g. unseeded Elasticsearch). */
 const DEMO_TOPIC_THOUGHTS: Record<string, ThoughtResponse[]> = {
@@ -157,9 +180,15 @@ export default function EchoApp() {
   const [promptThought, setPromptThought] = useState<LocalThought | null>(null);
 
   const [matchCount, setMatchCount] = useState(0);
+  const [liveMatchCount, setLiveMatchCount] = useState(0);
   const [similarThoughts, setSimilarThoughts] = useState<ThoughtResponse[]>([]);
+  const [newThoughtIds, setNewThoughtIds] = useState<Set<string>>(new Set());
   const [cardsVisible, setCardsVisible] = useState(0);
   const [countAnimDone, setCountAnimDone] = useState(false);
+
+  const seenThoughtIdsRef = useRef<Set<string>>(new Set());
+  const demoLivePoolRef = useRef<ThoughtResponse[]>([...LIVE_DEMO_POOL]);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
 
   const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
   const [searchAfterCursor, setSearchAfterCursor] = useState<string[] | undefined>(undefined);
@@ -176,6 +205,9 @@ export default function EchoApp() {
   const [presenceCount, setPresenceCount] = useState(0);
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
+  const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
+  const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
+  const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
   const [topicTheme, setTopicTheme] = useState<{ themeKey: string; label: string } | null>(null);
   const [topicSeedMessageId, setTopicSeedMessageId] = useState<string | null>(null);
@@ -186,6 +218,12 @@ export default function EchoApp() {
   const [topicLoading, setTopicLoading] = useState(false);
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
   const [adviceFirstOnly, setAdviceFirstOnly] = useState(false);
+
+  const refreshSavedAnchorIds = useCallback(() => {
+    getAllSavedAnchors().then((anchors) => {
+      setSavedAnchorIds(new Set(anchors.map((anchor) => anchor.message_id)));
+    });
+  }, []);
 
   useEffect(() => {
     const hasOnboarded = hasCompletedOnboarding();
@@ -201,7 +239,8 @@ export default function EchoApp() {
     }
 
     getThoughtHistory().then(setThoughtHistory);
-  }, []);
+    refreshSavedAnchorIds();
+  }, [refreshSavedAnchorIds]);
 
   /* Capacitor native platform setup (Android back button, status bar) */
   const screenRef = useRef(screen);
@@ -272,6 +311,59 @@ export default function EchoApp() {
     });
   }, [screen, notificationsEnabled]);
 
+  /* Poll for live count + new cards while the results screen is open */
+  useEffect(() => {
+    if (screen !== "results" || !currentThemeCategory) return;
+
+    /** Prepend unseen thoughts to the card list. Returns true if any were added. */
+    const injectNewCards = (incoming: ThoughtResponse[]): boolean => {
+      const fresh = incoming.filter(
+        (t) => !seenThoughtIdsRef.current.has(t.message_id)
+      );
+      if (fresh.length === 0) return false;
+      fresh.forEach((t) => seenThoughtIdsRef.current.add(t.message_id));
+      const freshIds = new Set(fresh.map((t) => t.message_id));
+      setSimilarThoughts((prev: ThoughtResponse[]) => [...fresh, ...prev]);
+      setCardsVisible((prev: number) => prev + fresh.length);
+      setNewThoughtIds(freshIds);
+      setTimeout(() => setNewThoughtIds(new Set()), 5000);
+      return true;
+    };
+
+    const injectFromDemoPool = () => {
+      const next = demoLivePoolRef.current.shift();
+      if (next) injectNewCards([next]);
+    };
+
+    const poll = async () => {
+      // 1. Update live count — always increment so the demo always feels live
+      try {
+        const result = await getThemeCount(currentThemeCategory);
+        setLiveMatchCount((prev: number) =>
+          result.count > prev ? result.count : prev + Math.floor(Math.random() * 3) + 1
+        );
+      } catch {
+        setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
+      }
+
+      // 2. Fetch new cards from API; if nothing new, fall back to demo pool
+      if (currentMessageId) {
+        try {
+          const result = await getSimilarThoughts(currentMessageId);
+          const added = injectNewCards(result.thoughts);
+          if (!added) injectFromDemoPool();
+        } catch {
+          injectFromDemoPool();
+        }
+      } else {
+        injectFromDemoPool();
+      }
+    };
+
+    const id = setInterval(poll, 15_000);
+    return () => clearInterval(id);
+  }, [screen, currentThemeCategory, currentMessageId]);
+
   const refreshHistory = useCallback(() => {
     getThoughtHistory().then(setThoughtHistory);
   }, []);
@@ -294,6 +386,8 @@ export default function EchoApp() {
   const handleUnauthorized = useCallback(() => {
     clearKey();
     clearAllData();
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
     setScreen("auth");
   }, []);
@@ -307,12 +401,26 @@ export default function EchoApp() {
     setScreen("processing");
 
     const processingStart = Date.now();
+    const priorThoughts = thoughtHistory.map(({ theme_category, timestamp }) => ({
+      theme_category,
+      timestamp,
+    }));
 
-    const showResults = async (themeCategory: string) => {
+    const showResults = async (themeCategory: string, initialCount: number, initialThoughts: ThoughtResponse[]) => {
       setCurrentThemeCategory(themeCategory);
+      setQuietWin(findQuietWin(priorThoughts, themeCategory));
+      setLiveMatchCount(initialCount);
+      setNewThoughtIds(new Set());
+      seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
+      demoLivePoolRef.current = [...LIVE_DEMO_POOL];
 
-      const letters = await getFutureLettersForTheme(themeCategory);
+      const [letters, anchors] = await Promise.all([
+        getFutureLettersForTheme(themeCategory),
+        getSavedAnchorsForTheme(themeCategory),
+      ]);
       setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
+      setSavedAnchors(anchors);
+      refreshSavedAnchorIds();
 
       setCardsVisible(0);
       setCountAnimDone(false);
@@ -331,7 +439,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(result.theme_category), remainingDelay);
+      setTimeout(() => showResults(result.theme_category, result.match_count, result.similar_thoughts), remainingDelay);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
@@ -357,12 +465,12 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(demoTheme), remainingDelay);
+      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT, SEED_THOUGHTS), remainingDelay);
     }
 
     setThoughtText("");
     refreshHistory();
-  }, [thoughtText, refreshHistory, handleUnauthorized]);
+  }, [thoughtText, thoughtHistory, refreshHistory, handleUnauthorized, refreshSavedAnchorIds]);
 
   const loadMoreThoughts = useCallback(async () => {
     if (!currentMessageId || isLoadingMore || !hasMoreThoughts) return;
@@ -396,6 +504,27 @@ export default function EchoApp() {
     }
   }, []);
 
+  const handleSaveAnchor = useCallback(
+    async (thought: ThoughtResponse) => {
+      if (!thought.resolution_text) return;
+
+      await saveAnchor({
+        message_id: thought.message_id,
+        theme_category: thought.theme_category,
+        humanised_text: thought.humanised_text,
+        resolution_text: thought.resolution_text,
+      });
+
+      refreshSavedAnchorIds();
+
+      if (thought.theme_category === currentThemeCategory) {
+        const anchors = await getSavedAnchorsForTheme(thought.theme_category);
+        setSavedAnchors(anchors);
+      }
+    },
+    [currentThemeCategory, refreshSavedAnchorIds]
+  );
+
   const handleAuth = useCallback(
     async (email: string, password: string, mode: "login" | "signup") => {
       setAuthLoading(true);
@@ -410,6 +539,8 @@ export default function EchoApp() {
         const admin = result.is_admin ?? false;
         saveAdminStatus(admin);
         setIsAdmin(admin);
+        refreshHistory();
+        refreshSavedAnchorIds();
         setScreen("home");
       } catch (err) {
         if (err instanceof ApiError) {
@@ -429,7 +560,7 @@ export default function EchoApp() {
         setAuthLoading(false);
       }
     },
-    []
+    [refreshHistory, refreshSavedAnchorIds]
   );
 
   const handleOnboardingComplete = useCallback(() => {
@@ -469,6 +600,8 @@ export default function EchoApp() {
     }
     clearKey();
     clearAllData();
+    setSavedAnchors([]);
+    setSavedAnchorIds(new Set());
     setScreen("auth");
   }, []);
 
@@ -672,16 +805,58 @@ export default function EchoApp() {
       )}
 
       {screen === "results" && (
-        <div className="echo-scroll-area flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="echo-scroll-area flex-1 overflow-y-auto overflow-x-hidden" ref={resultsScrollRef}>
+          {/* New-thoughts toast — sticky at top, slides in when live cards arrive */}
+          <AnimatePresence>
+            {newThoughtIds.size > 0 && (
+              <motion.div
+                className="sticky top-3 z-20 flex justify-center px-4 pointer-events-none"
+                initial={{ y: -48, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -48, opacity: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <button
+                  className="pointer-events-auto flex items-center gap-2 rounded-full bg-echo-text px-4 py-2.5 shadow-[0_4px_20px_rgba(44,40,37,0.18)] active:scale-[0.96]"
+                  onClick={() => resultsScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+                >
+                  <span className="inline-block h-2 w-2 rounded-full bg-echo-accent animate-pulse" />
+                  <span className="text-[13px] font-light text-echo-bg">
+                    {newThoughtIds.size === 1
+                      ? "1 new person just shared this feeling"
+                      : `${newThoughtIds.size} new people just shared this feeling`}
+                  </span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="mx-auto max-w-xl">
             <CountReveal
               targetCount={matchCount}
+              liveCount={liveMatchCount}
               onAnimationComplete={() => setCountAnimDone(true)}
             />
 
             {/* Guardrails of Care — safety resources for risk themes */}
             {countAnimDone && currentThemeCategory && (
               <SafetyBanner themeCategory={currentThemeCategory} />
+            )}
+
+            {/* Quiet wins — local reflection when a recurring theme stayed quiet for a while */}
+            {countAnimDone && quietWin && (
+              <QuietWinBanner quietWin={quietWin} />
+            )}
+
+            {/* Saved anchors — advice lines the user chose to keep for this theme */}
+            {countAnimDone && currentThemeCategory && savedAnchors.length > 0 && (
+              <SavedAnchorsBanner
+                anchors={savedAnchors}
+                themeLabel={
+                  THEME_DISPLAY_LABELS[currentThemeCategory] ??
+                  currentThemeCategory.replace(/_/g, " ")
+                }
+              />
             )}
 
             {/* Future You — letter from past self on matching theme */}
@@ -723,6 +898,7 @@ export default function EchoApp() {
               <ThoughtCardList
                 thoughts={adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts}
                 visibleCount={cardsVisible}
+                newThoughtIds={newThoughtIds}
                 onCardTap={handleCardTap}
                 onLoadMore={loadMoreThoughts}
                 hasMore={hasMoreThoughts}
@@ -925,6 +1101,12 @@ export default function EchoApp() {
           <BottomSheet
             thought={bottomSheetThought}
             onClose={() => setBottomSheetThought(null)}
+            onSaveAnchor={handleSaveAnchor}
+            isAnchorSaved={
+              bottomSheetThought
+                ? savedAnchorIds.has(bottomSheetThought.message_id)
+                : false
+            }
           />
 
           {/* Delayed opt-in prompt */}
@@ -1018,6 +1200,12 @@ export default function EchoApp() {
         <BottomSheet
           thought={bottomSheetThought}
           onClose={() => setBottomSheetThought(null)}
+          onSaveAnchor={handleSaveAnchor}
+          isAnchorSaved={
+            bottomSheetThought
+              ? savedAnchorIds.has(bottomSheetThought.message_id)
+              : false
+          }
         />
 
         {/* Delayed opt-in prompt */}

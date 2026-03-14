@@ -28,6 +28,7 @@ export interface LocalThought {
   is_resolved: boolean;
   resolution_text?: string;
   future_letter?: string;
+  /** Number of people who felt something like this (from search at submit time). */
   match_count?: number;
 }
 
@@ -36,6 +37,14 @@ export interface FutureLetter {
   theme_category: string;
   letter_text: string;
   timestamp: number;
+}
+
+export interface SavedAnchor {
+  message_id: string;
+  theme_category: string;
+  humanised_text: string;
+  resolution_text: string;
+  saved_at: number;
 }
 
 export interface ThemePresence {
