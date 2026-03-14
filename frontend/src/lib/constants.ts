@@ -46,6 +46,24 @@ export const PRESENCE_THRESHOLDS = [
 ];
 
 /**
+ * Elastic similarity score bands for match strength labels.
+ * Cosine similarity is normalized to 0–1 in Elasticsearch.
+ */
+export const MATCH_STRENGTH_BANDS = [
+  { min: 0.9, label: "very close" as const },
+  { min: 0.75, label: "close" as const },
+  { min: 0.5, label: "same space" as const },
+] as const;
+
+export function getMatchStrengthLabel(score: number | undefined): string | null {
+  if (score == null || score < MATCH_STRENGTH_BANDS[2].min) return null;
+  for (const band of MATCH_STRENGTH_BANDS) {
+    if (score >= band.min) return band.label;
+  }
+  return null;
+}
+
+/**
  * Risk-related theme categories that trigger the safety resource
  * banner. Entirely client-side — no logging of this event.
  */

@@ -177,3 +177,4 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 | Safety banner absent for safe themes | `new-features.spec.ts` | Banner does NOT appear for `self_worth` |
 | Risk theme constants | `new-features.spec.ts` | All 7 risk themes are defined |
 | Surrounding topics / Topic exploration | (manual or new spec) | Bubbles clickable; topic screen loads thoughts |
+| Match strength labels | (manual) | Cards show "very close", "close", or "same space" from similarity score |

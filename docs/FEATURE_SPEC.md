@@ -33,6 +33,8 @@ Duration: 2-3 seconds minimum regardless of actual processing time. This pause i
 
 Each card displays the Claude-humanised anonymised thought from another user (50-60 words). Cards are full-width, comfortable padding, soft card shadow.
 
+**Match strength labels**: Each card shows a label based on Elastic similarity score (0–1): *very close* (≥0.9), *close* (≥0.75), or *same space* (≥0.5). Labels appear above the thought text in muted uppercase.
+
 **Visual states**:
 - Standard card: no resolution attached
 - Highlighted card: has "what helped" attached — subtle warm background tint, small badge e.g. *"someone found a way through"*

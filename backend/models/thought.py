@@ -68,6 +68,10 @@ class ThoughtResponse(BaseModel):
     resolution_text: str | None = Field(
         None, description="Verbatim 'what helped' text if has_resolution is True"
     )
+    similarity_score: float | None = Field(
+        None,
+        description="Elasticsearch similarity score (0-1). Used for match strength labels.",
+    )
 
 
 class ThoughtSubmitResult(BaseModel):

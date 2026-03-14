@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 
 import type { ThoughtResponse } from "@/lib/types";
+import { getMatchStrengthLabel } from "@/lib/constants";
 
 interface ThoughtCardProps {
   thought: ThoughtResponse;
@@ -21,6 +22,7 @@ export function ThoughtCard({
   onTap,
 }: ThoughtCardProps) {
   const hasResolution = thought.has_resolution;
+  const matchStrength = getMatchStrengthLabel(thought.similarity_score);
 
   return (
     <motion.div
@@ -55,6 +57,11 @@ export function ThoughtCard({
           : undefined
       }
     >
+      {matchStrength && (
+        <span className="mb-2 inline-block text-[11px] font-medium uppercase tracking-wider text-echo-text-muted">
+          {matchStrength}
+        </span>
+      )}
       <p className="text-[14px] font-light leading-[1.7] text-echo-text sm:text-[14.5px]">
         {thought.humanised_text}
       </p>
