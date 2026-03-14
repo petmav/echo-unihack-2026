@@ -49,7 +49,7 @@ export function useSpeechRecognition() {
     if (inactivityTimeoutRef.current) {
       clearTimeout(inactivityTimeoutRef.current);
     }
-    // 5 minutes = 300,000 ms
+
     inactivityTimeoutRef.current = setTimeout(() => {
       if (recognitionRef.current) {
         isManuallyStoppedRef.current = true;

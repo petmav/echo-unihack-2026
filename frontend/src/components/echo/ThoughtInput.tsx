@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, X, Mic, MicOff } from "lucide-react";
@@ -30,8 +30,23 @@ export function ThoughtInput({
   onTopicClick,
 }: ThoughtInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { isListening, transcript, isSupported, toggleListening } = useSpeechRecognition();
+  const { isListening, transcript, isSupported, toggleListening, stopListening } = useSpeechRecognition();
   const preRecordValueRef = useRef("");
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+
+  useEffect(() => {
+    if (isListening && value.length >= MAX_THOUGHT_LENGTH) {
+      stopListening();
+      setShowLimitWarning(true);
+    }
+  }, [value.length, isListening, stopListening]);
+
+  useEffect(() => {
+    if (showLimitWarning) {
+      const timer = setTimeout(() => setShowLimitWarning(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [showLimitWarning]);
 
   useEffect(() => {
     if (isOpen && textareaRef.current && !isListening) {
@@ -123,14 +138,28 @@ export function ThoughtInput({
             />
 
             <div className="mt-3.5 flex items-center justify-between px-1">
-              <span
-                className="text-xs tabular-nums font-normal transition-colors"
-                style={{
-                  color: isOverWarnThreshold ? "#C8856C" : "#B5ADA6",
-                }}
-              >
-                {value.length}/{MAX_THOUGHT_LENGTH}
-              </span>
+              <div className="flex items-center gap-2">
+                <AnimatePresence>
+                  {showLimitWarning && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="text-xs font-medium text-red-500"
+                    >
+                      Max length reached
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                <span
+                  className="text-xs tabular-nums font-normal transition-colors"
+                  style={{
+                    color: isOverWarnThreshold ? "#C8856C" : "#B5ADA6",
+                  }}
+                >
+                  {value.length}/{MAX_THOUGHT_LENGTH}
+                </span>
+              </div>
 
               <div className="flex items-center gap-3">
                 {isSupported && (
