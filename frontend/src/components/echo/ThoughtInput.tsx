@@ -37,7 +37,8 @@ export function ThoughtInput({
   useEffect(() => {
     if (isListening && value.length >= MAX_THOUGHT_LENGTH) {
       stopListening();
-      setShowLimitWarning(true);
+      // Use setTimeout to avoid synchronous setState warning during render
+      setTimeout(() => setShowLimitWarning(true), 0);
     }
   }, [value.length, isListening, stopListening]);
 

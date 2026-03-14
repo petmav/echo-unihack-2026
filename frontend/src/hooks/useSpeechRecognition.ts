@@ -66,7 +66,7 @@ export function useSpeechRecognition() {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
-      setIsSupported(false);
+      setTimeout(() => setIsSupported(false), 0);
       return;
     }
 
@@ -123,7 +123,7 @@ export function useSpeechRecognition() {
         clearTimeout(inactivityTimeoutRef.current);
       }
     };
-  }, []);
+  }, [resetInactivityTimeout]);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
@@ -138,7 +138,7 @@ export function useSpeechRecognition() {
         console.error("Failed to start speech recognition:", error);
       }
     }
-  }, [isListening]);
+  }, [isListening, resetInactivityTimeout]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
