@@ -8,7 +8,7 @@ import { PROCESSING_PHRASES } from "@/lib/constants";
 
 import { EchoLogo } from "./EchoLogo";
 
-const PHRASE_CYCLE_MS = 1200;
+const PHRASE_CYCLE_MS = 2800;
 
 export function ProcessingScreen() {
   const [phraseIndex, setPhraseIndex] = useState(0);
