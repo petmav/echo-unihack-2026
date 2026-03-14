@@ -192,9 +192,11 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 
+**Visual style**: Bubbles have a deeper shadow, a shining border (white glow at ~35–55% opacity), and a subtle breathe animation (scale 1 → 1.05 → 1.03 → 1.05 → 1 over 5s).
+
 **Flow**:
-1. Topic bubbles appear in the perimeter (never blocking the logo or central CTA)
-2. User taps a bubble → haptic feedback → navigate to topic screen
+1. Topic bubbles appear in the perimeter (never blocking the logo or central CTA), and remain clickable when the thought input overlay is open
+2. User taps a bubble (home or input overlay) → input closes if open → haptic feedback → navigate to topic screen
 3. Backend: `GET /api/v1/thoughts/seed-for-theme?theme=X` returns one `message_id` for that theme
 4. Frontend calls `GET /api/v1/thoughts/similar?message_id=...` for semantic similarity results
 5. Falls back to `GET /api/v1/thoughts/by-theme?theme=X` if no seed, then to demo data if both return empty

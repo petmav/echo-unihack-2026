@@ -152,6 +152,18 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 # Screenshots are saved to frontend/screenshots/
 ```
 
+---
+
+## Feature G: Surrounding Topics & Topic Exploration
+
+**How to test**: Open the app and go to the home screen. Topic bubbles (e.g. "loneliness", "work stress") float around the perimeter. Tap a bubble → the topic screen opens ("Others on [topic]") with thoughts in that theme. Bubbles are also clickable when the thought input overlay is open (tap logo to open input, then tap any bubble).
+
+**Demo mode**: When the backend has no data for a theme, the frontend falls back to demo thoughts in `DEMO_TOPIC_THOUGHTS` (e.g. loneliness, work_stress). No configuration needed.
+
+**Playwright**: Topic exploration can be tested by tapping a bubble and asserting the topic screen title and thought count.
+
+---
+
 ### Test inventory for new features
 
 | Test | File | What it verifies |
@@ -164,3 +176,4 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 | Safety banner for risk themes | `new-features.spec.ts` | Banner appears with helpline info |
 | Safety banner absent for safe themes | `new-features.spec.ts` | Banner does NOT appear for `self_worth` |
 | Risk theme constants | `new-features.spec.ts` | All 7 risk themes are defined |
+| Surrounding topics / Topic exploration | (manual or new spec) | Bubbles clickable; topic screen loads thoughts |
