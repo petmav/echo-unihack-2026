@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Runtime mode toggle — switched via admin dashboard
 # ---------------------------------------------------------------------------
 
-_anonymiser_mode: str = "ollama"  # "ollama" | "nanogpt"
+_anonymiser_mode: str = "nanogpt"  # "ollama" | "nanogpt"
 
 
 def get_anonymiser_mode() -> str:
