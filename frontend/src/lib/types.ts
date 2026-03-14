@@ -28,6 +28,8 @@ export interface LocalThought {
   is_resolved: boolean;
   resolution_text?: string;
   future_letter?: string;
+  /** Number of people who felt something like this (from search at submit time). */
+  match_count?: number;
 }
 
 export interface FutureLetter {

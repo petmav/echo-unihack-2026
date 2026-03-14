@@ -130,6 +130,13 @@ export function HistoryPanel({
                 {item.raw_text}
               </p>
 
+              {/* Match count — shown when available */}
+              {item.match_count != null && item.match_count > 0 && (
+                <p className="mb-2.5 text-[11.5px] font-light text-echo-text-muted">
+                  {item.match_count} {item.match_count === 1 ? "person has" : "people have"} felt something like this
+                </p>
+              )}
+
               {/* Meta row */}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-echo-text-muted">
