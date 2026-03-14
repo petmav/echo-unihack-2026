@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -19,6 +20,15 @@ export function BottomSheet({
   isAnchorSaved = false,
 }: BottomSheetProps) {
   const resolutionText = thought?.resolution_text?.trim();
+
+  useEffect(() => {
+    if (!thought) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [thought, onClose]);
 
   return (
     <AnimatePresence>

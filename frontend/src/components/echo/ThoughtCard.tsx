@@ -137,7 +137,8 @@ export function ThoughtCardList({
       {onLoadMore && (
         <>
           {isLoadingMore && (
-            <div className="flex justify-center py-6">
+            <div className="flex justify-center py-6" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading more thoughts</span>
               <div className="flex gap-1.5">
                 {[0, 1, 2].map((i) => (
                   <span

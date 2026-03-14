@@ -922,6 +922,13 @@ export default function EchoApp() {
                 {topicTotal} {topicTotal === 1 ? "thought" : "thoughts"} in this space
               </p>
             )}
+            {!topicLoading && topicThoughts.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-[14px] font-light text-echo-text-soft">
+                  No thoughts in this space yet.
+                </p>
+              </div>
+            )}
             <ThoughtCardList
               thoughts={topicThoughts}
               visibleCount={topicCardsVisible}
@@ -1092,6 +1099,31 @@ export default function EchoApp() {
                 isLoadingMore={isLoadingMore}
               />
             )}
+            {countAnimDone && (() => {
+              const displayedThoughts = adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts;
+              return (
+                <>
+                  {displayedThoughts.length === 0 && (
+                    <div className="px-4 py-10 text-center">
+                      <p className="text-[14px] font-light text-echo-text-soft">
+                        {adviceFirstOnly
+                          ? "No one has shared what helped yet in this set. Turn off the filter to see all thoughts."
+                          : "No similar thoughts yet."}
+                      </p>
+                    </div>
+                  )}
+                  <ThoughtCardList
+                    thoughts={displayedThoughts}
+                    visibleCount={cardsVisible}
+                    newThoughtIds={newThoughtIds}
+                    onCardTap={handleCardTap}
+                    onLoadMore={loadMoreThoughts}
+                    hasMore={hasMoreThoughts}
+                    isLoadingMore={isLoadingMore}
+                  />
+                </>
+              );
+            })()}
           </div>
 
           {/* FAB to return home */}
