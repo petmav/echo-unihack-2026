@@ -51,6 +51,7 @@ Accessed via hamburger menu (top-left). Slides in as a side drawer.
 
 **Contents**: A list of the user's submitted thoughts, sourced from localStorage. Each item shows:
 - Truncated raw thought text (first ~60 chars)
+- Match count when available: *"N people have felt something like this"* (from the search at submit time)
 - Submission date (stored locally)
 - Resolution status indicator (resolved ✓ / unresolved)
 

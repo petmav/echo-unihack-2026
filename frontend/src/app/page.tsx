@@ -320,7 +320,7 @@ export default function EchoApp() {
 
     try {
       const result = await submitThought(rawText);
-      await saveThought(result.message_id, rawText, result.theme_category);
+      await saveThought(result.message_id, rawText, result.theme_category, result.match_count);
       setMatchCount(result.match_count);
       setSimilarThoughts(result.similar_thoughts);
       setCurrentMessageId(result.message_id);
@@ -344,7 +344,7 @@ export default function EchoApp() {
       // Server/network errors — fall back to demo data so the demo still works
       const demoId = "demo-" + Date.now();
       const demoTheme = inferThemeFromText(rawText, "self_worth");
-      await saveThought(demoId, rawText, demoTheme);
+      await saveThought(demoId, rawText, demoTheme, SEED_MATCH_COUNT);
       setMatchCount(SEED_MATCH_COUNT);
       setSimilarThoughts(SEED_THOUGHTS);
       setCurrentMessageId(demoId);
