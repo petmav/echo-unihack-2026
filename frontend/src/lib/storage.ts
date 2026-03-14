@@ -12,13 +12,14 @@
  * On first authenticated read of legacy plaintext data, we re-encrypt in place.
  */
 
-import type { LocalThought, FutureLetter, PresenceLevel } from "./types";
+import type { LocalThought, FutureLetter, PresenceLevel, SavedAnchor } from "./types";
 import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS, PROMPT_COOLDOWN_DAYS } from "./constants";
 import { getKey, encrypt, decrypt } from "./crypto";
 
 const THOUGHTS_KEY = "echo_thoughts";
 const ONBOARDING_KEY = "echo_onboarding_done";
 const FUTURE_LETTERS_KEY = "echo_future_letters";
+const SAVED_ANCHORS_KEY = "echo_saved_anchors";
 const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
 const ADMIN_STATUS_KEY = "echo_is_admin";
@@ -85,7 +86,8 @@ async function writeThoughts(thoughts: LocalThought[]): Promise<void> {
 export async function saveThought(
   messageId: string,
   rawText: string,
-  themeCategory: string
+  themeCategory: string,
+  matchCount?: number
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
@@ -94,6 +96,7 @@ export async function saveThought(
     theme_category: themeCategory,
     timestamp: Date.now(),
     is_resolved: false,
+    match_count: matchCount,
   });
   await writeThoughts(thoughts);
 }
@@ -240,6 +243,7 @@ export function clearAllData(): void {
   localStorage.removeItem(JWT_KEY);
   localStorage.removeItem(ONBOARDING_KEY);
   localStorage.removeItem(FUTURE_LETTERS_KEY);
+  localStorage.removeItem(SAVED_ANCHORS_KEY);
   localStorage.removeItem(NOTIFICATION_OPT_IN_KEY);
   localStorage.removeItem(LAST_PROMPT_DATE_KEY);
   localStorage.removeItem(ADMIN_STATUS_KEY);
@@ -333,6 +337,72 @@ export async function getFutureLettersForTheme(
 
 export async function getAllFutureLetters(): Promise<FutureLetter[]> {
   return readFutureLetters();
+}
+
+/* ── Saved anchors ── */
+
+async function readSavedAnchors(): Promise<SavedAnchor[]> {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SAVED_ANCHORS_KEY);
+    if (!raw) return [];
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (isEncryptedBlob(parsed)) {
+      const key = getKey();
+      if (!key) return [];
+      const plaintext = await decrypt(parsed.d);
+      return JSON.parse(plaintext) as SavedAnchor[];
+    }
+
+    const anchors = parsed as SavedAnchor[];
+    if (getKey()) {
+      writeSavedAnchors(anchors).catch(() => {
+        /* migration failure is non-fatal */
+      });
+    }
+    return anchors;
+  } catch {
+    return [];
+  }
+}
+
+async function writeSavedAnchors(anchors: SavedAnchor[]): Promise<void> {
+  if (typeof window === "undefined") return;
+  const json = JSON.stringify(anchors);
+  if (getKey()) {
+    const blob: EncryptedBlob = { v: 1, d: await encrypt(json) };
+    localStorage.setItem(SAVED_ANCHORS_KEY, JSON.stringify(blob));
+  } else {
+    localStorage.setItem(SAVED_ANCHORS_KEY, json);
+  }
+}
+
+export async function saveAnchor(
+  anchor: Omit<SavedAnchor, "saved_at">
+): Promise<void> {
+  const anchors = await readSavedAnchors();
+  const deduped = anchors.filter(
+    (saved) => saved.message_id !== anchor.message_id
+  );
+  deduped.unshift({
+    ...anchor,
+    saved_at: Date.now(),
+  });
+  await writeSavedAnchors(deduped);
+}
+
+export async function getSavedAnchorsForTheme(
+  themeCategory: string
+): Promise<SavedAnchor[]> {
+  return (await readSavedAnchors()).filter(
+    (anchor) => anchor.theme_category === themeCategory
+  );
+}
+
+export async function getAllSavedAnchors(): Promise<SavedAnchor[]> {
+  return readSavedAnchors();
 }
 
 /* ── Presence level (pure computation — remains sync) ── */

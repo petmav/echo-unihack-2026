@@ -53,6 +53,7 @@ Accessed via hamburger menu (top-left). Slides in as a side drawer.
 
 **Contents**: A list of the user's submitted thoughts, sourced from localStorage. Each item shows:
 - Truncated raw thought text (first ~60 chars)
+- Match count when available: *"N people have felt something like this"* (from the search at submit time)
 - Submission date (stored locally)
 - Resolution status indicator (resolved ✓ / unresolved)
 
@@ -168,7 +169,80 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 10. "Guardrails of Care" — Light-Touch Safety Layer
+### 10. "Saved Anchors" — Local Advice You Chose to Keep
+
+**What**: When a response card includes a verbatim "what helped" note, the user can save that advice locally as an anchor. The next time the same theme returns, those saved lines are surfaced above the response cards.
+
+**Flow**:
+1. User taps a highlighted response card with "what helped"
+2. Bottom sheet opens with the verbatim advice
+3. User taps *"Save as anchor"*
+4. The anonymised card text + verbatim advice are stored locally on-device, keyed by `message_id` and `theme_category`
+5. On a future matching `theme_category`, the saved anchors appear near the top of the results stack
+
+**What the user sees**:
+- Results banner heading: *"Saved anchors for this space"*
+- Supporting line: *"These are lines you chose to keep nearby for self worth."*
+- Up to the two most recent saved anchors, each showing:
+  - The verbatim advice text
+  - The anonymised card context it came from
+  - The local save date
+- Footer note: *"Stored only on this device."*
+
+**Rules**:
+- Only cards with attached verbatim "what helped" text can be saved
+- Saving is entirely local — no API call, no server write, no analytics
+- Saving the same card again overwrites the local save timestamp rather than duplicating it
+- Saved anchors are cleared when local data is cleared or the account is deleted from the device
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the local-history conditions are met
+4. Saved anchors appear if the user has previously saved any matching advice lines
+5. Future You letter appears if a matching local letter exists
+6. Response cards render below
+
+**Storage**: `echo_saved_anchors` in localStorage. Array of `{ message_id, theme_category, humanised_text, resolution_text, saved_at }`.
+
+**Privacy**: 100% local. Uses already-anonymised response content only. Never uploaded. Never linked to an account on the server.
+
+---
+
+### 11. "Quiet Wins" — Local Reflection on Time Between Returns
+
+**What**: When a familiar non-risk theme returns after being absent for a meaningful stretch, the results screen shows a gentle reflection banner. The tone is intentionally non-clinical: the app notices that a period of quiet happened, and counts it.
+
+**Trigger conditions**:
+- The newly submitted thought is classified into a non-risk `theme_category`
+- That same theme appears in the user's local history at least **twice before**
+- The most recent prior mention of that theme was at least **14 days ago**
+
+**What the user sees**:
+- A warm banner above the response cards
+- Heading: *"A quiet win"*
+- Body: *"You had gone 18 days without mentioning self worth. That stretch still counts, even if this feeling is here again today."*
+- Footer note: *"Noticed only from your local history on this device."*
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the local-history conditions are met
+4. Saved anchors appear if any matching advice lines were previously saved locally
+5. Future You letter appears if a matching local letter exists
+6. Response cards render below
+
+**Rules**:
+- Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
+- Never show if there are fewer than 2 prior mentions of the same theme
+- Never show if the last prior mention was under 14 days ago
+- Uses only local history already stored on device
+
+**Privacy**: Entirely local. No API call. No logging. No persistence beyond the thought history already on device.
+
+---
+
+### 12. "Guardrails of Care" — Light-Touch Safety Layer
 
 **What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
 
@@ -190,7 +264,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 11. Surrounding Topics & Topic Exploration
+### 13. Surrounding Topics & Topic Exploration
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 

@@ -10,6 +10,7 @@ interface ThoughtCardProps {
   thought: ThoughtResponse;
   index: number;
   isVisible: boolean;
+  isNew?: boolean;
   onTap?: (thought: ThoughtResponse) => void;
 }
 
@@ -19,6 +20,7 @@ export function ThoughtCard({
   thought,
   index,
   isVisible,
+  isNew,
   onTap,
 }: ThoughtCardProps) {
   const hasResolution = thought.has_resolution;
@@ -26,22 +28,23 @@ export function ThoughtCard({
 
   return (
     <motion.div
+      layout
       className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] sm:p-5 touch-manipulation ${
         hasResolution
           ? "cursor-pointer border border-echo-highlight-border bg-echo-highlight active:scale-[0.985] min-h-[44px]"
           : "bg-white"
-      }`}
-      initial={{ opacity: 0, y: 14 }}
+      }${isNew ? " ring-1 ring-echo-accent/20" : ""}`}
+      initial={isNew ? { opacity: 0, y: -20, scale: 0.97 } : { opacity: 0, y: 14 }}
       animate={
         isVisible
-          ? { opacity: 1, y: 0 }
-          : { opacity: 0, y: 14 }
+          ? { opacity: 1, y: 0, scale: 1 }
+          : isNew ? { opacity: 0, y: -20, scale: 0.97 } : { opacity: 0, y: 14 }
       }
-      transition={{
-        duration: 0.4,
-        delay: index * STAGGER_DELAY,
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      transition={
+        isNew
+          ? { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+          : { duration: 0.4, delay: index * STAGGER_DELAY, ease: [0.22, 1, 0.36, 1] }
+      }
       onClick={() => hasResolution && onTap?.(thought)}
       onKeyDown={(e) => {
         if (hasResolution && (e.key === "Enter" || e.key === " ")) {
@@ -77,6 +80,7 @@ export function ThoughtCard({
 interface ThoughtCardListProps {
   thoughts: ThoughtResponse[];
   visibleCount: number;
+  newThoughtIds?: Set<string>;
   onCardTap: (thought: ThoughtResponse) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -86,6 +90,7 @@ interface ThoughtCardListProps {
 export function ThoughtCardList({
   thoughts,
   visibleCount,
+  newThoughtIds,
   onCardTap,
   onLoadMore,
   hasMore,
@@ -124,6 +129,7 @@ export function ThoughtCardList({
           thought={thought}
           index={index}
           isVisible={index < visibleCount}
+          isNew={newThoughtIds?.has(thought.message_id)}
           onTap={onCardTap}
         />
       ))}
