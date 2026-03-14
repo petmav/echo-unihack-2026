@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, CircleHelp, Shield, TrendingUp } from "lucide-react";
 
 import type { LocalThought } from "@/lib/types";
@@ -330,16 +331,27 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
                   </p>
                 </div>
 
-                <button
+                <motion.button
                   type="button"
                   onClick={() => setShowFlowHelp((current) => !current)}
                   className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full bg-echo-highlight text-echo-accent transition-colors active:bg-echo-highlight-border/60"
                   aria-expanded={showFlowHelp}
                   aria-label="Explain emotion flow chart"
                   data-testid="trend-flow-help-toggle"
+                  animate={{
+                    scale: showFlowHelp ? 1.06 : 1,
+                    backgroundColor: showFlowHelp ? "#E9DDD2" : "#F3ECE3",
+                  }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  whileTap={{ scale: 0.94 }}
                 >
-                  <CircleHelp size={16} />
-                </button>
+                  <motion.span
+                    animate={{ rotate: showFlowHelp ? 90 : 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <CircleHelp size={16} />
+                  </motion.span>
+                </motion.button>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -354,23 +366,43 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
                 </span>
               </div>
 
-              {showFlowHelp && (
-                <div
-                  className="mt-3 rounded-2xl bg-echo-highlight px-3.5 py-3"
-                  data-testid="trend-flow-help"
-                >
-                  <p className="text-[12.5px] font-light leading-relaxed text-echo-text-soft">
-                    In {range === "weekly" ? "week" : range === "monthly" ? "month" : "year"} view,
-                    each column groups thoughts into one {flowUnitLabel}. Stacks grow taller when more
-                    thoughts land in that slice, and the colours show which themes made up that total.
-                  </p>
-                  {peakBucket && peakBucket.total > 0 && (
-                    <p className="mt-2 text-[12px] font-light leading-relaxed text-echo-text-muted">
-                      Most active {flowUnitLabel}: {peakBucket.label} with {formatEntryCount(peakBucket.total)}.
-                    </p>
-                  )}
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {showFlowHelp && (
+                  <motion.div
+                    className="overflow-hidden"
+                    initial={{ opacity: 0, height: 0, y: -8 }}
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -6 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <motion.div
+                      className="mt-3 rounded-2xl bg-echo-highlight px-3.5 py-3"
+                      data-testid="trend-flow-help"
+                      initial={{ scale: 0.98 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0.98 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <p className="text-[12.5px] font-light leading-relaxed text-echo-text-soft">
+                        In {range === "weekly" ? "week" : range === "monthly" ? "month" : "year"} view,
+                        each column groups thoughts into one {flowUnitLabel}. Stacks grow taller when more
+                        thoughts land in that slice, and the colours show which themes made up that total.
+                      </p>
+                      {peakBucket && peakBucket.total > 0 && (
+                        <motion.p
+                          className="mt-2 text-[12px] font-light leading-relaxed text-echo-text-muted"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 2 }}
+                          transition={{ delay: 0.08, duration: 0.2, ease: "easeOut" }}
+                        >
+                          Most active {flowUnitLabel}: {peakBucket.label} with {formatEntryCount(peakBucket.total)}.
+                        </motion.p>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="mt-5 flex h-[124px] items-end gap-2">
                 {snapshot.buckets.map((bucket) => {
