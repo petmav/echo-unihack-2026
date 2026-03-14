@@ -36,8 +36,7 @@ export function BottomSheet({
         <>
           {/* Backdrop */}
           <motion.div
-            className="absolute inset-0 z-100"
-            style={{ background: "rgba(44, 40, 37, 0.25)" }}
+            className="absolute inset-0 z-100 bg-black/25"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -48,7 +47,7 @@ export function BottomSheet({
 
           {/* Sheet */}
           <motion.div
-            className="absolute bottom-0 left-1/2 z-101 w-full max-w-xl -translate-x-1/2 max-h-[65%] overflow-y-auto rounded-t-3xl bg-white px-6 pb-12 pt-4"
+            className="absolute bottom-0 left-1/2 z-101 w-full max-w-xl -translate-x-1/2 max-h-[65%] overflow-y-auto rounded-t-3xl bg-echo-card px-6 pb-12 pt-4"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

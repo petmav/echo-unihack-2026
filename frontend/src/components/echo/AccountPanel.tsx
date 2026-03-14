@@ -24,7 +24,7 @@ export function AccountPanel({
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl" style={{ background: "rgba(250, 247, 242, 0.88)" }}>
+      <div className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl" style={{ background: "var(--echo-header-blur)" }}>
         <button
           onClick={onBack}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-echo-text transition-colors active:bg-black/5"
@@ -39,20 +39,20 @@ export function AccountPanel({
 
       <div className="mx-auto w-full max-w-xl px-4">
         {/* Account info card */}
-        <div className="overflow-hidden rounded-2xl bg-white shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
-          <div className="flex items-center justify-between border-b border-black/5 px-4.5 py-4 text-sm text-echo-text">
+        <div className="overflow-hidden rounded-2xl bg-echo-card shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+          <div className="flex items-center justify-between border-b border-border px-4.5 py-4 text-sm text-echo-text">
             <span className="font-normal">Email</span>
             <span className="text-[13.5px] font-light text-echo-text-soft">
               {email}
             </span>
           </div>
 
-          <div className="flex items-center justify-between border-b border-black/5 px-4.5 py-4 text-sm text-echo-text">
+          <div className="flex items-center justify-between border-b border-border px-4.5 py-4 text-sm text-echo-text">
             <span className="font-normal">Delayed prompts</span>
             <button
               onClick={() => onToggleNotifications(!notificationsEnabled)}
               className={`relative h-[26px] w-[44px] rounded-full border-none transition-colors ${
-                notificationsEnabled ? "bg-echo-accent" : "bg-[#D0CBC5]"
+                notificationsEnabled ? "bg-echo-accent" : "bg-echo-toggle-off"
               }`}
               role="switch"
               aria-checked={notificationsEnabled}
@@ -87,13 +87,13 @@ export function AccountPanel({
         {!showConfirm ? (
           <button
             onClick={() => setShowConfirm(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-[15px] font-sans text-sm font-medium text-echo-red shadow-[0_1px_12px_rgba(44,40,37,0.05)] active:opacity-70"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-echo-card py-[15px] font-sans text-sm font-medium text-echo-red shadow-[0_1px_12px_rgba(44,40,37,0.05)] active:opacity-70"
           >
             <Trash2 size={18} />
             Delete account
           </button>
         ) : (
-          <div className="rounded-2xl bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+          <div className="rounded-2xl bg-echo-card p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
             <p className="mb-3 text-center text-sm font-normal text-echo-text">
               This will permanently delete your account and clear all local
               data.

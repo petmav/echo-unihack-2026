@@ -8,6 +8,7 @@
 import type {
   AuthCredentials,
   AuthResponse,
+  GraphData,
   PaginatedThoughts,
   ResolutionSubmit,
   ThoughtSubmitResult,
@@ -167,6 +168,14 @@ export async function deleteAccount(): Promise<{ success: boolean }> {
   return handleResponse<{ success: boolean }>(response);
 }
 
+export async function deleteThoughtFromServer(messageId: string): Promise<{ deleted: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/thoughts/${messageId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse<{ deleted: boolean }>(response);
+}
+
 export interface ThemeAggregate {
   theme: string;
   count: number;
@@ -209,6 +218,14 @@ export async function getThemeCount(
   const isDemo = response.headers.get("x-echo-demo") === "true";
   const summary = await handleResponse<ThemeCountSummary>(response);
   return { ...summary, isDemo };
+}
+
+export async function getGraphData(): Promise<GraphData> {
+  const response = await fetch(`${API_BASE_URL}/thoughts/graph`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  return handleResponse<GraphData>(response);
 }
 
 export async function getAnonymiserMode(): Promise<{ mode: string }> {

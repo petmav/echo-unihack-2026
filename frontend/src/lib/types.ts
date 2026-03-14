@@ -10,6 +10,7 @@ export interface ThoughtResponse {
 
 export interface ThoughtSubmitResult {
   message_id: string;
+  anonymised_text: string;
   theme_category: string;
   match_count: number;
   similar_thoughts: ThoughtResponse[];
@@ -25,6 +26,7 @@ export interface PaginatedThoughts {
 export interface LocalThought {
   message_id: string;
   raw_text: string;
+  anonymised_text?: string;
   theme_category: string;
   timestamp: number;
   is_resolved: boolean;
@@ -74,6 +76,25 @@ export interface ResolutionSubmit {
   resolution_text: string;
 }
 
+export interface GraphNode {
+  message_id: string;
+  humanised_text: string;
+  theme_category: string;
+  timestamp_week: string;
+  has_resolution: boolean;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  similarity: number;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export type AppScreen =
   | "onboarding"
   | "auth"
@@ -83,6 +104,7 @@ export type AppScreen =
   | "topic"
   | "thoughts"
   | "trends"
+  | "graph"
   | "account"
   | "about"
   | "privacy"
