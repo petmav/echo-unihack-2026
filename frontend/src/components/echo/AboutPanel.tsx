@@ -54,8 +54,9 @@ export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
             Privacy by design
           </h3>
           <p className="text-[13.5px] font-light leading-relaxed text-echo-text-soft">
-            Your raw words never leave your device. The server only sees
-            anonymised emotions — no names, no details, no trace.
+            Your raw words are anonymised immediately and never stored on our
+            servers. What gets indexed is stripped of names, places, and
+            identifying detail.
           </p>
           {onNavigate && (
             <button

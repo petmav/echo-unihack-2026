@@ -61,7 +61,7 @@ export function ThoughtCard({
       }
     >
       {matchStrength && (
-        <span className="mb-2 inline-block text-[11px] font-medium uppercase tracking-wider text-echo-text-muted">
+        <span className="mb-2 inline-flex rounded-full bg-echo-highlight px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-[0.18em] text-echo-text-muted">
           {matchStrength}
         </span>
       )}

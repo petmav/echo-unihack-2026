@@ -155,8 +155,24 @@ export function MenuOverlay({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
     >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <EchoLogoSmall />
+          <span className="font-serif text-base font-normal tracking-tight text-echo-text">
+            Echo
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-echo-text-soft transition-colors active:bg-black/5"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
       <nav className="mt-5 flex flex-1 flex-col gap-1">
-        {MENU_ITEMS.map((item, index) => (
+        {menuItems.map((item, index) => (
           <motion.button
             key={item.id}
             className="flex w-full items-center gap-4 rounded-2xl p-4.5 text-left font-sans text-[17px] font-normal text-echo-text transition-colors active:bg-echo-bg-warm"
@@ -182,7 +198,6 @@ export function MenuOverlay({
       </nav>
 
       <div className="flex items-center gap-2.5 pt-4">
-        <EchoLogoSmall />
         <span className="text-xs font-light leading-snug text-echo-text-muted">
           Echo &middot; Built at UNIHACK 2026
           <br />

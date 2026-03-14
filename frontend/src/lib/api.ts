@@ -174,11 +174,18 @@ export interface ThemeAggregate {
   resolution_rate: number;
 }
 
-export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
+export interface ThemeAggregatesResult {
+  items: ThemeAggregate[];
+  isDemo: boolean;
+}
+
+export async function getThemeAggregates(): Promise<ThemeAggregatesResult> {
   const response = await fetch(`${API_BASE_URL}/thoughts/aggregates`, {
     headers: authHeaders(),
   });
-  return handleResponse<ThemeAggregate[]>(response);
+  const isDemo = response.headers.get("x-echo-demo") === "true";
+  const items = await handleResponse<ThemeAggregate[]>(response);
+  return { items, isDemo };
 }
 
 export interface ThemeCountSummary {
@@ -188,14 +195,20 @@ export interface ThemeCountSummary {
   resolution_rate: number;
 }
 
+export interface ThemeCountResult extends ThemeCountSummary {
+  isDemo: boolean;
+}
+
 export async function getThemeCount(
   theme: string
-): Promise<ThemeCountSummary> {
+): Promise<ThemeCountResult> {
   const response = await fetch(
     `${API_BASE_URL}/thoughts/count?theme=${encodeURIComponent(theme)}`,
     { headers: authHeaders() }
   );
-  return handleResponse<ThemeCountSummary>(response);
+  const isDemo = response.headers.get("x-echo-demo") === "true";
+  const summary = await handleResponse<ThemeCountSummary>(response);
+  return { ...summary, isDemo };
 }
 
 export async function getAnonymiserMode(): Promise<{ mode: string }> {
