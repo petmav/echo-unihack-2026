@@ -68,6 +68,18 @@ test.describe("Echo — Full UX Flow", () => {
   test("auth leads to home screen with breathing logo", async ({
     page,
   }) => {
+    // Mock the login endpoint so this test works without a running backend
+    await page.route("**/api/v1/auth/login", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          access_token: "mock-jwt-token",
+          token_type: "bearer",
+        }),
+      })
+    );
+
     await page.getByRole("button", { name: "Skip" }).click();
 
     await page.getByPlaceholder("Email").fill("test@test.com");
