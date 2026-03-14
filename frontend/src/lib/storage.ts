@@ -22,6 +22,7 @@ const FUTURE_LETTERS_KEY = "echo_future_letters";
 const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
 const ADMIN_STATUS_KEY = "echo_is_admin";
+const DELETED_IDS_KEY = "echo_deleted_ids";
 
 /** Shape stored for encrypted blobs */
 interface EncryptedBlob {
@@ -86,12 +87,14 @@ export async function saveThought(
   messageId: string,
   rawText: string,
   themeCategory: string,
-  matchCount?: number
+  matchCount?: number,
+  anonymisedText?: string
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
     message_id: messageId,
     raw_text: rawText,
+    anonymised_text: anonymisedText,
     theme_category: themeCategory,
     timestamp: Date.now(),
     is_resolved: false,
