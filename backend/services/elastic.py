@@ -498,6 +498,36 @@ async def get_resolution(message_id: str) -> dict[str, Any] | None:
         return None
 
 
+async def get_total_theme_count(theme_category: str) -> int:
+    """
+    Get the all-time count of thoughts indexed for a specific theme.
+
+    Args:
+        theme_category: Theme to count (e.g., "work_stress").
+
+    Returns:
+        Total count of thoughts in this theme, or 0 if Elasticsearch is
+        unavailable or an error occurs.
+
+    Note:
+        Used for live count updates on the results screen.
+        Returns anonymous aggregate count with no user linkage.
+    """
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized; returning zero theme count")
+        return 0
+
+    try:
+        response = await _es_client.count(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body={"query": {"term": {"theme_category": theme_category}}},
+        )
+        return int(response.get("count", 0))
+    except Exception as exc:
+        logger.error(f"Failed to get total theme count for {theme_category}: {exc}")
+        return 0
+
+
 async def get_theme_count(theme_category: str) -> int:
     """
     Get the number of thoughts indexed this ISO week for a specific theme.

@@ -43,6 +43,7 @@ import {
   register,
   deleteAccount,
   getThemeAggregates,
+  getThemeCount,
   ApiError,
 } from "@/lib/api";
 import { useDeviceType } from "@/lib/hooks";
@@ -121,6 +122,7 @@ export default function EchoApp() {
   const [promptThought, setPromptThought] = useState<LocalThought | null>(null);
 
   const [matchCount, setMatchCount] = useState(0);
+  const [liveMatchCount, setLiveMatchCount] = useState(0);
   const [similarThoughts, setSimilarThoughts] = useState<ThoughtResponse[]>([]);
   const [cardsVisible, setCardsVisible] = useState(0);
   const [countAnimDone, setCountAnimDone] = useState(false);
@@ -226,6 +228,24 @@ export default function EchoApp() {
     });
   }, [screen, notificationsEnabled]);
 
+  /* Poll for live count updates while the results screen is open */
+  useEffect(() => {
+    if (screen !== "results" || !currentThemeCategory) return;
+
+    const poll = async () => {
+      try {
+        const result = await getThemeCount(currentThemeCategory);
+        setLiveMatchCount((prev: number) => Math.max(prev, result.count));
+      } catch {
+        // Demo fallback: simulate 1–3 more people joining
+        setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
+      }
+    };
+
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [screen, currentThemeCategory]);
+
   const refreshHistory = useCallback(() => {
     getThoughtHistory().then(setThoughtHistory);
   }, []);
@@ -262,8 +282,9 @@ export default function EchoApp() {
 
     const processingStart = Date.now();
 
-    const showResults = async (themeCategory: string) => {
+    const showResults = async (themeCategory: string, initialCount: number) => {
       setCurrentThemeCategory(themeCategory);
+      setLiveMatchCount(initialCount);
 
       const letters = await getFutureLettersForTheme(themeCategory);
       setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
@@ -285,7 +306,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(result.theme_category), remainingDelay);
+      setTimeout(() => showResults(result.theme_category, result.match_count), remainingDelay);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
@@ -311,7 +332,7 @@ export default function EchoApp() {
       const elapsed = Date.now() - processingStart;
       const remainingDelay = Math.max(0, PROCESSING_MIN_DURATION_MS - elapsed);
 
-      setTimeout(() => showResults(demoTheme), remainingDelay);
+      setTimeout(() => showResults(demoTheme, SEED_MATCH_COUNT), remainingDelay);
     }
 
     setThoughtText("");
@@ -483,6 +504,7 @@ export default function EchoApp() {
           <div className="mx-auto max-w-xl">
             <CountReveal
               targetCount={matchCount}
+              liveCount={liveMatchCount}
               onAnimationComplete={() => setCountAnimDone(true)}
             />
 

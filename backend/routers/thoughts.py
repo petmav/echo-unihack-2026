@@ -196,6 +196,28 @@ async def submit_thought(
     )
 
 
+@router.get("/count")
+async def get_thought_count(
+    theme: str = Query(..., description="Theme category to count thoughts for"),
+    response: Response = None,
+):
+    """
+    Get the live all-time count of thoughts for a specific theme.
+
+    Used for real-time "X people feel the same" updates on the results screen.
+    Polls every ~30s from the client while the results screen is open.
+
+    PRIVACY: Returns aggregate count only. No user IDs, no individual tracking.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    count = await elastic.get_total_theme_count(theme)
+    if count == 0:
+        # Demo fallback: pick from known demo aggregate values
+        demo_counts = {a["theme"]: a["count"] for a in _DEMO_AGGREGATES}
+        count = demo_counts.get(theme, 847)
+    return {"theme": theme, "count": count}
+
+
 @router.get("/similar", response_model=PaginatedThoughts)
 async def get_similar_thoughts(
     message_id: str = Query(..., description="Message ID to find similar thoughts for"),
