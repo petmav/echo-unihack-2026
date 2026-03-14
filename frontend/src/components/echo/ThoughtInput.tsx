@@ -125,7 +125,8 @@ export function ThoughtInput({
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute right-4 top-14 flex h-10 w-10 items-center justify-center rounded-full text-echo-text-soft transition-colors hover:bg-black/5"
+            className="absolute right-4 flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-echo-text-soft transition-colors hover:bg-black/5 touch-manipulation"
+            style={{ top: "max(2rem, env(safe-area-inset-top))" }}
             aria-label="Close"
           >
             <X size={20} />
