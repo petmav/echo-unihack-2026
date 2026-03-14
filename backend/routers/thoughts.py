@@ -21,6 +21,7 @@ from middleware.rate_limit import _rate_limiter, get_client_identifier
 from models.thought import (
     PaginatedThoughts,
     ThemeAggregateResponse,
+    ThemeCountResponse,
     ThoughtResponse,
     ThoughtSubmitRequest,
     ThoughtSubmitResult,
@@ -197,26 +198,46 @@ async def submit_thought(
     )
 
 
-@router.get("/count")
+@router.get("/count", response_model=ThemeCountResponse)
 async def get_thought_count(
     theme: str = Query(..., description="Theme category to count thoughts for"),
     response: Response = None,
 ):
     """
-    Get the live all-time count of thoughts for a specific theme.
+    Get live all-time anonymous stats for a specific theme.
 
-    Used for real-time "X people feel the same" updates on the results screen.
-    Polls every ~30s from the client while the results screen is open.
+    Used for real-time "X people feel the same" updates on the results screen,
+    plus the per-theme "what helped" aggregate banner. Polls every ~30s from
+    the client while the results screen is open.
 
-    PRIVACY: Returns aggregate count only. No user IDs, no individual tracking.
+    PRIVACY: Returns aggregate counts only. No user IDs, no individual tracking.
     """
     response.headers["Cache-Control"] = "no-store"
-    count = await elastic.get_total_theme_count(theme)
-    if count == 0:
-        # Demo fallback: pick from known demo aggregate values
-        demo_counts = {a["theme"]: a["count"] for a in _DEMO_AGGREGATES}
-        count = demo_counts.get(theme, 847)
-    return {"theme": theme, "count": count}
+    stats = await elastic.get_total_theme_resolution_stats(theme)
+    if stats["count"] == 0:
+        demo_stats = next(
+            (aggregate for aggregate in _DEMO_AGGREGATES if aggregate["theme"] == theme),
+            None,
+        )
+        if demo_stats is None:
+            demo_stats = {
+                "theme": theme,
+                "count": 847,
+                "resolution_count": 186,
+                "resolution_rate": 22,
+            }
+        return {
+            "theme": theme,
+            "count": demo_stats["count"],
+            "resolution_count": demo_stats["resolution_count"],
+            "resolution_rate": demo_stats["resolution_rate"],
+        }
+    return {
+        "theme": theme,
+        "count": stats["count"],
+        "resolution_count": stats["resolution_count"],
+        "resolution_rate": stats["resolution_rate"],
+    }
 
 
 @router.get("/similar", response_model=PaginatedThoughts)
@@ -352,16 +373,16 @@ async def get_thoughts_by_theme(
 
 
 _DEMO_AGGREGATES: list[dict] = [
-    {"theme": "work_stress", "count": 847},
-    {"theme": "anxiety", "count": 634},
-    {"theme": "loneliness", "count": 521},
-    {"theme": "relationship_conflict", "count": 478},
-    {"theme": "self_worth", "count": 392},
-    {"theme": "grief", "count": 287},
-    {"theme": "family_pressure", "count": 253},
-    {"theme": "burnout", "count": 219},
-    {"theme": "fear_of_failure", "count": 184},
-    {"theme": "social_anxiety", "count": 161},
+    {"theme": "work_stress", "count": 847, "resolution_count": 186, "resolution_rate": 22},
+    {"theme": "anxiety", "count": 634, "resolution_count": 120, "resolution_rate": 19},
+    {"theme": "loneliness", "count": 521, "resolution_count": 99, "resolution_rate": 19},
+    {"theme": "relationship_conflict", "count": 478, "resolution_count": 101, "resolution_rate": 21},
+    {"theme": "self_worth", "count": 392, "resolution_count": 94, "resolution_rate": 24},
+    {"theme": "grief", "count": 287, "resolution_count": 49, "resolution_rate": 17},
+    {"theme": "family_pressure", "count": 253, "resolution_count": 56, "resolution_rate": 22},
+    {"theme": "burnout", "count": 219, "resolution_count": 39, "resolution_rate": 18},
+    {"theme": "fear_of_failure", "count": 184, "resolution_count": 35, "resolution_rate": 19},
+    {"theme": "social_anxiety", "count": 161, "resolution_count": 37, "resolution_rate": 23},
 ]
 
 
@@ -370,7 +391,9 @@ async def get_theme_aggregates(response: Response):
     """
     Get weekly aggregate counts per theme for "Breathing With Others" feature.
 
-    Returns anonymous counts like [{"theme": "work_stress", "count": 127}, ...]
+    Returns anonymous aggregate items like
+    [{"theme": "work_stress", "count": 127, "resolution_count": 31,
+      "resolution_rate": 24}, ...].
     Falls back to demo data if Elasticsearch is unavailable or returns no results.
 
     PRIVACY: Aggregate counts only, no user IDs, no individual tracking.

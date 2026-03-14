@@ -309,7 +309,43 @@ test.describe("Saved anchors", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   G. "Quiet wins" — local-only reflection banner
+   G. Per-theme resolution aggregates
+   ═══════════════════════════════════════════════ */
+
+test.describe("Per-theme resolution aggregates", () => {
+  test("shows anonymous what-helped aggregates above the results cards", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("theme-resolution-aggregate-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("What helped in this space");
+    await expect(banner).toContainText("shared what helped");
+    await expect(banner).toContainText("% of similar thoughts");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   H. "Quiet wins" — local-only reflection banner
    ═══════════════════════════════════════════════ */
 
 test.describe("Quiet wins", () => {
@@ -374,7 +410,7 @@ test.describe("Quiet wins", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   H. Recurrence pattern
+   I. Recurrence pattern
    ═══════════════════════════════════════════════ */
 
 test.describe("Recurrence pattern", () => {
@@ -440,7 +476,7 @@ test.describe("Recurrence pattern", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   I. Local emotion trends
+   J. Local emotion trends
    ═══════════════════════════════════════════════ */
 
 test.describe("Emotion trends", () => {

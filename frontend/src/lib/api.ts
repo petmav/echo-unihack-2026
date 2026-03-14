@@ -170,6 +170,8 @@ export async function deleteAccount(): Promise<{ success: boolean }> {
 export interface ThemeAggregate {
   theme: string;
   count: number;
+  resolution_count: number;
+  resolution_rate: number;
 }
 
 export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
@@ -179,14 +181,21 @@ export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
   return handleResponse<ThemeAggregate[]>(response);
 }
 
+export interface ThemeCountSummary {
+  theme: string;
+  count: number;
+  resolution_count: number;
+  resolution_rate: number;
+}
+
 export async function getThemeCount(
   theme: string
-): Promise<{ theme: string; count: number }> {
+): Promise<ThemeCountSummary> {
   const response = await fetch(
     `${API_BASE_URL}/thoughts/count?theme=${encodeURIComponent(theme)}`,
     { headers: authHeaders() }
   );
-  return handleResponse<{ theme: string; count: number }>(response);
+  return handleResponse<ThemeCountSummary>(response);
 }
 
 export async function getAnonymiserMode(): Promise<{ mode: string }> {

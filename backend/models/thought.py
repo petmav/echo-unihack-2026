@@ -130,3 +130,35 @@ class ThemeAggregateResponse(BaseModel):
     count: int = Field(
         ..., description="Number of thoughts submitted in this theme this week"
     )
+    resolution_count: int = Field(
+        ...,
+        description="Number of thoughts in this theme this week that have shared 'what helped'",
+    )
+    resolution_rate: int = Field(
+        ...,
+        description="Percentage of thoughts in this theme this week with shared 'what helped'",
+    )
+
+
+class ThemeCountResponse(BaseModel):
+    """
+    Aggregate all-time stats for a single theme.
+
+    Used on the results screen to show how many people in this emotional
+    space later shared what helped.
+    """
+
+    theme: str = Field(
+        ..., description="Emotional theme category (e.g., 'work_stress', 'anxiety')"
+    )
+    count: int = Field(
+        ..., description="All-time number of thoughts submitted in this theme"
+    )
+    resolution_count: int = Field(
+        ...,
+        description="All-time number of thoughts in this theme that have shared 'what helped'",
+    )
+    resolution_rate: int = Field(
+        ...,
+        description="Percentage of all-time thoughts in this theme with shared 'what helped'",
+    )

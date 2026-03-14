@@ -226,8 +226,18 @@ def client(mock_es_client: AsyncMock) -> TestClient:
             "routers.thoughts.elastic.get_aggregates",
             new_callable=AsyncMock,
             return_value=[
-                {"theme": "work_stress", "count": 847},
-                {"theme": "general_anxiety", "count": 634},
+                {
+                    "theme": "work_stress",
+                    "count": 847,
+                    "resolution_count": 186,
+                    "resolution_rate": 22,
+                },
+                {
+                    "theme": "general_anxiety",
+                    "count": 634,
+                    "resolution_count": 120,
+                    "resolution_rate": 19,
+                },
             ],
         ),
         patch(
@@ -330,8 +340,18 @@ def mock_all_services():
             "search_after": None,
         }
         mock_aggregates.return_value = [
-            {"theme": "work_stress", "count": 847},
-            {"theme": "general_anxiety", "count": 634},
+            {
+                "theme": "work_stress",
+                "count": 847,
+                "resolution_count": 186,
+                "resolution_rate": 22,
+            },
+            {
+                "theme": "general_anxiety",
+                "count": 634,
+                "resolution_count": 120,
+                "resolution_rate": 19,
+            },
         ]
 
         yield {
