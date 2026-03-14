@@ -183,6 +183,7 @@ async def submit_thought(
             theme_category=t["theme_category"],
             has_resolution=t.get("has_resolution", False),
             resolution_text=t.get("resolution_text"),
+            similarity_score=t.get("similarity_score"),
         )
         for t in search_result["thoughts"]
     ]
@@ -273,6 +274,7 @@ async def get_similar_thoughts(
             theme_category=t["theme_category"],
             has_resolution=t.get("has_resolution", False),
             resolution_text=t.get("resolution_text"),
+            similarity_score=t.get("similarity_score"),
         )
         for t in search_result["thoughts"]
     ]

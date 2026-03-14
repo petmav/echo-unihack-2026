@@ -268,11 +268,13 @@ async def search_similar_thoughts(
         thoughts = []
         for hit in hits:
             source = hit["_source"]
+            score = hit.get("_score")
             thoughts.append({
                 "message_id": source["message_id"],
                 "humanised_text": source["humanised_text"],
                 "theme_category": source["theme_category"],
                 "has_resolution": source.get("has_resolution", False),
+                "similarity_score": float(score) if score is not None else None,
             })
 
         next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None

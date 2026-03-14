@@ -4,6 +4,8 @@ export interface ThoughtResponse {
   theme_category: string;
   has_resolution: boolean;
   resolution_text?: string;
+  /** Elastic similarity score (0-1). Used for match strength labels. */
+  similarity_score?: number;
 }
 
 export interface ThoughtSubmitResult {
