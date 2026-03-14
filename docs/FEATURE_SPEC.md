@@ -166,7 +166,39 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 10. "Guardrails of Care" — Light-Touch Safety Layer
+### 10. "Quiet Wins" — Local Reflection on Time Between Returns
+
+**What**: When a familiar non-risk theme returns after being absent for a meaningful stretch, the results screen shows a gentle reflection banner. The tone is intentionally non-clinical: the app notices that a period of quiet happened, and counts it.
+
+**Trigger conditions**:
+- The newly submitted thought is classified into a non-risk `theme_category`
+- That same theme appears in the user's local history at least **twice before**
+- The most recent prior mention of that theme was at least **14 days ago**
+
+**What the user sees**:
+- A warm banner above the response cards
+- Heading: *"A quiet win"*
+- Body: *"You had gone 18 days without mentioning self worth. That stretch still counts, even if this feeling is here again today."*
+- Footer note: *"Noticed only from your local history on this device."*
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Quiet wins banner appears if the local-history conditions are met
+4. Future You letter appears if a matching local letter exists
+5. Response cards render below
+
+**Rules**:
+- Never show for risk themes (`self_harm`, `suicidal_ideation`, `crisis`, `substance_abuse`, `eating_disorder`, `abuse`, `domestic_violence`)
+- Never show if there are fewer than 2 prior mentions of the same theme
+- Never show if the last prior mention was under 14 days ago
+- Uses only local history already stored on device
+
+**Privacy**: Entirely local. No API call. No logging. No persistence beyond the thought history already on device.
+
+---
+
+### 11. "Guardrails of Care" — Light-Touch Safety Layer
 
 **What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
 
@@ -188,7 +220,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 11. Surrounding Topics & Topic Exploration
+### 12. Surrounding Topics & Topic Exploration
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 

@@ -179,6 +179,16 @@ export async function getThemeAggregates(): Promise<ThemeAggregate[]> {
   return handleResponse<ThemeAggregate[]>(response);
 }
 
+export async function getThemeCount(
+  theme: string
+): Promise<{ theme: string; count: number }> {
+  const response = await fetch(
+    `${API_BASE_URL}/thoughts/count?theme=${encodeURIComponent(theme)}`,
+    { headers: authHeaders() }
+  );
+  return handleResponse<{ theme: string; count: number }>(response);
+}
+
 export async function getAnonymiserMode(): Promise<{ mode: string }> {
   const response = await fetch(`${API_BASE_URL}/admin/anonymiser/mode`, {
     headers: authHeaders(),
