@@ -217,6 +217,7 @@ export default function EchoApp() {
   const [topicHasMore, setTopicHasMore] = useState(false);
   const [topicLoading, setTopicLoading] = useState(false);
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
+  const [adviceFirstOnly, setAdviceFirstOnly] = useState(false);
 
   const refreshSavedAnchorIds = useCallback(() => {
     getAllSavedAnchors().then((anchors) => {
@@ -863,9 +864,39 @@ export default function EchoApp() {
               <FutureYouBanner letter={futureLetterMatch} />
             )}
 
+            {/* Advice-first toggle — filter to cards with resolutions */}
+            {countAnimDone && (
+              <div className="mb-3 px-4">
+                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[14px] font-normal text-echo-text">
+                      Show only what helped
+                    </span>
+                    <button
+                      onClick={() => setAdviceFirstOnly((v) => !v)}
+                      className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${
+                        adviceFirstOnly
+                          ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
+                          : "bg-echo-text-muted/30"
+                      }`}
+                      role="switch"
+                      aria-checked={adviceFirstOnly}
+                      aria-label="Show only cards with what helped"
+                    >
+                      <span
+                        className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_6px_rgba(44,40,37,0.15)] transition-all duration-200 ease-out ${
+                          adviceFirstOnly ? "left-[22px]" : "left-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {countAnimDone && (
               <ThoughtCardList
-                thoughts={similarThoughts}
+                thoughts={adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts}
                 visibleCount={cardsVisible}
                 newThoughtIds={newThoughtIds}
                 onCardTap={handleCardTap}
