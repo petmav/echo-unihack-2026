@@ -35,6 +35,36 @@ function formatRelativeDate(timestamp: number): string {
   return `${Math.floor(diffDays / 30)} months ago`;
 }
 
+function formatResolutionGap(
+  submittedAt: number,
+  resolvedAt: number
+): string {
+  const diffDays = Math.max(
+    0,
+    Math.round((resolvedAt - submittedAt) / (1000 * 60 * 60 * 24))
+  );
+
+  if (diffDays === 0) {
+    return "resolved the same day";
+  }
+
+  if (diffDays === 1) {
+    return "resolved 1 day later";
+  }
+
+  if (diffDays < 7) {
+    return `resolved ${diffDays} days later`;
+  }
+
+  if (diffDays < 30) {
+    const weeks = Math.round(diffDays / 7);
+    return `resolved ${weeks} ${weeks === 1 ? "week" : "weeks"} later`;
+  }
+
+  const months = Math.round(diffDays / 30);
+  return `resolved ${months} ${months === 1 ? "month" : "months"} later`;
+}
+
 export function HistoryPanel({
   thoughts,
   onBack,
@@ -114,6 +144,10 @@ export function HistoryPanel({
           const isResolved = item.is_resolved || isOptimisticallyResolved;
           const resolutionDisplayText =
             optimisticResolved[item.message_id] ?? item.resolution_text;
+          const resolutionGapLabel =
+            isResolved && item.resolution_timestamp
+              ? formatResolutionGap(item.timestamp, item.resolution_timestamp)
+              : null;
           const shouldPulse =
             !isResolved && isOlderThanThreshold(item.timestamp);
 
@@ -139,9 +173,16 @@ export function HistoryPanel({
 
               {/* Meta row */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-echo-text-muted">
-                  {formatRelativeDate(item.timestamp)}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-echo-text-muted">
+                    {formatRelativeDate(item.timestamp)}
+                  </span>
+                  {resolutionGapLabel && (
+                    <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[10.5px] font-medium text-echo-accent">
+                      {resolutionGapLabel}
+                    </span>
+                  )}
+                </div>
 
                 <motion.button
                   onClick={() =>

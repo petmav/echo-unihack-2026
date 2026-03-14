@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, CircleHelp, Shield, TrendingUp } from "lucide-react";
+import { ChevronLeft, CircleHelp, Clock3, Shield, TrendingUp } from "lucide-react";
 
 import type { LocalThought } from "@/lib/types";
 import {
+  buildResolutionTimeline,
   buildTrendSnapshot,
   type TrendRange,
   type TrendThemeSummary,
@@ -105,6 +106,55 @@ function formatEntryCount(count: number): string {
   return `${count} ${count === 1 ? "entry" : "entries"}`;
 }
 
+function formatResolutionDuration(elapsedMs: number): string {
+  const elapsedDays = Math.max(0, Math.round(elapsedMs / (1000 * 60 * 60 * 24)));
+
+  if (elapsedDays === 0) {
+    return "the same day";
+  }
+
+  if (elapsedDays === 1) {
+    return "1 day later";
+  }
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays} days later`;
+  }
+
+  if (elapsedDays < 30) {
+    const weeks = Math.round(elapsedDays / 7);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} later`;
+  }
+
+  const months = Math.round(elapsedDays / 30);
+  return `${months} ${months === 1 ? "month" : "months"} later`;
+}
+
+function formatResolutionDurationCompact(elapsedMs: number): string {
+  const elapsedDays = Math.max(0, Math.round(elapsedMs / (1000 * 60 * 60 * 24)));
+
+  if (elapsedDays === 0) {
+    return "same day";
+  }
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays}d`;
+  }
+
+  if (elapsedDays < 30) {
+    return `${Math.round(elapsedDays / 7)}w`;
+  }
+
+  return `${Math.round(elapsedDays / 30)}mo`;
+}
+
+function formatTimelineDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 function getFlowUnitLabel(range: TrendRange): string {
   if (range === "weekly") {
     return "day";
@@ -180,6 +230,27 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const maxBucketTotal = Math.max(1, ...snapshot.buckets.map((bucket) => bucket.total));
   const dominantTheme = snapshot.dominantTheme;
   const risingTheme = snapshot.risingTheme;
+  const resolutionTimeline = useMemo(
+    () =>
+      buildResolutionTimeline(
+        thoughts.map(
+          ({
+            message_id,
+            theme_category,
+            timestamp,
+            is_resolved,
+            resolution_timestamp,
+          }) => ({
+            message_id,
+            theme_category,
+            timestamp,
+            is_resolved,
+            resolution_timestamp,
+          })
+        )
+      ),
+    [thoughts]
+  );
   const flowUnitLabel = getFlowUnitLabel(range);
   const peakBucket = useMemo(() => {
     return snapshot.buckets.reduce<(typeof snapshot.buckets)[number] | null>(
@@ -191,7 +262,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
       },
       null
     );
-  }, [snapshot.buckets]);
+  }, [snapshot]);
 
   useEffect(() => {
     if (!showFlowHelp) {
@@ -310,6 +381,102 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
                     : `${overallResolutionRate}% overall`}
                 </p>
               </div>
+            </div>
+
+            <div
+              className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]"
+              data-testid="resolution-timeline"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+                    Resolution timeline
+                  </p>
+                  <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                    Recent shifts across your local history.
+                  </p>
+                </div>
+
+                <div className="rounded-full bg-echo-highlight p-2.5 text-echo-accent">
+                  <Clock3 size={18} />
+                </div>
+              </div>
+
+              {resolutionTimeline.trackedResolvedCount > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-echo-highlight px-3.5 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-echo-text-soft">
+                      Average shift
+                    </p>
+                    <p className="mt-1 text-[15px] font-normal text-echo-text">
+                      {formatResolutionDuration(
+                        resolutionTimeline.averageResolutionMs ?? 0
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-echo-highlight px-3.5 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-echo-text-soft">
+                      Tracked
+                    </p>
+                    <p className="mt-1 text-[15px] font-normal text-echo-text">
+                      {resolutionTimeline.trackedResolvedCount}{" "}
+                      {resolutionTimeline.trackedResolvedCount === 1
+                        ? "resolution"
+                        : "resolutions"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {resolutionTimeline.items.length === 0 ? (
+                <p className="mt-4 text-[13px] font-light leading-relaxed text-echo-text-muted">
+                  Resolve a thought to start tracking how long it takes for something to shift.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  {resolutionTimeline.items.map((item, index) => (
+                    <div
+                      key={item.messageId}
+                      className="relative pl-5"
+                      data-testid="resolution-timeline-item"
+                    >
+                      <span className="absolute left-0 top-2.5 h-2.5 w-2.5 rounded-full bg-echo-accent" />
+                      {index < resolutionTimeline.items.length - 1 && (
+                        <span className="absolute left-[4px] top-5 h-[calc(100%-0.25rem)] w-px bg-echo-highlight-border" />
+                      )}
+
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[13.5px] font-normal text-echo-text">
+                            {formatThemeName(item.theme)}
+                          </p>
+                          <p className="mt-1 text-[12.5px] font-light leading-relaxed text-echo-text-muted">
+                            Shared what helped {formatResolutionDuration(item.elapsedMs)}.
+                          </p>
+                          <p className="mt-1 text-[11.5px] font-light text-echo-text-muted">
+                            Wrote {formatTimelineDate(item.submittedAt)} • Resolved{" "}
+                            {formatTimelineDate(item.resolvedAt)}
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[11.5px] font-medium text-echo-accent">
+                          {formatResolutionDurationCompact(item.elapsedMs)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {resolutionTimeline.legacyResolvedCount > 0 && (
+                <p className="mt-4 text-[11.5px] font-light leading-relaxed text-echo-text-muted">
+                  {resolutionTimeline.legacyResolvedCount} older{" "}
+                  {resolutionTimeline.legacyResolvedCount === 1
+                    ? "resolved entry was"
+                    : "resolved entries were"}{" "}
+                  saved before timeline tracking started on this device.
+                </p>
+              )}
             </div>
 
             <div className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
