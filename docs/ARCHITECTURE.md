@@ -249,6 +249,22 @@ When `theme_category` from the thought submission response matches any risk them
 
 ---
 
+## Topic Exploration API
+
+Browsing thoughts by theme (topic bubbles) uses two endpoints:
+
+**1. Seed for theme** — `GET /api/v1/thoughts/seed-for-theme?theme=<theme_key>`
+- Returns one `message_id` from that theme (or 404 if empty)
+- Used as the query thought for the similar-search endpoint
+
+**2. Similar thoughts** — `GET /api/v1/thoughts/similar?message_id=...&size=20&search_after=...`
+- Same endpoint as post-submission pagination
+- Returns semantically similar thoughts via kNN on `sentiment_vector` within the theme
+
+**Fallback**: `GET /api/v1/thoughts/by-theme?theme=<theme_key>` performs a simple term filter (no vector) when semantic search returns no results. The frontend falls back to demo data if both return empty (e.g. unseeded Elasticsearch).
+
+---
+
 ## Pagination
 
 Response cards are paginated using Elasticsearch's `search_after` pattern:

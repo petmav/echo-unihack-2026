@@ -151,15 +151,16 @@ When the theme classification indicates risk-related categories (self-harm, cris
 ## UX Flow
 
 ### Primary interaction (mobile-first, 375px baseline)
-1. App opens → logo centred on screen, slow breathing animation (inhale/exhale loop)
-2. Tap logo → input bubble floats up, soft haptic if available
-3. User types thought and submits
-4. **The breathing moment**: 2-3 seconds, animated inhale/exhale, subtle *"finding your people..."* text. This is emotionally meaningful — not a spinner. Do not skip or shorten it.
-5. **Count reveal**: animated number tick-up — *"847 people have felt something like this"*
-6. **Flow into response cards**: humanised thoughts from others, full-bleed cards, scrollable
-7. Pagination: load 10-20 cards at a time, append next page on scroll-to-bottom (Elastic `search_after`)
-8. Cards with "what helped" attached have a subtle visual distinction (soft highlight or badge)
-9. Tap a card → bottom sheet slides up showing the verbatim "what helped" text
+1. App opens → logo centred, slow breathing animation, topic bubbles floating around the perimeter
+2. Tap a topic bubble → opens "Others on [topic]" page with thoughts in that theme (no typing)
+3. Tap logo → input bubble floats up, soft haptic if available
+4. User types thought and submits
+5. **The breathing moment**: 2-3 seconds, animated inhale/exhale, subtle *"finding your people..."* text. This is emotionally meaningful — not a spinner. Do not skip or shorten it.
+6. **Count reveal**: animated number tick-up — *"847 people have felt something like this"*
+7. **Flow into response cards**: humanised thoughts from others, full-bleed cards, scrollable
+8. Pagination: load 10-20 cards at a time, append next page on scroll-to-bottom (Elastic `search_after`)
+9. Cards with "what helped" attached have a subtle visual distinction (soft highlight or badge)
+10. Tap a card → bottom sheet slides up showing the verbatim "what helped" text
 
 ### Navigation
 - Hamburger (top-left) → history panel slides in
@@ -182,8 +183,8 @@ frontend/
     app/                  → Next.js App Router pages
     components/
       ui/                 → Primitives (Button, Card, BottomSheet, etc.)
-      echo/               → Echo-specific components (LogoBubble, ThoughtCard,
-                            BreathingAnimation, CountReveal, HistoryPanel)
+      echo/               → Echo-specific components (EchoLogo, ThoughtInput,
+                            ThoughtCard, SurroundingTopics, CountReveal, HistoryPanel)
     lib/
       api.ts              → All backend fetch calls — single source of truth
       storage.ts          → localStorage helpers (raw thoughts, history, trends)
