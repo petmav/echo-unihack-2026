@@ -188,6 +188,24 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
+### 11. Surrounding Topics & Topic Exploration
+
+**What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
+
+**Flow**:
+1. Topic bubbles appear in the perimeter (never blocking the logo or central CTA)
+2. User taps a bubble → haptic feedback → navigate to topic screen
+3. Backend: `GET /api/v1/thoughts/seed-for-theme?theme=X` returns one `message_id` for that theme
+4. Frontend calls `GET /api/v1/thoughts/similar?message_id=...` for semantic similarity results
+5. Falls back to `GET /api/v1/thoughts/by-theme?theme=X` if no seed, then to demo data if both return empty
+6. Topic screen: back button, title, thought count, `ThoughtCardList` with pagination
+
+**Privacy**: Same as main thought flow — only anonymised/humanised thoughts are returned. No user linkage.
+
+**Mobile**: 44px minimum touch targets on bubbles, safe-area padding, `touch-action: manipulation` for responsive taps.
+
+---
+
 ## Features to Cut if Time-Poor (in order)
 
 1. **Personal trends dashboard** — nice to have, not core

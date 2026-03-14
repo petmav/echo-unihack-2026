@@ -8,7 +8,7 @@ Built for **UNIHACK 2026** · March 13–15, 2026
 
 Echo is a mental health app that shows you how many people have felt exactly what you're feeling right now — and what helped them get through it.
 
-You type a thought. Echo finds everyone who felt the same. No accounts required to feel less alone.
+You type a thought. Echo finds everyone who felt the same. Or tap a topic bubble (work stress, loneliness, anxiety, etc.) to explore others' thoughts without typing. No accounts required to feel less alone.
 
 ## Team
 | Name | Role |
@@ -34,7 +34,7 @@ You type a thought. Echo finds everyone who felt the same. No accounts required 
 ### Setup
 ```bash
 git clone <repo-url>
-cd echo
+cd echo-unihack-2026
 
 # 1. Configure environment
 cp .env.example .env
@@ -47,9 +47,13 @@ docker-compose -f infra/docker-compose.yml up -d
 docker-compose -f infra/docker-compose.yml exec ollama ollama pull qwen3.5:0.8b
 ```
 
-Frontend: http://localhost:3000
-Backend API: http://localhost:8000
-API Docs: http://localhost:8000/docs
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+### Key features
+- **Surrounding topics** — Topic bubbles (work stress, loneliness, anxiety, etc.) float around the home screen and the thought input overlay. Tap any bubble to open a page of others' thoughts on that theme.
+- **Topic exploration** — Browse thoughts by theme without typing. Uses the same similarity search as thought submission; falls back to demo data when the backend has no data for a theme.
 
 ### Seed the database (required for demo)
 ```bash

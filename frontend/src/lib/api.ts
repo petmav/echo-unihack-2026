@@ -78,6 +78,36 @@ export async function getSimilarThoughts(
   return handleResponse<PaginatedThoughts>(response);
 }
 
+/** Get a seed message_id for a theme (for use with getSimilarThoughts). */
+export async function getSeedForTheme(
+  theme: string
+): Promise<{ message_id: string } | null> {
+  const response = await fetch(
+    `${API_BASE_URL}/thoughts/seed-for-theme?theme=${encodeURIComponent(theme)}`,
+    { headers: authHeaders() }
+  );
+  if (response.status === 404) return null;
+  return handleResponse<{ message_id: string }>(response);
+}
+
+export async function getThoughtsByTheme(
+  theme: string,
+  searchAfter?: string[]
+): Promise<PaginatedThoughts> {
+  const params = new URLSearchParams({
+    theme,
+    size: String(CARDS_PER_PAGE),
+  });
+  if (searchAfter) {
+    params.set("search_after", JSON.stringify(searchAfter));
+  }
+  const response = await fetch(
+    `${API_BASE_URL}/thoughts/by-theme?${params.toString()}`,
+    { headers: authHeaders() }
+  );
+  return handleResponse<PaginatedThoughts>(response);
+}
+
 export async function submitResolution(
   data: ResolutionSubmit
 ): Promise<{ success: boolean }> {
