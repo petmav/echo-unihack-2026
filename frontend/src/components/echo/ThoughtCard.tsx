@@ -27,10 +27,10 @@ export function ThoughtCard({
   return (
     <motion.div
       layout
-      className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] sm:p-5 touch-manipulation ${
+      className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)] sm:p-5 touch-manipulation ${
         hasResolution
           ? "cursor-pointer border border-echo-highlight-border bg-echo-highlight active:scale-[0.985] min-h-[44px]"
-          : "bg-white"
+          : "bg-echo-card"
       }${isNew ? " ring-1 ring-echo-accent/20" : ""}`}
       initial={isNew ? { opacity: 0, y: -20, scale: 0.97 } : { opacity: 0, y: 14 }}
       animate={

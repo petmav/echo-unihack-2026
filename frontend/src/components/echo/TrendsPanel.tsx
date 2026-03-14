@@ -166,7 +166,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       <div
         className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl"
-        style={{ background: "rgba(250, 247, 242, 0.88)" }}
+        style={{ background: "var(--echo-header-blur)" }}
       >
         <button
           onClick={onBack}
@@ -184,7 +184,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
         <div className="mb-3 flex items-center gap-2.5 rounded-xl bg-echo-highlight p-3 text-echo-text-soft">
           <Shield size={18} className="shrink-0" />
           <p className="text-[11.5px] font-light leading-snug">
-            All emotion trends are computed locally on your device.
+            All emotion trends are computed from anonymised data only.
           </p>
         </div>
 
@@ -196,7 +196,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
           </div>
         ) : (
           <>
-            <div className="mb-3 flex rounded-full bg-white p-1 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div className="mb-3 flex rounded-full bg-echo-card p-1 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               {RANGE_OPTIONS.map((option) => {
                 const isActive = option.value === range;
 
@@ -220,7 +220,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
             </div>
 
             <div className="mb-3 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+              <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
                 <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                   {snapshot.periodLabel}
                 </p>
@@ -232,7 +232,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+              <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
                 <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                   Resolved
                 </p>
@@ -247,7 +247,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
               </div>
             </div>
 
-            <div className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
@@ -285,7 +285,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
             </div>
 
             <div
-              className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]"
+              className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]"
               data-testid="trend-chart"
             >
               <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
@@ -364,7 +364,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                 Emotion mix
               </p>
