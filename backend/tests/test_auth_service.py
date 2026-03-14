@@ -171,8 +171,16 @@ class TestDecodeAccessToken:
     def test_tampered_token_returns_none(self):
         """decode_access_token must return None for a token with an invalid signature."""
         token = create_access_token(SAMPLE_USER_ID)
-        # Tamper by replacing the last character of the signature
-        tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+        # Tamper by re-signing the payload with a different secret
+        # (flipping a single base64url char is unreliable due to padding)
+        header_payload = token.rsplit(".", 1)[0]
+        forged = jwt.encode(
+            jwt.get_unverified_claims(token),
+            "completely-wrong-secret",
+            algorithm=config.JWT_ALGORITHM,
+        )
+        wrong_sig = forged.rsplit(".", 1)[1]
+        tampered = f"{header_payload}.{wrong_sig}"
         result = decode_access_token(tampered)
         assert result is None
 
