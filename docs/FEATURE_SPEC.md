@@ -16,7 +16,7 @@
 - Character count shown when approaching limit
 - Submit on tap of send button or keyboard submit
 
-**Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through:
+**Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through (≈2.8s per phrase):
 - *"finding your people..."*
 - *"you're not alone in this..."*
 - *"others have been here too..."*
@@ -39,6 +39,8 @@ Each card displays the Claude-humanised anonymised thought from another user (50
 
 **Pagination**: 15 cards on initial load. On scroll-to-bottom, next 15 are appended silently (no loading indicator unless slow — use skeleton cards if >500ms).
 
+**Advice-first toggle**: Above the cards, a block card contains the switch *"Show only what helped"*. When on, the list filters to cards that have an attached resolution. Client-side filter only.
+
 **Tap behaviour**: Tapping a standard card does nothing (or a subtle expand animation showing full text if truncated). Tapping a highlighted card opens a bottom sheet showing the verbatim "what helped" text.
 
 **Bottom sheet**: Clean, readable, full verbatim text of the resolution. Shown exactly as submitted — typos included. No AI processing, no reformatting. A small note at the bottom: *"Written by someone who's been there."*
@@ -51,6 +53,7 @@ Accessed via hamburger menu (top-left). Slides in as a side drawer.
 
 **Contents**: A list of the user's submitted thoughts, sourced from localStorage. Each item shows:
 - Truncated raw thought text (first ~60 chars)
+- Match count when available: *"N people have felt something like this"* (from the search at submit time)
 - Submission date (stored locally)
 - Resolution status indicator (resolved ✓ / unresolved)
 

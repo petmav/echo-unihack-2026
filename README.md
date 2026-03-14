@@ -54,6 +54,7 @@ docker-compose -f infra/docker-compose.yml exec ollama ollama pull qwen3.5:0.8b
 ### Key features
 - **Surrounding topics** — Topic bubbles (work stress, loneliness, anxiety, etc.) float around the home screen and the thought input overlay. Tap any bubble to open a page of others' thoughts on that theme.
 - **Topic exploration** — Browse thoughts by theme without typing. Uses the same similarity search as thought submission; falls back to demo data when the backend has no data for a theme.
+- **Advice-first toggle** — On results, a switch filters to cards with "what helped" attached so you can focus on actionable advice.
 
 ### Seed the database (required for demo)
 ```bash

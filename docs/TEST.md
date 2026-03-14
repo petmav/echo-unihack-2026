@@ -164,6 +164,22 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 
 ---
 
+## Advice-First Toggle ("Show only what helped")
+
+**What**: On the results screen, a block card above the thought cards contains a switch labelled *"Show only what helped"*. When enabled, the list filters to only show cards that have an attached resolution.
+
+**How to test**: Submit a thought → wait for results → toggle the switch on. The list narrows to cards with resolutions. Toggle off to see all cards again.
+
+---
+
+## History Panel — Match Count
+
+**What**: Each past thought stores the match count from when it was submitted (e.g. "N people have felt something like this"). Displayed in the history panel.
+
+**How to test**: Submit a thought → open History (hamburger) → the new entry shows the match count below the thought text.
+
+---
+
 ### Test inventory for new features
 
 | Test | File | What it verifies |
@@ -177,3 +193,5 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 | Safety banner absent for safe themes | `new-features.spec.ts` | Banner does NOT appear for `self_worth` |
 | Risk theme constants | `new-features.spec.ts` | All 7 risk themes are defined |
 | Surrounding topics / Topic exploration | (manual or new spec) | Bubbles clickable; topic screen loads thoughts |
+| Advice-first toggle | (manual) | Toggle filters to cards with "what helped" |
+| History match count | (manual) | Past thoughts show "N people have felt something like this" |

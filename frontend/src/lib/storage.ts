@@ -85,7 +85,8 @@ async function writeThoughts(thoughts: LocalThought[]): Promise<void> {
 export async function saveThought(
   messageId: string,
   rawText: string,
-  themeCategory: string
+  themeCategory: string,
+  matchCount?: number
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
@@ -94,6 +95,7 @@ export async function saveThought(
     theme_category: themeCategory,
     timestamp: Date.now(),
     is_resolved: false,
+    match_count: matchCount,
   });
   await writeThoughts(thoughts);
 }

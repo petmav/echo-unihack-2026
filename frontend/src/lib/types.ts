@@ -28,6 +28,7 @@ export interface LocalThought {
   is_resolved: boolean;
   resolution_text?: string;
   future_letter?: string;
+  match_count?: number;
 }
 
 export interface FutureLetter {

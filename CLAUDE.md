@@ -157,7 +157,7 @@ When the theme classification indicates risk-related categories (self-harm, cris
 4. User types thought and submits
 5. **The breathing moment**: 2-3 seconds, animated inhale/exhale, subtle *"finding your people..."* text. This is emotionally meaningful — not a spinner. Do not skip or shorten it.
 6. **Count reveal**: animated number tick-up — *"847 people have felt something like this"*
-7. **Flow into response cards**: humanised thoughts from others, full-bleed cards, scrollable
+7. **Flow into response cards**: humanised thoughts from others, full-bleed cards, scrollable. "Show only what helped" toggle filters to cards with resolutions.
 8. Pagination: load 10-20 cards at a time, append next page on scroll-to-bottom (Elastic `search_after`)
 9. Cards with "what helped" attached have a subtle visual distinction (soft highlight or badge)
 10. Tap a card → bottom sheet slides up showing the verbatim "what helped" text
