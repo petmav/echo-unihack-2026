@@ -16,6 +16,7 @@ import {
 import {
   saveThought,
   getThoughtHistory,
+  deleteThought,
   resolveThought as resolveThoughtLocal,
   saveJwt,
   getJwt,
@@ -44,6 +45,7 @@ import {
   login,
   register,
   deleteAccount,
+  deleteThoughtFromServer,
   getThemeAggregates,
   getThemeCount,
   ApiError,
@@ -73,6 +75,22 @@ import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
+import { ThoughtGraph } from "@/components/echo/ThoughtGraph";
+
+/* ── Screen ↔ URL path mapping ── */
+const SCREEN_TO_PATH: Partial<Record<AppScreen, string>> = {
+  thoughts: "/thoughts",
+  graph: "/constellation",
+  trends: "/trends",
+  account: "/account",
+  about: "/about",
+  privacy: "/privacy",
+  admin: "/admin",
+};
+
+const PATH_TO_SCREEN: Record<string, AppScreen> = Object.fromEntries(
+  Object.entries(SCREEN_TO_PATH).map(([screen, path]) => [path, screen as AppScreen])
+);
 
 /* ── Demo seed data for when backend is unavailable ── */
 const SEED_THOUGHTS: ThoughtResponse[] = [
@@ -205,6 +223,9 @@ export default function EchoApp() {
   const [topicLoading, setTopicLoading] = useState(false);
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
 
+  /* ── Resolve initial URL path to screen ── */
+  const initialPathResolved = useRef(false);
+
   useEffect(() => {
     const hasOnboarded = hasCompletedOnboarding();
     const hasToken = getJwt();
@@ -215,10 +236,44 @@ export default function EchoApp() {
       setScreen("auth");
     } else {
       setIsAdmin(getAdminStatus());
-      setScreen("home");
+      // Check if the URL path maps to a panel screen
+      const pathname = window.location.pathname;
+      const targetScreen = PATH_TO_SCREEN[pathname];
+      if (targetScreen && !initialPathResolved.current) {
+        setScreen(targetScreen);
+      } else {
+        setScreen("home");
+      }
     }
+    initialPathResolved.current = true;
 
     getThoughtHistory().then(setThoughtHistory);
+  }, []);
+
+  /* ── Sync URL when screen changes ── */
+  useEffect(() => {
+    const targetPath = SCREEN_TO_PATH[screen];
+    const currentPath = window.location.pathname;
+    if (targetPath && currentPath !== targetPath) {
+      window.history.pushState(null, "", targetPath);
+    } else if (!targetPath && currentPath !== "/") {
+      window.history.pushState(null, "", "/");
+    }
+  }, [screen]);
+
+  /* ── Handle browser back/forward ── */
+  useEffect(() => {
+    const handlePopState = () => {
+      const pathname = window.location.pathname;
+      const targetScreen = PATH_TO_SCREEN[pathname];
+      if (targetScreen) {
+        setScreen(targetScreen);
+      } else {
+        setScreen("home");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
   /* Capacitor native platform setup (Android back button, status bar) */
@@ -234,8 +289,11 @@ export default function EchoApp() {
       const { App: CapApp } = await import("@capacitor/app");
       const { StatusBar, Style } = await import("@capacitor/status-bar");
 
-      StatusBar.setStyle({ style: Style.Light });
-      StatusBar.setBackgroundColor({ color: "#FAF7F2" });
+      const isDark = document.documentElement.classList.contains("dark");
+      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+      StatusBar.setBackgroundColor({
+        color: getComputedStyle(document.documentElement).getPropertyValue("--echo-bg").trim(),
+      });
 
       const listener = await CapApp.addListener("backButton", () => {
         if (screenRef.current !== "home") {
@@ -347,6 +405,16 @@ export default function EchoApp() {
     getThoughtHistory().then(setThoughtHistory);
   }, []);
 
+  const handleDeleteThought = useCallback(async (messageId: string) => {
+    try {
+      await deleteThoughtFromServer(messageId);
+    } catch {
+      // Server deletion failed — still remove locally
+    }
+    await deleteThought(messageId);
+    refreshHistory();
+  }, [refreshHistory]);
+
   useEffect(() => {
     if (!countAnimDone || similarThoughts.length === 0) return;
 
@@ -401,7 +469,7 @@ export default function EchoApp() {
 
     try {
       const result = await submitThought(rawText);
-      await saveThought(result.message_id, rawText, result.theme_category, result.match_count);
+      await saveThought(result.message_id, rawText, result.theme_category, result.match_count, result.anonymised_text);
       setMatchCount(result.match_count);
       setSimilarThoughts(result.similar_thoughts);
       setCurrentMessageId(result.message_id);
@@ -675,8 +743,9 @@ export default function EchoApp() {
   );
 
   const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
-  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "account", "about", "privacy", "admin"];
+  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "graph", "account", "about", "privacy", "admin"];
   const isPanel = PANEL_SCREENS.includes(screen);
+  const showTopBar = isMainScreen || (isPanel && screen !== "graph");
 
   const PANEL_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
   const PANEL_VARIANTS = {
@@ -820,7 +889,7 @@ export default function EchoApp() {
                 setScreen("home");
                 setThoughtText("");
               }}
-              className="pointer-events-auto flex h-[52px] w-[52px] items-center justify-center rounded-full bg-white text-echo-accent shadow-[0_3px_16px_rgba(44,40,37,0.1)] active:scale-[0.92]"
+              className="pointer-events-auto flex h-[52px] w-[52px] items-center justify-center rounded-full bg-echo-card text-echo-accent shadow-[0_3px_16px_rgba(44,40,37,0.1)] dark:shadow-[0_3px_16px_rgba(0,0,0,0.3)] active:scale-[0.92]"
               aria-label="Return home"
             >
               <Target size={22} />
@@ -836,7 +905,7 @@ export default function EchoApp() {
           animate={{ scale: isPanel ? 0.97 : 1, opacity: isPanel ? 0.65 : 1 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
         >
-          <SurroundingTopics animate onTopicClick={handleTopicOpen} />
+          {!inputOpen && <SurroundingTopics animate onTopicClick={handleTopicOpen} />}
           <EchoLogo
             size={isDesktop ? 200 : 150}
             animate
@@ -874,6 +943,7 @@ export default function EchoApp() {
               onBack={handleBackToHome}
               onResolve={handleResolve}
               onSaveFutureLetter={handleSaveFutureLetter}
+              onDelete={handleDeleteThought}
             />
           </motion.div>
         )}
@@ -889,6 +959,20 @@ export default function EchoApp() {
             transition={PANEL_TRANSITION}
           >
             <TrendsPanel thoughts={thoughtHistory} onBack={handleBackToHome} />
+          </motion.div>
+        )}
+
+        {screen === "graph" && (
+          <motion.div
+            key="graph"
+            className="absolute inset-0 z-40 flex flex-col"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <ThoughtGraph key={thoughtHistory.length} onBack={handleBackToHome} />
           </motion.div>
         )}
 
@@ -967,8 +1051,8 @@ export default function EchoApp() {
     return (
       <div className="flex h-[100dvh] flex-col bg-echo-bg font-sans">
         {/* Top bar — full width. Always in DOM when home/panel to prevent layout shift. */}
-        {(isMainScreen || isPanel) && (
-          <div className={`flex items-center px-6 pt-4 pb-1 transition-opacity duration-300${isPanel ? " invisible pointer-events-none" : ""}`}>
+        {showTopBar && (
+          <div className={`sticky top-0 z-40 flex items-center px-6 pt-4 pb-1 bg-echo-bg transition-opacity duration-300${isPanel ? " hidden" : ""}`}>
             <HamburgerButton
               isOpen={false}
               onClick={() => setMenuOpen(true)}
@@ -1050,8 +1134,8 @@ export default function EchoApp() {
         />
 
         {/* Top bar — always in DOM when home or panel to prevent layout shift on transition */}
-        {(isMainScreen || isPanel) && (
-          <div className={`flex items-center px-4 pt-3 pb-1 transition-opacity duration-300${isPanel ? " invisible pointer-events-none" : ""}`}>
+        {showTopBar && (
+          <div className={`sticky top-0 z-40 flex items-center px-4 pt-3 pb-1 bg-echo-bg transition-opacity duration-300${isPanel ? " hidden" : ""}`}>
             <HamburgerButton
               isOpen={menuOpen}
               onClick={() => setMenuOpen((prev) => !prev)}
