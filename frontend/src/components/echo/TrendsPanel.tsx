@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, Shield, TrendingUp } from "lucide-react";
+import { ChevronLeft, CircleHelp, Shield, TrendingUp } from "lucide-react";
 
 import type { LocalThought } from "@/lib/types";
 import {
@@ -100,8 +100,25 @@ function formatMomentum(theme: TrendThemeSummary | null, range: TrendRange): str
   return `Same as ${comparisonLabel}`;
 }
 
+function formatEntryCount(count: number): string {
+  return `${count} ${count === 1 ? "entry" : "entries"}`;
+}
+
+function getFlowUnitLabel(range: TrendRange): string {
+  if (range === "weekly") {
+    return "day";
+  }
+
+  if (range === "monthly") {
+    return "week slice";
+  }
+
+  return "month";
+}
+
 export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const [range, setRange] = useState<TrendRange>("weekly");
+  const [showFlowHelp, setShowFlowHelp] = useState(false);
 
   const trendThoughts = useMemo(
     () =>
@@ -161,6 +178,18 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const maxBucketTotal = Math.max(1, ...snapshot.buckets.map((bucket) => bucket.total));
   const dominantTheme = snapshot.dominantTheme;
   const risingTheme = snapshot.risingTheme;
+  const flowUnitLabel = getFlowUnitLabel(range);
+  const peakBucket = useMemo(() => {
+    return snapshot.buckets.reduce<(typeof snapshot.buckets)[number] | null>(
+      (currentPeak, bucket) => {
+        if (!currentPeak || bucket.total > currentPeak.total) {
+          return bucket;
+        }
+        return currentPeak;
+      },
+      null
+    );
+  }, [snapshot.buckets]);
 
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
@@ -291,12 +320,57 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
               className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]"
               data-testid="trend-chart"
             >
-              <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
-                Emotion flow
-              </p>
-              <p className="mt-1 text-[13px] font-light text-echo-text-muted">
-                {snapshot.subtitle}
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+                    Emotion flow
+                  </p>
+                  <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                    {snapshot.subtitle}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFlowHelp((current) => !current)}
+                  className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full bg-echo-highlight text-echo-accent transition-colors active:bg-echo-highlight-border/60"
+                  aria-expanded={showFlowHelp}
+                  aria-label="Explain emotion flow chart"
+                  data-testid="trend-flow-help-toggle"
+                >
+                  <CircleHelp size={16} />
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[11px] font-light text-echo-text-soft">
+                  Each column = 1 {flowUnitLabel}
+                </span>
+                <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[11px] font-light text-echo-text-soft">
+                  Taller = more entries
+                </span>
+                <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[11px] font-light text-echo-text-soft">
+                  Colour = theme mix
+                </span>
+              </div>
+
+              {showFlowHelp && (
+                <div
+                  className="mt-3 rounded-2xl bg-echo-highlight px-3.5 py-3"
+                  data-testid="trend-flow-help"
+                >
+                  <p className="text-[12.5px] font-light leading-relaxed text-echo-text-soft">
+                    In {range === "weekly" ? "week" : range === "monthly" ? "month" : "year"} view,
+                    each column groups thoughts into one {flowUnitLabel}. Stacks grow taller when more
+                    thoughts land in that slice, and the colours show which themes made up that total.
+                  </p>
+                  {peakBucket && peakBucket.total > 0 && (
+                    <p className="mt-2 text-[12px] font-light leading-relaxed text-echo-text-muted">
+                      Most active {flowUnitLabel}: {peakBucket.label} with {formatEntryCount(peakBucket.total)}.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="mt-5 flex h-[124px] items-end gap-2">
                 {snapshot.buckets.map((bucket) => {
@@ -370,6 +444,9 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
             <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
               <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                 Emotion mix
+              </p>
+              <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                Share of total entries in this period.
               </p>
 
               {snapshot.topThemes.length === 0 ? (

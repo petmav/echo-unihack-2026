@@ -441,6 +441,10 @@ test.describe("Emotion trends", () => {
     await expect(page.getByTestId("trend-dominant-theme")).toContainText(
       "Self-worth"
     );
+    await page.getByTestId("trend-flow-help-toggle").click();
+    await expect(page.getByTestId("trend-flow-help")).toContainText(
+      "each column groups thoughts into one day"
+    );
 
     await page.getByTestId("trend-range-monthly").click();
     await expect(page.getByTestId("trend-period-label")).toHaveText(
