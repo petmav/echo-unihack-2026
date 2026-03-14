@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquare,
@@ -45,6 +46,17 @@ export function MenuOverlay({
   mode = "fullscreen",
   isAdmin = false,
 }: MenuOverlayProps) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handleItemClick = (screen: AppScreen) => {
     onClose();
     onNavigate(screen);

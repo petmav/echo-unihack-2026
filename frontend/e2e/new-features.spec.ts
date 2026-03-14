@@ -374,7 +374,73 @@ test.describe("Quiet wins", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   H. Local emotion trends
+   H. Recurrence pattern
+   ═══════════════════════════════════════════════ */
+
+test.describe("Recurrence pattern", () => {
+  test("shows a local recurrence banner when the same theme keeps returning", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "recurrence-self-worth-1",
+        raw_text: "I keep feeling like I'm not enough",
+        theme_category: "self_worth",
+        timestamp: now - 2 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "recurrence-self-worth-2",
+        raw_text: "I spiral about my own worth again",
+        theme_category: "self_worth",
+        timestamp: now - 9 * dayMs,
+        is_resolved: true,
+        resolution_text: "I slowed down and checked the facts.",
+      },
+      {
+        message_id: "recurrence-older",
+        raw_text: "Work has been loud in my head",
+        theme_category: "work_stress",
+        timestamp: now - 20 * dayMs,
+        is_resolved: false,
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("recurrence-pattern-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("A returning pattern");
+    await expect(banner).toContainText("3 times");
+    await expect(banner).toContainText("14 days");
+    await expect(banner).toContainText("2 days ago");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   I. Local emotion trends
    ═══════════════════════════════════════════════ */
 
 test.describe("Emotion trends", () => {

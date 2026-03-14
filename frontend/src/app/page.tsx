@@ -61,6 +61,10 @@ import {
 import { THEME_DISPLAY_LABELS } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
 import { findQuietWin, type QuietWin } from "@/lib/quietWins";
+import {
+  findRecurrencePattern,
+  type RecurrencePattern,
+} from "@/lib/recurrencePattern";
 
 import { EchoLogo } from "@/components/echo/EchoLogo";
 import { ThoughtInput } from "@/components/echo/ThoughtInput";
@@ -81,6 +85,7 @@ import { AuthScreen } from "@/components/echo/AuthScreen";
 import { SafetyBanner } from "@/components/echo/SafetyBanner";
 import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
+import { RecurrencePatternBanner } from "@/components/echo/RecurrencePatternBanner";
 import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
@@ -206,6 +211,8 @@ export default function EchoApp() {
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
+  const [recurrencePattern, setRecurrencePattern] =
+    useState<RecurrencePattern | null>(null);
   const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
   const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
@@ -386,6 +393,7 @@ export default function EchoApp() {
   const handleUnauthorized = useCallback(() => {
     clearKey();
     clearAllData();
+    setRecurrencePattern(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
@@ -409,6 +417,7 @@ export default function EchoApp() {
     const showResults = async (themeCategory: string, initialCount: number, initialThoughts: ThoughtResponse[]) => {
       setCurrentThemeCategory(themeCategory);
       setQuietWin(findQuietWin(priorThoughts, themeCategory));
+      setRecurrencePattern(findRecurrencePattern(priorThoughts, themeCategory));
       setLiveMatchCount(initialCount);
       setNewThoughtIds(new Set());
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
@@ -600,6 +609,7 @@ export default function EchoApp() {
     }
     clearKey();
     clearAllData();
+    setRecurrencePattern(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setScreen("auth");
@@ -846,6 +856,11 @@ export default function EchoApp() {
             {/* Quiet wins — local reflection when a recurring theme stayed quiet for a while */}
             {countAnimDone && quietWin && (
               <QuietWinBanner quietWin={quietWin} />
+            )}
+
+            {/* Recurrence pattern — local signal when the same theme keeps returning recently */}
+            {countAnimDone && recurrencePattern && (
+              <RecurrencePatternBanner pattern={recurrencePattern} />
             )}
 
             {/* Saved anchors — advice lines the user chose to keep for this theme */}
