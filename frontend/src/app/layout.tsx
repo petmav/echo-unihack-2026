@@ -17,7 +17,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Echo — You are not alone",
+  title: "Echo",
   description:
     "Echo finds others who have felt exactly what you're feeling right now — anonymously, privately, without judgement.",
   icons: {
