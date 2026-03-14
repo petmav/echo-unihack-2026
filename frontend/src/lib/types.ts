@@ -84,3 +84,9 @@ export type AppScreen =
   | "about"
   | "privacy"
   | "admin";
+
+export interface PersonaConfig {
+  color: string;
+  face: number;
+  accessory: number;
+}

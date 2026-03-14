@@ -42,6 +42,8 @@ import {
   setLastPromptDate,
   saveAdminStatus,
   getAdminStatus,
+  getPersona,
+  setPersona as savePersonaToStorage,
 } from "@/lib/storage";
 import { initializeKey, clearKey } from "@/lib/crypto";
 import {
@@ -177,6 +179,7 @@ export default function EchoApp() {
   const [bottomSheetThought, setBottomSheetThought] =
     useState<ThoughtResponse | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => getNotificationOptIn());
+  const [persona, setPersona] = useState(() => getPersona());
   const [promptThought, setPromptThought] = useState<LocalThought | null>(null);
 
   const [matchCount, setMatchCount] = useState(0);
@@ -874,19 +877,17 @@ export default function EchoApp() {
                     </span>
                     <button
                       onClick={() => setAdviceFirstOnly((v) => !v)}
-                      className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${
-                        adviceFirstOnly
-                          ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
-                          : "bg-echo-text-muted/30"
-                      }`}
+                      className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${adviceFirstOnly
+                        ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
+                        : "bg-echo-text-muted/30"
+                        }`}
                       role="switch"
                       aria-checked={adviceFirstOnly}
                       aria-label="Show only cards with what helped"
                     >
                       <span
-                        className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_6px_rgba(44,40,37,0.15)] transition-all duration-200 ease-out ${
-                          adviceFirstOnly ? "left-[22px]" : "left-1"
-                        }`}
+                        className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_6px_rgba(44,40,37,0.15)] transition-all duration-200 ease-out ${adviceFirstOnly ? "left-[22px]" : "left-1"
+                          }`}
                       />
                     </button>
                   </div>
@@ -1005,6 +1006,11 @@ export default function EchoApp() {
                 setNotificationOptIn(enabled);
               }}
               notificationsEnabled={notificationsEnabled}
+              persona={persona}
+              onPersonaChange={(newPersona) => {
+                setPersona(newPersona);
+                savePersonaToStorage(newPersona);
+              }}
             />
           </motion.div>
         )}
