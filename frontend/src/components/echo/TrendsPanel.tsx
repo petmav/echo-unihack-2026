@@ -221,7 +221,10 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
 
             <div className="mb-3 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
-                <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+                <p
+                  className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft"
+                  data-testid="trend-period-label"
+                >
                   {snapshot.periodLabel}
                 </p>
                 <p className="mt-1 font-serif text-4xl font-semibold leading-none text-echo-text">

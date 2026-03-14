@@ -435,17 +435,23 @@ test.describe("Emotion trends", () => {
       "aria-pressed",
       "true"
     );
-    await expect(page.getByText("This week")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This week"
+    );
     await expect(page.getByTestId("trend-dominant-theme")).toContainText(
       "Self-worth"
     );
 
     await page.getByTestId("trend-range-monthly").click();
-    await expect(page.getByText("This month")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This month"
+    );
     await expect(page.getByText("Family pressure")).toBeVisible();
 
     await page.getByTestId("trend-range-yearly").click();
-    await expect(page.getByText("This year")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This year"
+    );
     await expect(page.getByText("Relationship loss")).toBeVisible();
   });
 });
