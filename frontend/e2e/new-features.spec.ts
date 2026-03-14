@@ -232,7 +232,72 @@ test.describe("Future You", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   G. Local emotion trends
+   G. "Quiet wins" — local-only reflection banner
+   ═══════════════════════════════════════════════ */
+
+test.describe("Quiet wins", () => {
+  test("shows a quiet win banner when a recurring theme returns after a long gap", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "quiet-self-worth-1",
+        raw_text: "I feel small around everyone else",
+        theme_category: "self_worth",
+        timestamp: now - 18 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "quiet-self-worth-2",
+        raw_text: "I keep doubting my own value",
+        theme_category: "self_worth",
+        timestamp: now - 22 * dayMs,
+        is_resolved: true,
+        resolution_text: "I spoke to someone I trust.",
+      },
+      {
+        message_id: "quiet-other",
+        raw_text: "Work has been loud lately",
+        theme_category: "work_stress",
+        timestamp: now - 2 * dayMs,
+        is_resolved: false,
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("quiet-win-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("A quiet win");
+    await expect(banner).toContainText("18 days");
+    await expect(banner).toContainText("self worth");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   H. Local emotion trends
    ═══════════════════════════════════════════════ */
 
 test.describe("Emotion trends", () => {
