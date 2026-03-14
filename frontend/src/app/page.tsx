@@ -252,12 +252,13 @@ export default function EchoApp() {
 
   /* ── Sync URL when screen changes ── */
   useEffect(() => {
+    if (!initialPathResolved.current) return;
     const targetPath = SCREEN_TO_PATH[screen];
     const currentPath = window.location.pathname;
     if (targetPath && currentPath !== targetPath) {
-      window.history.pushState(null, "", targetPath);
+      window.history.replaceState(null, "", targetPath);
     } else if (!targetPath && currentPath !== "/") {
-      window.history.pushState(null, "", "/");
+      window.history.replaceState(null, "", "/");
     }
   }, [screen]);
 
