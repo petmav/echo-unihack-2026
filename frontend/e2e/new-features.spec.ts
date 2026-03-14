@@ -232,6 +232,83 @@ test.describe("Future You", () => {
 });
 
 /* ═══════════════════════════════════════════════
+   F. "Saved anchors" — local advice snippets
+   ═══════════════════════════════════════════════ */
+
+test.describe("Saved anchors", () => {
+  test("can save a helpful card and see it return for the same theme", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    await page
+      .getByText(
+        "Sometimes I lie awake replaying every awkward thing I've ever said in a conversation."
+      )
+      .click();
+
+    const saveButton = page.getByTestId("save-anchor-button");
+    await expect(saveButton).toBeVisible();
+    await saveButton.click();
+    await expect(saveButton).toContainText("Saved on this device");
+
+    await page.getByLabel("Close sheet").click();
+
+    await page.getByRole("button", { name: "Return home" }).click();
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I keep spiralling about every social interaction");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("saved-anchors-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("Saved anchors for this space");
+    await expect(banner).toContainText(
+      "They had absolutely no idea what I was talking about."
+    );
+
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("echo_saved_anchors")
+    );
+    expect(stored).toBeTruthy();
+
+    await page.screenshot({
+      path: path.join(SCREENSHOT_DIR, "feature-f-saved-anchors.png"),
+      fullPage: true,
+    });
+  });
+});
+
+/* ═══════════════════════════════════════════════
    G. "Quiet wins" — local-only reflection banner
    ═══════════════════════════════════════════════ */
 
@@ -358,17 +435,23 @@ test.describe("Emotion trends", () => {
       "aria-pressed",
       "true"
     );
-    await expect(page.getByText("This week")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This week"
+    );
     await expect(page.getByTestId("trend-dominant-theme")).toContainText(
       "Self-worth"
     );
 
     await page.getByTestId("trend-range-monthly").click();
-    await expect(page.getByText("This month")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This month"
+    );
     await expect(page.getByText("Family pressure")).toBeVisible();
 
     await page.getByTestId("trend-range-yearly").click();
-    await expect(page.getByText("This year")).toBeVisible();
+    await expect(page.getByTestId("trend-period-label")).toHaveText(
+      "This year"
+    );
     await expect(page.getByText("Relationship loss")).toBeVisible();
   });
 });
