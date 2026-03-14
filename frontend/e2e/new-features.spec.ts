@@ -33,6 +33,25 @@ function seedThoughtHistory(
   );
 }
 
+function seedThoughtHistoryEntries(
+  page: import("@playwright/test").Page,
+  thoughts: Array<{
+    message_id: string;
+    raw_text: string;
+    theme_category: string;
+    timestamp: number;
+    is_resolved: boolean;
+    resolution_text?: string;
+  }>
+) {
+  return page.evaluate(
+    ({ thoughts }) => {
+      localStorage.setItem("echo_thoughts", JSON.stringify(thoughts));
+    },
+    { thoughts }
+  );
+}
+
 function seedFutureLetter(
   page: import("@playwright/test").Page,
   theme = "self_worth"
@@ -209,6 +228,83 @@ test.describe("Future You", () => {
       path: path.join(SCREENSHOT_DIR, "feature-e-banner.png"),
       fullPage: true,
     });
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   G. Local emotion trends
+   ═══════════════════════════════════════════════ */
+
+test.describe("Emotion trends", () => {
+  test("switches between weekly, monthly, and yearly emotion views", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "trend-week-1",
+        raw_text: "I keep doubting myself",
+        theme_category: "self_worth",
+        timestamp: now - dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "trend-week-2",
+        raw_text: "Work has been loud in my head",
+        theme_category: "self_worth",
+        timestamp: now - 3 * dayMs,
+        is_resolved: true,
+        resolution_text: "I slowed down and asked for help.",
+      },
+      {
+        message_id: "trend-month",
+        raw_text: "My family expectations are crushing me",
+        theme_category: "family_pressure",
+        timestamp: now - 10 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "trend-year",
+        raw_text: "I still miss them more than I say",
+        theme_category: "relationship_loss",
+        timestamp: now - 40 * dayMs,
+        is_resolved: true,
+        resolution_text: "I stopped pretending I was over it.",
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.waitForTimeout(400);
+    await page.getByText("Trends").click();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("trend-range-weekly")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByText("This week")).toBeVisible();
+    await expect(page.getByTestId("trend-dominant-theme")).toContainText(
+      "Self-worth"
+    );
+
+    await page.getByTestId("trend-range-monthly").click();
+    await expect(page.getByText("This month")).toBeVisible();
+    await expect(page.getByText("Family pressure")).toBeVisible();
+
+    await page.getByTestId("trend-range-yearly").click();
+    await expect(page.getByText("This year")).toBeVisible();
+    await expect(page.getByText("Relationship loss")).toBeVisible();
   });
 });
 
