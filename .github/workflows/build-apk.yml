@@ -7,7 +7,7 @@ on:
       api_url:
         description: 'Backend API URL baked into the APK (e.g. https://your-backend.fly.dev/api/v1). Falls back to the NEXT_PUBLIC_API_URL repository secret if empty.'
         required: false
-        default: ''
+        default: 'http://192.9.165.173:8000/api/v1'
 
   # Also build automatically when frontend code changes on main
   push:
