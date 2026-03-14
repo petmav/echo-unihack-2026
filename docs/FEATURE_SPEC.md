@@ -210,7 +210,47 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 11. "Quiet Wins" — Local Reflection on Time Between Returns
+### 11. Per-Theme Resolution Aggregates
+
+**What**: After the count reveal, the results screen shows an anonymous aggregate about how often people in the same emotional space later shared verbatim "what helped" advice. This turns the result from just *"you are not alone"* into *"some people in this space found language for what shifted."*
+
+**What the user sees**:
+- A cool-toned banner above the local-only reflection banners
+- Heading: *"What helped in this space"*
+- Body example: *"Across self-worth, 94 people later shared what helped. That's 24% of similar thoughts so far."*
+- Two supporting stat chips:
+  - Number of people who shared what helped
+  - Percentage of similar thoughts with shared advice
+- Footer note: *"Anonymous aggregate from similar thoughts only."*
+
+**Data source**:
+- `GET /api/v1/thoughts/count?theme=X`
+- Returns:
+  - `count`: all-time number of similar thoughts in that theme
+  - `resolution_count`: all-time number of those thoughts with attached verbatim "what helped"
+  - `resolution_rate`: rounded percentage of thoughts in that theme with attached advice
+
+**Rules**:
+- Uses only anonymous Elastic aggregates derived from `theme_category` and `has_resolution`
+- Never exposes user IDs, account IDs, raw text, or message-to-user linkage
+- If backend aggregates are unavailable, the frontend falls back to demo-safe aggregate values so the demo flow stays legible
+- The copy must say *"shared what helped"* rather than implying clinical recovery
+
+**Placement in results flow**:
+1. Count reveal completes
+2. Safety banner appears if the theme is risk-related
+3. Per-theme resolution aggregate banner appears if `resolution_count > 0`
+4. Quiet wins banner appears if the local-history conditions are met
+5. Recurrence pattern banner appears if the same theme has been repeating recently
+6. Saved anchors appear if the user has previously saved any matching advice lines
+7. Future You letter appears if a matching local letter exists
+8. Response cards render below
+
+**Privacy**: Aggregate-only. The feature is powered by anonymous Elastic counts and does not introduce any new user-level storage or tracking.
+
+---
+
+### 12. "Quiet Wins" — Local Reflection on Time Between Returns
 
 **What**: When a familiar non-risk theme returns after being absent for a meaningful stretch, the results screen shows a gentle reflection banner. The tone is intentionally non-clinical: the app notices that a period of quiet happened, and counts it.
 
@@ -244,7 +284,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 12. "Recurrence Pattern" — Local Signal for a Theme That Keeps Returning
+### 13. "Recurrence Pattern" — Local Signal for a Theme That Keeps Returning
 
 **What**: When the same non-risk theme has come up repeatedly in a short recent window, the results screen surfaces a local-only banner that gently points out the pattern. The goal is not to diagnose or dramatise it, only to make repetition visible.
 
@@ -278,7 +318,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 13. "Guardrails of Care" — Light-Touch Safety Layer
+### 14. "Guardrails of Care" — Light-Touch Safety Layer
 
 **What**: When the theme classification for a submitted thought falls into risk-related categories, a static safety resource block appears above the response cards. No clinical intervention, no logging — just a visible, static set of helpline numbers.
 
@@ -300,7 +340,7 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 
 ---
 
-### 14. Surrounding Topics & Topic Exploration
+### 15. Surrounding Topics & Topic Exploration
 
 **What**: Topic bubbles (work stress, loneliness, anxiety, grief, family pressure, etc.) float around the home screen and the thought input overlay. Bubbles cycle every ~6 seconds with different topics and positions. Tapping a bubble opens a new screen: *"Others on [topic]"* with a scrollable list of thoughts in that theme.
 

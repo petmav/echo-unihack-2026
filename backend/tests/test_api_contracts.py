@@ -13,7 +13,7 @@ Coverage:
                                                search_after}
 - POST /api/v1/thoughts (empty body)   → 422
 - POST /api/v1/thoughts (2001-char)    → 422
-- GET  /api/v1/thoughts/aggregates     → 200  list[{theme: str, count: int}]
+- GET  /api/v1/thoughts/aggregates     → 200  list[{theme, count, resolution_count, resolution_rate}]
 - GET  /api/v1/thoughts/similar
         (missing message_id)           → 422
 """
@@ -279,8 +279,18 @@ class TestGetAggregatesContract:
 
     def test_each_item_has_theme_key(self, test_client, mock_all_services):
         mock_all_services["aggregates"].return_value = [
-            {"theme": "anxiety", "count": 100},
-            {"theme": "loneliness", "count": 50},
+            {
+                "theme": "anxiety",
+                "count": 100,
+                "resolution_count": 22,
+                "resolution_rate": 22,
+            },
+            {
+                "theme": "loneliness",
+                "count": 50,
+                "resolution_count": 8,
+                "resolution_rate": 16,
+            },
         ]
         response = test_client.get("/api/v1/thoughts/aggregates")
         data = response.json()
@@ -291,8 +301,18 @@ class TestGetAggregatesContract:
 
     def test_each_item_has_count_key(self, test_client, mock_all_services):
         mock_all_services["aggregates"].return_value = [
-            {"theme": "anxiety", "count": 100},
-            {"theme": "loneliness", "count": 50},
+            {
+                "theme": "anxiety",
+                "count": 100,
+                "resolution_count": 22,
+                "resolution_rate": 22,
+            },
+            {
+                "theme": "loneliness",
+                "count": 50,
+                "resolution_count": 8,
+                "resolution_rate": 16,
+            },
         ]
         response = test_client.get("/api/v1/thoughts/aggregates")
         data = response.json()
@@ -300,6 +320,23 @@ class TestGetAggregatesContract:
         for item in data:
             assert "count" in item
             assert isinstance(item["count"], int)
+
+    def test_each_item_has_resolution_fields(self, test_client, mock_all_services):
+        mock_all_services["aggregates"].return_value = [
+            {
+                "theme": "anxiety",
+                "count": 100,
+                "resolution_count": 22,
+                "resolution_rate": 22,
+            }
+        ]
+        response = test_client.get("/api/v1/thoughts/aggregates")
+        data = response.json()
+        assert len(data) == 1
+        assert "resolution_count" in data[0]
+        assert "resolution_rate" in data[0]
+        assert isinstance(data[0]["resolution_count"], int)
+        assert isinstance(data[0]["resolution_rate"], int)
 
     def test_falls_back_to_demo_data_when_elastic_empty(
         self, test_client, mock_all_services
@@ -313,6 +350,8 @@ class TestGetAggregatesContract:
         for item in data:
             assert "theme" in item
             assert "count" in item
+            assert "resolution_count" in item
+            assert "resolution_rate" in item
 
     def test_demo_fallback_items_have_positive_counts(
         self, test_client, mock_all_services

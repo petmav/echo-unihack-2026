@@ -6,6 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Target } from "lucide-react";
 
+import type { ThemeCountSummary } from "@/lib/api";
 import type {
   AppScreen,
   ThoughtResponse,
@@ -87,6 +88,7 @@ import { FutureYouBanner } from "@/components/echo/FutureYouBanner";
 import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
 import { RecurrencePatternBanner } from "@/components/echo/RecurrencePatternBanner";
 import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
+import { ThemeResolutionAggregateBanner } from "@/components/echo/ThemeResolutionAggregateBanner";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 
@@ -106,6 +108,63 @@ const SEED_THOUGHTS: ThoughtResponse[] = [
   { message_id: "t12", humanised_text: "I've been told I'm too sensitive my whole life and I've started to believe it. But what if I'm not too much — what if the people around me are just not enough?", theme_category: "self_worth", has_resolution: true, resolution_text: "Finding one person who appreciated my sensitivity instead of tolerating it changed everything. You don't need everyone to understand you. You need the right ones." },
 ];
 const SEED_MATCH_COUNT = 847;
+
+const DEMO_THEME_RESOLUTION_SUMMARIES: Record<string, ThemeCountSummary> = {
+  work_stress: { theme: "work_stress", count: 847, resolution_count: 186, resolution_rate: 22 },
+  anxiety: { theme: "anxiety", count: 634, resolution_count: 120, resolution_rate: 19 },
+  loneliness: { theme: "loneliness", count: 521, resolution_count: 99, resolution_rate: 19 },
+  relationship_conflict: {
+    theme: "relationship_conflict",
+    count: 478,
+    resolution_count: 101,
+    resolution_rate: 21,
+  },
+  relationship_loss: {
+    theme: "relationship_loss",
+    count: 478,
+    resolution_count: 101,
+    resolution_rate: 21,
+  },
+  self_worth: { theme: "self_worth", count: 392, resolution_count: 94, resolution_rate: 24 },
+  grief: { theme: "grief", count: 287, resolution_count: 49, resolution_rate: 17 },
+  family_pressure: {
+    theme: "family_pressure",
+    count: 253,
+    resolution_count: 56,
+    resolution_rate: 22,
+  },
+  burnout: { theme: "burnout", count: 219, resolution_count: 39, resolution_rate: 18 },
+  fear_of_failure: {
+    theme: "fear_of_failure",
+    count: 184,
+    resolution_count: 35,
+    resolution_rate: 19,
+  },
+  social_anxiety: {
+    theme: "social_anxiety",
+    count: 161,
+    resolution_count: 37,
+    resolution_rate: 23,
+  },
+  comparison: { theme: "comparison", count: 184, resolution_count: 35, resolution_rate: 19 },
+  professional_worth: {
+    theme: "professional_worth",
+    count: 847,
+    resolution_count: 186,
+    resolution_rate: 22,
+  },
+};
+
+function getDemoThemeResolutionSummary(theme: string): ThemeCountSummary {
+  return (
+    DEMO_THEME_RESOLUTION_SUMMARIES[theme] ?? {
+      theme,
+      count: SEED_MATCH_COUNT,
+      resolution_count: 186,
+      resolution_rate: 22,
+    }
+  );
+}
 
 /** Extra thoughts cycled in during live demo when the backend is unavailable. */
 const LIVE_DEMO_POOL: ThoughtResponse[] = [
@@ -213,6 +272,8 @@ export default function EchoApp() {
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
   const [recurrencePattern, setRecurrencePattern] =
     useState<RecurrencePattern | null>(null);
+  const [themeResolutionStats, setThemeResolutionStats] =
+    useState<ThemeCountSummary | null>(null);
   const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
   const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
@@ -346,10 +407,14 @@ export default function EchoApp() {
       // 1. Update live count — always increment so the demo always feels live
       try {
         const result = await getThemeCount(currentThemeCategory);
+        setThemeResolutionStats(result);
         setLiveMatchCount((prev: number) =>
           result.count > prev ? result.count : prev + Math.floor(Math.random() * 3) + 1
         );
       } catch {
+        setThemeResolutionStats((prev) =>
+          prev ?? getDemoThemeResolutionSummary(currentThemeCategory)
+        );
         setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
       }
 
@@ -394,6 +459,7 @@ export default function EchoApp() {
     clearKey();
     clearAllData();
     setRecurrencePattern(null);
+    setThemeResolutionStats(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setAuthError("Your session has expired. Please sign in again.");
@@ -423,12 +489,24 @@ export default function EchoApp() {
       seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
       demoLivePoolRef.current = [...LIVE_DEMO_POOL];
 
-      const [letters, anchors] = await Promise.all([
+      const [lettersResult, anchorsResult, statsResult] = await Promise.allSettled([
         getFutureLettersForTheme(themeCategory),
         getSavedAnchorsForTheme(themeCategory),
+        getThemeCount(themeCategory),
       ]);
-      setFutureLetterMatch(letters.length > 0 ? letters[0] : null);
-      setSavedAnchors(anchors);
+      setFutureLetterMatch(
+        lettersResult.status === "fulfilled" && lettersResult.value.length > 0
+          ? lettersResult.value[0]
+          : null
+      );
+      setSavedAnchors(
+        anchorsResult.status === "fulfilled" ? anchorsResult.value : []
+      );
+      setThemeResolutionStats(
+        statsResult.status === "fulfilled"
+          ? statsResult.value
+          : getDemoThemeResolutionSummary(themeCategory)
+      );
       refreshSavedAnchorIds();
 
       setCardsVisible(0);
@@ -610,6 +688,7 @@ export default function EchoApp() {
     clearKey();
     clearAllData();
     setRecurrencePattern(null);
+    setThemeResolutionStats(null);
     setSavedAnchors([]);
     setSavedAnchorIds(new Set());
     setScreen("auth");
@@ -852,6 +931,19 @@ export default function EchoApp() {
             {countAnimDone && currentThemeCategory && (
               <SafetyBanner themeCategory={currentThemeCategory} />
             )}
+
+            {countAnimDone &&
+              currentThemeCategory &&
+              themeResolutionStats &&
+              themeResolutionStats.resolution_count > 0 && (
+                <ThemeResolutionAggregateBanner
+                  stats={themeResolutionStats}
+                  themeLabel={
+                    THEME_DISPLAY_LABELS[currentThemeCategory] ??
+                    currentThemeCategory.replace(/_/g, " ")
+                  }
+                />
+              )}
 
             {/* Quiet wins — local reflection when a recurring theme stayed quiet for a while */}
             {countAnimDone && quietWin && (

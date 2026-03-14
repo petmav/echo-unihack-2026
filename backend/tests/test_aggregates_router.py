@@ -7,7 +7,7 @@ instance is required.
 
 Cases covered:
 1. Endpoint returns HTTP 200
-2. Response body is a list with correct item shape ({theme, count})
+2. Response body is a list with correct item shape
 3. Demo data is returned when Elasticsearch is unavailable (returns [])
 4. Live Elasticsearch data is returned when get_aggregates returns results
 """
@@ -39,13 +39,17 @@ _DEMO_AGGREGATES = thoughts_router._DEMO_AGGREGATES
 
 
 def _assert_list_shape(data: list) -> None:
-    """Assert each item in data has the correct {theme, count} shape."""
+    """Assert each item exposes the documented aggregate keys."""
     assert isinstance(data, list)
     for item in data:
         assert "theme" in item, f"Missing 'theme' key in item: {item}"
         assert "count" in item, f"Missing 'count' key in item: {item}"
+        assert "resolution_count" in item, f"Missing 'resolution_count' key in item: {item}"
+        assert "resolution_rate" in item, f"Missing 'resolution_rate' key in item: {item}"
         assert isinstance(item["theme"], str), "'theme' must be a string"
         assert isinstance(item["count"], int), "'count' must be an int"
+        assert isinstance(item["resolution_count"], int), "'resolution_count' must be an int"
+        assert isinstance(item["resolution_rate"], int), "'resolution_rate' must be an int"
 
 
 # ---------------------------------------------------------------------------
@@ -63,10 +67,20 @@ class TestGetThemeAggregates:
         assert response.status_code == 200
 
     def test_returns_list_shape(self, client):
-        """Response body must be a JSON array with {theme, count} objects."""
+        """Response body must be a JSON array with aggregate objects."""
         live_data = [
-            {"theme": "work_stress", "count": 127},
-            {"theme": "anxiety", "count": 84},
+            {
+                "theme": "work_stress",
+                "count": 127,
+                "resolution_count": 31,
+                "resolution_rate": 24,
+            },
+            {
+                "theme": "anxiety",
+                "count": 84,
+                "resolution_count": 18,
+                "resolution_rate": 21,
+            },
         ]
         with patch.object(elastic_module, "get_aggregates", new=AsyncMock(return_value=live_data)):
             response = client.get("/api/v1/thoughts/aggregates")
@@ -105,9 +119,24 @@ class TestGetThemeAggregates:
         return those results rather than the demo data.
         """
         live_data = [
-            {"theme": "loneliness", "count": 512},
-            {"theme": "self_worth", "count": 301},
-            {"theme": "grief", "count": 88},
+            {
+                "theme": "loneliness",
+                "count": 512,
+                "resolution_count": 97,
+                "resolution_rate": 19,
+            },
+            {
+                "theme": "self_worth",
+                "count": 301,
+                "resolution_count": 72,
+                "resolution_rate": 24,
+            },
+            {
+                "theme": "grief",
+                "count": 88,
+                "resolution_count": 15,
+                "resolution_rate": 17,
+            },
         ]
         with patch.object(elastic_module, "get_aggregates", new=AsyncMock(return_value=live_data)):
             response = client.get("/api/v1/thoughts/aggregates")
@@ -128,7 +157,14 @@ class TestGetThemeAggregates:
         Live Elasticsearch data (when non-empty) must be returned instead of
         demo data, even if live data has fewer entries.
         """
-        single_result = [{"theme": "anxiety", "count": 1}]
+        single_result = [
+            {
+                "theme": "anxiety",
+                "count": 1,
+                "resolution_count": 0,
+                "resolution_rate": 0,
+            }
+        ]
         with patch.object(elastic_module, "get_aggregates", new=AsyncMock(return_value=single_result)):
             response = client.get("/api/v1/thoughts/aggregates")
 
@@ -158,3 +194,5 @@ class TestGetThemeAggregates:
             assert item["count"] > 0, (
                 f"Demo count for theme '{item['theme']}' must be positive, got {item['count']}"
             )
+            assert item["resolution_count"] >= 0
+            assert 0 <= item["resolution_rate"] <= 100
