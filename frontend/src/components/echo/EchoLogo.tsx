@@ -109,39 +109,6 @@ export function EchoLogo({
     return targets;
   }, [maxAmp, visual.speed]);
 
-  const updateWaves = useCallback(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const now = performance.now();
-
-    // New target shape every ~150ms (slower target updates = less jerkiness)
-    if (now - lastTargetTime.current > 150) {
-      lastTargetTime.current = now;
-      targetOffsets.current = generateTargets(now);
-    }
-
-    // Smooth lerp for fluid motion
-    const cur = currentOffsets.current;
-    const tgt = targetOffsets.current;
-    for (let i = 0; i < NUM_PTS; i++) {
-      cur[i] += (tgt[i] - cur[i]) * 0.045;
-    }
-
-    // Update each wave path directly on the DOM (no React re-render)
-    const paths = svg.querySelectorAll<SVGPathElement>("[data-wave]");
-    paths.forEach((pathEl: SVGPathElement) => {
-      const offset = Number(pathEl.dataset.offset);
-      // All waves use the SAME master offsets, just shifted vertically.
-      // Outer waves get slightly dampened amplitude for a natural spread.
-      const dampen = 1 - Math.abs(offset) / 200;
-      const layerOffsets = cur.map((v: number) => v * dampen);
-      pathEl.setAttribute("d", buildPathFromOffsets(layerOffsets, CY + offset));
-    });
-
-    animRef.current = requestAnimationFrame(updateWaves);
-  }, [generateTargets]);
-
   useEffect(() => {
     if (!animate) {
       // Flat lines when idle
@@ -156,9 +123,43 @@ export function EchoLogo({
       }
       return;
     }
+
+    function updateWaves() {
+      const svg = svgRef.current;
+      if (!svg) return;
+
+      const now = performance.now();
+
+      // New target shape every ~150ms (slower target updates = less jerkiness)
+      if (now - lastTargetTime.current > 150) {
+        lastTargetTime.current = now;
+        targetOffsets.current = generateTargets(now);
+      }
+
+      // Smooth lerp for fluid motion
+      const cur = currentOffsets.current;
+      const tgt = targetOffsets.current;
+      for (let i = 0; i < NUM_PTS; i++) {
+        cur[i] += (tgt[i] - cur[i]) * 0.045;
+      }
+
+      // Update each wave path directly on the DOM (no React re-render)
+      const paths = svg.querySelectorAll<SVGPathElement>("[data-wave]");
+      paths.forEach((pathEl: SVGPathElement) => {
+        const offset = Number(pathEl.dataset.offset);
+        // All waves use the SAME master offsets, just shifted vertically.
+        // Outer waves get slightly dampened amplitude for a natural spread.
+        const dampen = 1 - Math.abs(offset) / 200;
+        const layerOffsets = cur.map((v: number) => v * dampen);
+        pathEl.setAttribute("d", buildPathFromOffsets(layerOffsets, CY + offset));
+      });
+
+      animRef.current = requestAnimationFrame(updateWaves);
+    }
+
     animRef.current = requestAnimationFrame(updateWaves);
     return () => cancelAnimationFrame(animRef.current);
-  }, [animate, updateWaves]);
+  }, [animate, generateTargets]);
 
   // Initial flat paths
   const flatPath = buildPathFromOffsets(new Array(NUM_PTS).fill(0), CY);
