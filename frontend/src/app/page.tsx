@@ -289,7 +289,7 @@ export default function EchoApp() {
   const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
   const [presenceCount, setPresenceCount] = useState(0);
-  const [presenceDataMode, setPresenceDataMode] = useState<"live" | "demo">("live");
+  const [, setPresenceDataMode] = useState<"live" | "demo">("live");
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
