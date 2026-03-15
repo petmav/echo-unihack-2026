@@ -12,7 +12,6 @@ import { ChevronLeft, ChevronRight, Users } from "lucide-react";
 import type { ThemeAggregate } from "@/lib/api";
 import { getThemeAggregates } from "@/lib/api";
 import { THEME_DISPLAY_LABELS } from "@/lib/constants";
-import { DataModeBadge } from "./DataModeBadge";
 
 interface WeeklyThemesPanelProps {
   onBack: () => void;
@@ -75,7 +74,6 @@ export function WeeklyThemesPanel({
   onThemeSelect,
 }: WeeklyThemesPanelProps) {
   const [aggregates, setAggregates] = useState<ThemeAggregate[]>([]);
-  const [isDemo, setIsDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +90,6 @@ export function WeeklyThemesPanel({
       .then((result) => {
         if (cancelled) return;
         setAggregates(result.items);
-        setIsDemo(result.isDemo);
       })
       .catch(() => {
         if (cancelled) return;
@@ -163,15 +160,6 @@ export function WeeklyThemesPanel({
 
         {!loading && !error && aggregates.length > 0 && (
           <>
-            <div className="mb-3">
-              <DataModeBadge
-                mode={isDemo ? "demo" : "live"}
-                liveLabel="Live data"
-                demoLabel="Demo data"
-                testId="weekly-themes-data-mode"
-              />
-            </div>
-
             {/* Circle (donut) chart */}
             <div className="mb-6 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-muted">
