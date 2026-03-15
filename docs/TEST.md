@@ -174,7 +174,7 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 
 ## History Panel — Match Count
 
-**What**: Each past thought stores the match count from when it was submitted (e.g. "N people have felt something like this"). This number is saved to localStorage with the thought and displayed in the history panel.
+**What**: Each past thought stores the match count from when it was submitted (e.g. "2 people have felt something like this"). This number is saved to localStorage with the thought and displayed in the history panel.
 
 **How to test**: Submit a thought → open History (hamburger) → the new entry shows the match count below the thought text. In demo mode, the count is 847. With the backend, it reflects the actual Elasticsearch match total.
 
@@ -195,6 +195,5 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 | Safety banner absent for safe themes | `new-features.spec.ts` | Banner does NOT appear for `self_worth` |
 | Risk theme constants | `new-features.spec.ts` | All 7 risk themes are defined |
 | Surrounding topics / Topic exploration | (manual or new spec) | Bubbles clickable; topic screen loads thoughts |
-| Week's themes panel | (manual) | Menu → Week's themes → donut + column charts, tap theme to browse thoughts |
 | Advice-first toggle | (manual) | Toggle filters to cards with "what helped" |
 | History match count | (manual) | Past thoughts show "N people have felt something like this" |

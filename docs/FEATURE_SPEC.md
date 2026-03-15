@@ -15,6 +15,7 @@
 - Suggested max ~280 characters (a thought, not an essay)
 - Character count shown when approaching limit
 - Submit on tap of send button or keyboard submit
+- **Voice input**: A microphone button is available alongside the text input. Uses the Web Speech Recognition API (`frontend/src/hooks/useSpeechRecognition.ts`) to transcribe speech to text client-side. The transcription runs entirely in the browser — no audio is sent to any server. Falls back gracefully on unsupported browsers.
 
 **Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through (≈2.8s per phrase):
 - *"finding your people..."*

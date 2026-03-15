@@ -518,5 +518,6 @@ echo-unihack-2026/
     ├── ARCHITECTURE.md       ← System architecture
     ├── PRIVACY_SPEC.md       ← Privacy model + breach analysis
     ├── FEATURE_SPEC.md       ← Feature specification
-    └── PITCH_TEMPLATE.md     ← Demo script
+    ├── PITCH_TEMPLATE.md     ← Demo script
+    └── TEST.md               ← Testing & demo mode guide
 ```
