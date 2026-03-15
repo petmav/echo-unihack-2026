@@ -73,6 +73,55 @@ function findAndroidSdk() {
   return candidates.find(p => fs.existsSync(p)) || null;
 }
 
+// ── API endpoint diagnostics ──────────────────────────────────────────────────
+
+function readDotEnv(envPath) {
+  if (!fs.existsSync(envPath)) return null;
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^\s*NEXT_PUBLIC_API_URL\s*=\s*(.+?)\s*$/);
+    if (m) return m[1].replace(/^["']|["']$/g, '');
+  }
+  return null;
+}
+
+function findInBuiltOutput(outDir) {
+  if (!fs.existsSync(outDir)) return null;
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { const r = walk(full); if (r) return r; continue; }
+      if (!entry.name.endsWith('.js')) continue;
+      const src = fs.readFileSync(full, 'utf8');
+      // look for any http(s):// URL followed by /api
+      const m = src.match(/https?:\/\/[^"' ]+\/api\/v1/);
+      if (m) return m[0];
+    }
+    return null;
+  };
+  return walk(outDir);
+}
+
+const envFilePath   = path.join(__dirname, '..', '..', '.env');
+const outDir        = path.join(__dirname, '..', 'out');
+const apiFromEnv    = process.env.NEXT_PUBLIC_API_URL || null;
+const apiFromDotEnv = readDotEnv(envFilePath);
+const apiFromBuild  = findInBuiltOutput(outDir);
+
+console.log('');
+console.log('[setup-android] ── API endpoint diagnostics ────────────────────────────');
+console.log('[setup-android]  NEXT_PUBLIC_API_URL (process.env) : ' + (apiFromEnv    || '(not set)'));
+console.log('[setup-android]  NEXT_PUBLIC_API_URL (.env file)   : ' + (apiFromDotEnv || '(not found)'));
+console.log('[setup-android]  API URL baked into out/ build      : ' + (apiFromBuild  || '(out/ not found or no match)'));
+if (apiFromBuild && apiFromBuild.includes('localhost')) {
+  console.warn('[setup-android]  ⚠ WARNING: built output contains localhost — APK will NOT reach the remote server.');
+  console.warn('[setup-android]    Fix: update NEXT_PUBLIC_API_URL in .env to your server IP, then re-run build:mobile before this step.');
+} else if (apiFromBuild) {
+  console.log('[setup-android]  ✓ Built output points to a non-localhost address.');
+}
+console.log('[setup-android] ─────────────────────────────────────────────────────────');
+console.log('');
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 if (!fs.existsSync(ANDROID_DIR)) {
