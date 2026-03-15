@@ -90,7 +90,6 @@ export function WeeklyThemesPanel({
       .then((result) => {
         if (cancelled) return;
         setAggregates(result.items);
-        setIsDemo(result.isDemo);
       })
       .catch(() => {
         if (cancelled) return;
