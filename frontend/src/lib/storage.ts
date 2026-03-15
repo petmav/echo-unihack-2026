@@ -23,8 +23,6 @@ const SAVED_ANCHORS_KEY = "echo_saved_anchors";
 const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
 const ADMIN_STATUS_KEY = "echo_is_admin";
-const DELETED_IDS_KEY = "echo_deleted_ids";
-
 /** Shape stored for encrypted blobs */
 interface EncryptedBlob {
   v: 1;

@@ -26,6 +26,7 @@ This document defines exactly what that means in practice.
 | Raw thought text | Device localStorage only | User's personal history | User-controlled |
 | Personal trends | Device localStorage only | Personal dashboard | User-controlled |
 | "Future You" letters | Device localStorage only | Personal self-reflection | User-controlled |
+| Saved Anchors (advice bookmarks) | Device localStorage only | Resurface previously saved "what helped" advice on matching themes | User-controlled |
 | Theme aggregate counts | Elastic Cloud (computed) | Co-presence animation | Ephemeral (not stored as separate docs) |
 
 ### What we explicitly do NOT collect
@@ -109,7 +110,7 @@ This is semantic-preserving anonymisation, not redaction. The goal is that two p
 ### Scenario 3: A user's device is compromised
 
 **Attacker obtains:**
-- That user's localStorage — note that `echo_thoughts` and `echo_future_letters` are encrypted at rest using AES-GCM (Web Crypto API). An attacker who cannot decrypt (e.g. no access to the session key) cannot read raw thought text even from localStorage.
+- That user's localStorage — note that `echo_thoughts`, `echo_future_letters`, and `echo_saved_anchors` are encrypted at rest using AES-GCM (Web Crypto API). An attacker who cannot decrypt (e.g. no access to the session key) cannot read raw thought text even from localStorage.
 - That user's JWT (valid for up to 7 days)
 
 **What they can learn:**
@@ -155,6 +156,16 @@ Even with our server database, Elastic index, and source code simultaneously:
 | Are letters included in any API payload? | No. Letters are read and written exclusively by `storage.ts`. |
 | What happens on account deletion? | `clearAllData()` removes `echo_future_letters` alongside all other local data. |
 | Can letters leak in a device breach? | Yes — same risk profile as raw thought text. One user's letters exposed, no other user affected. |
+
+### "Saved Anchors" (Local Advice Bookmarks)
+
+| Concern | Resolution |
+|---------|------------|
+| Where are anchors stored? | localStorage only (`echo_saved_anchors` key). Never transmitted to any server. |
+| What data do they contain? | Already-anonymised response text and resolution text from Elastic. No raw user text. |
+| Are anchors included in any API payload? | No. Anchors are read and written exclusively by `storage.ts`. |
+| What happens on account deletion? | `clearAllData()` removes `echo_saved_anchors` alongside all other local data. |
+| Can anchors leak in a device breach? | Yes — same risk profile as Future You letters. Contains only anonymised text, not raw thoughts. |
 
 ### "Guardrails of Care" (Safety Banner)
 

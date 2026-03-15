@@ -83,6 +83,7 @@ import { AboutPanel } from "@/components/echo/AboutPanel";
 import { PrivacyPanel } from "@/components/echo/PrivacyPanel";
 import { AdminPanel } from "@/components/echo/AdminPanel";
 import { MenuOverlay } from "@/components/echo/MenuOverlay";
+import { WeeklyThemesPanel } from "@/components/echo/WeeklyThemesPanel";
 import { HamburgerButton } from "@/components/echo/HamburgerButton";
 import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
@@ -102,6 +103,7 @@ const SCREEN_TO_PATH: Partial<Record<AppScreen, string>> = {
   thoughts: "/thoughts",
   graph: "/constellation",
   trends: "/trends",
+  weeklyThemes: "/weekly-themes",
   account: "/account",
   about: "/about",
   privacy: "/privacy",
@@ -308,7 +310,7 @@ export default function EchoApp() {
   const [thoughtHistory, setThoughtHistory] = useState<LocalThought[]>([]);
   const [presenceLevel, setPresenceLevel] = useState<PresenceLevel>(0);
   const [presenceCount, setPresenceCount] = useState(0);
-  const [presenceDataMode, setPresenceDataMode] = useState<"live" | "demo">("live");
+  const [, setPresenceDataMode] = useState<"live" | "demo">("live");
   const [currentThemeCategory, setCurrentThemeCategory] = useState<string | null>(null);
   const [futureLetterMatch, setFutureLetterMatch] = useState<FutureLetter | null>(null);
   const [quietWin, setQuietWin] = useState<QuietWin | null>(null);
@@ -368,7 +370,7 @@ export default function EchoApp() {
   /* ── Sync URL when screen changes ── */
   useEffect(() => {
     if (!initialPathResolved.current) return;
-    const targetPath = SCREEN_TO_PATH[screen];
+    const targetPath = (SCREEN_TO_PATH as Record<AppScreen, string | undefined>)[screen];
     const currentPath = window.location.pathname;
     if (targetPath && currentPath !== targetPath) {
       window.history.replaceState(null, "", targetPath);
@@ -488,7 +490,7 @@ export default function EchoApp() {
           );
         }
       } catch {
-        setThemeResolutionStats((prev) =>
+        setThemeResolutionStats((prev: ThemeCountSummary | null) =>
           prev ?? getDemoThemeResolutionSummary(currentThemeCategory)
         );
         setResultsDataMode("demo");
@@ -584,7 +586,7 @@ export default function EchoApp() {
     for (let i = 0; i < newCount; i++) {
       timers.push(
         setTimeout(
-          () => setCardsVisible((v) => v + 1),
+          () => setCardsVisible((v: number) => v + 1),
           CARD_STAGGER_DELAY_MS * i
         )
       );
@@ -614,7 +616,7 @@ export default function EchoApp() {
     setScreen("processing");
 
     const processingStart = Date.now();
-    const priorThoughts = thoughtHistory.map(({ theme_category, timestamp }) => ({
+    const priorThoughts = thoughtHistory.map(({ theme_category, timestamp }: LocalThought) => ({
       theme_category,
       timestamp,
     }));
@@ -724,7 +726,7 @@ export default function EchoApp() {
     setIsLoadingMore(true);
     try {
       const result = await getSimilarThoughts(currentMessageId, searchAfterCursor);
-      setSimilarThoughts((prev) => {
+      setSimilarThoughts((prev: ThoughtResponse[]) => {
         const existingIds = new Set(prev.map((t) => t.message_id));
         const fresh = result.thoughts.filter((t) => !existingIds.has(t.message_id));
         return [...prev, ...fresh];
@@ -930,13 +932,13 @@ export default function EchoApp() {
           return;
         }
         setTopicDataMode("live");
-        setTopicThoughts((prev) =>
+        setTopicThoughts((prev: ThoughtResponse[]) =>
           searchAfter ? [...prev, ...result.thoughts] : result.thoughts
         );
         setTopicTotal(result.total);
         setTopicSearchAfter(result.search_after ?? undefined);
         setTopicHasMore(result.search_after != null);
-        setTopicCardsVisible((prev) =>
+        setTopicCardsVisible((prev: number) =>
           searchAfter ? prev + result.thoughts.length : result.thoughts.length
         );
       } catch (err) {
@@ -988,7 +990,7 @@ export default function EchoApp() {
   );
 
   const visibleResultThoughts = adviceFirstOnly
-    ? similarThoughts.filter((thought) => thought.has_resolution)
+    ? similarThoughts.filter((thought: ThoughtResponse) => thought.has_resolution)
     : similarThoughts;
 
   const hasSupportSection =
@@ -1001,7 +1003,7 @@ export default function EchoApp() {
       futureLetterMatch != null);
 
   const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
-  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "graph", "account", "about", "privacy", "admin"];
+  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "weeklyThemes", "graph", "account", "about", "privacy", "admin"];
   const isPanel = PANEL_SCREENS.includes(screen);
   const showTopBar = isMainScreen || (isPanel && screen !== "graph");
 
@@ -1184,7 +1186,7 @@ export default function EchoApp() {
                       Show only what helped
                     </span>
                     <button
-                      onClick={() => setAdviceFirstOnly((v) => !v)}
+                      onClick={() => setAdviceFirstOnly((v: boolean) => !v)}
                       className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${
                         adviceFirstOnly
                           ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
@@ -1322,9 +1324,28 @@ export default function EchoApp() {
           </motion.div>
         )}
 
+        {screen === "weeklyThemes" && (
+          <motion.div
+            key="weeklyThemes"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <WeeklyThemesPanel
+              onBack={handleBackToHome}
+              onThemeSelect={(themeKey) => {
+                handleTopicOpen(themeKey);
+              }}
+            />
+          </motion.div>
+        )}
+
         {screen === "graph" && (
           <motion.div
-            key="graph"
+            key={`graph-${thoughtHistory.length}`}
             className="absolute inset-0 z-40 flex flex-col"
             variants={PANEL_VARIANTS}
             initial="initial"
@@ -1332,7 +1353,7 @@ export default function EchoApp() {
             exit="exit"
             transition={PANEL_TRANSITION}
           >
-            <ThoughtGraph key={thoughtHistory.length} onBack={handleBackToHome} />
+            <ThoughtGraph onBack={handleBackToHome} />
           </motion.div>
         )}
 
@@ -1500,7 +1521,7 @@ export default function EchoApp() {
           <div className={`sticky top-0 z-40 flex items-center px-4 pt-3 pb-1 bg-echo-bg transition-opacity duration-300${isPanel ? " hidden" : ""}`}>
             <HamburgerButton
               isOpen={menuOpen}
-              onClick={() => setMenuOpen((prev) => !prev)}
+              onClick={() => setMenuOpen((prev: boolean) => !prev)}
             />
             <div className="flex-1" />
             {isAdmin && (
