@@ -241,6 +241,14 @@ def client(mock_es_client: AsyncMock) -> TestClient:
             ],
         ),
         patch(
+            "routers.thoughts.elastic.get_aggregates_monthly",
+            new_callable=AsyncMock,
+            return_value=[
+                {"theme": "work_stress", "count": 2847, "resolution_count": 586, "resolution_rate": 21},
+                {"theme": "anxiety", "count": 2134, "resolution_count": 420, "resolution_rate": 20},
+            ],
+        ),
+        patch(
             "routers.resolution.elastic.store_resolution",
             new_callable=AsyncMock,
             return_value=True,

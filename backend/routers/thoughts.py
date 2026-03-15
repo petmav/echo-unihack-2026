@@ -13,8 +13,6 @@ import json
 import logging
 import uuid
 
-logger = logging.getLogger("echo")
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +32,7 @@ from services import anonymiser as anonymiser_service
 from services import auth as auth_service
 from services.ai import ClaudeAPIError, ClaudeRateLimitError
 
+logger = logging.getLogger("echo")
 router = APIRouter(prefix="/thoughts", tags=["thoughts"])
 
 _THOUGHTS_RATE_LIMIT_MAX = config.RATE_LIMIT_THOUGHTS_PER_HOUR

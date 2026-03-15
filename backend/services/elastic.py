@@ -26,7 +26,6 @@ from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
-
 from elasticsearch import AsyncElasticsearch, TransportError
 
 from config import config
@@ -916,7 +915,7 @@ async def get_graph_data(
         n_valid = len(valid_indices)
         if n_valid > 1:
             # Count edges per valid-index position
-            edge_counts: dict[int, int] = {i: 0 for i in range(n_valid)}
+            edge_counts: dict[int, int] = dict.fromkeys(range(n_valid), 0)
             for ri, rj in edge_set:
                 edge_counts[ri] = edge_counts.get(ri, 0) + 1
                 edge_counts[rj] = edge_counts.get(rj, 0) + 1

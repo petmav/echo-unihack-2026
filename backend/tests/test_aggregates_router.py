@@ -1,9 +1,9 @@
 """
-HTTP-level tests for GET /api/v1/thoughts/aggregates.
+HTTP-level tests for GET /api/v1/thoughts/aggregates and /aggregates/monthly.
 
 These tests verify the router behaviour at the HTTP boundary using FastAPI's
-TestClient. They mock services.elastic.get_aggregates so no live Elasticsearch
-instance is required.
+TestClient. They mock services.elastic.get_aggregates and get_aggregates_monthly
+so no live Elasticsearch instance is required.
 
 Cases covered:
 1. Endpoint returns HTTP 200
@@ -196,3 +196,53 @@ class TestGetThemeAggregates:
             )
             assert item["resolution_count"] >= 0
             assert 0 <= item["resolution_rate"] <= 100
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /api/v1/thoughts/aggregates/monthly
+# ---------------------------------------------------------------------------
+
+class TestGetThemeAggregatesMonthly:
+    """HTTP-level tests for GET /api/v1/thoughts/aggregates/monthly."""
+
+    def test_returns_200(self, client):
+        """Endpoint must return HTTP 200 in all normal scenarios."""
+        with patch.object(
+            elastic_module, "get_aggregates_monthly", new=AsyncMock(return_value=[])
+        ):
+            response = client.get("/api/v1/thoughts/aggregates/monthly")
+
+        assert response.status_code == 200
+
+    def test_returns_list_shape(self, client):
+        """Response body must be a JSON array with aggregate objects."""
+        live_data = [
+            {
+                "theme": "work_stress",
+                "count": 512,
+                "resolution_count": 102,
+                "resolution_rate": 20,
+            },
+        ]
+        with patch.object(
+            elastic_module,
+            "get_aggregates_monthly",
+            new=AsyncMock(return_value=live_data),
+        ):
+            response = client.get("/api/v1/thoughts/aggregates/monthly")
+
+        assert response.status_code == 200
+        data = response.json()
+        _assert_list_shape(data)
+
+    def test_returns_demo_data_when_elastic_unavailable(self, client):
+        """When get_aggregates_monthly returns [], endpoint must fall back to demo data."""
+        with patch.object(
+            elastic_module, "get_aggregates_monthly", new=AsyncMock(return_value=[])
+        ):
+            response = client.get("/api/v1/thoughts/aggregates/monthly")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) > 0
+        _assert_list_shape(data)
