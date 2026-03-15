@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 import type { ThoughtResponse } from "@/lib/types";
 import { getMatchStrengthLabel } from "@/lib/constants";
+import { AVATARS, COLORS, getDeterministicPersona, getSafePersona } from "@/lib/persona";
 
 interface ThoughtCardProps {
   thought: ThoughtResponse;
@@ -16,6 +17,8 @@ interface ThoughtCardProps {
 
 const STAGGER_DELAY = 0.08;
 
+
+
 export function ThoughtCard({
   thought,
   index,
@@ -25,6 +28,10 @@ export function ThoughtCard({
 }: ThoughtCardProps) {
   const hasResolution = thought.has_resolution;
   const matchStrength = getMatchStrengthLabel(thought.similarity_score);
+  
+  const persona = getSafePersona(thought.persona || getDeterministicPersona(thought.message_id));
+  const avatar = AVATARS[persona.face] || AVATARS[0];
+  const color = COLORS.find(c => c.hex === persona.color) || COLORS[0];
 
   return (
     <motion.div
@@ -65,14 +72,33 @@ export function ThoughtCard({
           {matchStrength}
         </span>
       )}
-      <p className="text-[14px] font-light leading-[1.7] text-echo-text sm:text-[14.5px]">
-        {thought.humanised_text}
-      </p>
-      {hasResolution && (
-        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-echo-accent-glow px-3 py-1 text-[11.5px] font-medium text-echo-accent">
-          ✦ someone found a way through
-        </span>
-      )}
+      
+      <div className="flex items-start gap-4">
+        <motion.div 
+          className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center bg-echo-bg-warm"
+          style={{
+            boxShadow: `0 2px 10px ${color.hex}40`
+          }}
+        >
+          <img 
+            src={avatar.src} 
+            alt={avatar.label} 
+            className="h-9 w-9 object-contain"
+            style={{ filter: color.filter }}
+          />
+        </motion.div>
+
+        <div className="flex-1">
+          <p className="text-[14px] font-light leading-[1.7] text-echo-text sm:text-[14.5px]">
+            {thought.humanised_text}
+          </p>
+          {hasResolution && (
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-echo-accent-glow px-3 py-1 text-[11.5px] font-medium text-echo-accent">
+              ✦ someone found a way through
+            </span>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }

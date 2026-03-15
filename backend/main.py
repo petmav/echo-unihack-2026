@@ -164,6 +164,19 @@ async def not_found_handler(request, exc):
     )
 
 
+from fastapi.exceptions import RequestValidationError
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    import logging
+
+    logger = logging.getLogger("echo")
+    logger.error(f"422 Validation Error on {request.url}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
+
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
     """

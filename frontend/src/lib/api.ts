@@ -10,6 +10,7 @@ import type {
   AuthResponse,
   GraphData,
   PaginatedThoughts,
+  PersonaConfig,
   ResolutionSubmit,
   ThoughtSubmitResult,
 } from "./types";
@@ -51,12 +52,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 export async function submitThought(
-  rawText: string
+  rawText: string,
+  persona?: PersonaConfig
 ): Promise<ThoughtSubmitResult> {
   const response = await fetch(`${API_BASE_URL}/thoughts`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ text: rawText }),
+    body: JSON.stringify({ text: rawText, persona }),
   });
   return handleResponse<ThoughtSubmitResult>(response);
 }

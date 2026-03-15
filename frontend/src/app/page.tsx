@@ -98,6 +98,7 @@ import { DataModeBadge } from "@/components/echo/DataModeBadge";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 import { ThoughtGraph } from "@/components/echo/ThoughtGraph";
+import { getSafePersona } from "@/lib/persona";
 
 /* ── Screen ↔ URL path mapping ── */
 const SCREEN_TO_PATH: Partial<Record<AppScreen, string>> = {
@@ -679,8 +680,10 @@ export default function EchoApp() {
     };
 
     try {
-      const result = await submitThought(rawText);
-      await saveThought(result.message_id, rawText, result.theme_category, result.match_count, result.anonymised_text);
+      const safePersona = getSafePersona(persona);
+      
+      const result = await submitThought(rawText, safePersona);
+      await saveThought(result.message_id, rawText, result.theme_category, result.match_count, result.anonymised_text, safePersona);
       setMatchCount(result.match_count);
       setSimilarThoughts(result.similar_thoughts);
       setCurrentMessageId(result.message_id);

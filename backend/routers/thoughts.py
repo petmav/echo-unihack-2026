@@ -220,6 +220,7 @@ async def submit_thought(
         humanised_text=humanised_text,
         theme_category=theme_category,
         sentiment_vector=sentiment_vector,
+        persona=request.persona.dict() if request.persona else None,
     )
     search_coro = elastic.search_similar_thoughts(
         theme_category=theme_category,
@@ -249,6 +250,7 @@ async def submit_thought(
                         "humanised_text": humanised_text,
                         "theme_category": theme_category,
                         "has_resolution": False,
+                        "persona": request.persona.dict() if request.persona else None,
                     },
                 },
             )
@@ -262,6 +264,7 @@ async def submit_thought(
             has_resolution=t.get("has_resolution", False),
             resolution_text=t.get("resolution_text"),
             similarity_score=t.get("similarity_score"),
+            persona=t.get("persona"),
         )
         for t in search_result["thoughts"]
     ]
@@ -272,6 +275,7 @@ async def submit_thought(
         theme_category=theme_category,
         match_count=search_result["total"],
         similar_thoughts=similar_thoughts,
+        persona=request.persona,
         search_after=search_result["search_after"],
     )
 
@@ -422,6 +426,7 @@ async def get_similar_thoughts(
             has_resolution=t.get("has_resolution", False),
             resolution_text=t.get("resolution_text"),
             similarity_score=t.get("similarity_score"),
+            persona=t.get("persona"),
         )
         for t in search_result["thoughts"]
     ]
@@ -487,6 +492,7 @@ async def get_thoughts_by_theme(
             theme_category=t["theme_category"],
             has_resolution=t.get("has_resolution", False),
             resolution_text=t.get("resolution_text"),
+            persona=t.get("persona"),
         )
         for t in search_result["thoughts"]
     ]

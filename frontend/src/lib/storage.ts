@@ -14,6 +14,7 @@
 
 import type { LocalThought, FutureLetter, PresenceLevel, SavedAnchor, PersonaConfig } from "./types";
 import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS, PROMPT_COOLDOWN_DAYS } from "./constants";
+import { DEFAULT_PERSONA, getSafePersona } from "./persona";
 import { getKey, encrypt, decrypt } from "./crypto";
 
 const THOUGHTS_KEY = "echo_thoughts";
@@ -90,7 +91,8 @@ export async function saveThought(
   rawText: string,
   themeCategory: string,
   matchCount?: number,
-  anonymisedText?: string
+  anonymisedText?: string,
+  persona?: PersonaConfig
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
@@ -101,6 +103,7 @@ export async function saveThought(
     timestamp: Date.now(),
     is_resolved: false,
     match_count: matchCount,
+    persona,
   });
   await writeThoughts(thoughts);
 }
@@ -186,18 +189,13 @@ export function setNotificationOptIn(enabled: boolean): void {
 
 /* ── Persona Customization ── */
 
-const DEFAULT_PERSONA: PersonaConfig = {
-  color: "#FFD700",
-  face: 0,
-  accessory: 0,
-};
-
 export function getPersona(): PersonaConfig {
   if (typeof window === "undefined") return DEFAULT_PERSONA;
   const raw = localStorage.getItem(PERSONA_KEY);
   if (!raw) return DEFAULT_PERSONA;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return getSafePersona(parsed);
   } catch {
     return DEFAULT_PERSONA;
   }

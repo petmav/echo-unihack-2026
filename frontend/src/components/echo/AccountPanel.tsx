@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { ChevronLeft, Shield, Trash2, ChevronRight } from "lucide-react";
 import type { PersonaConfig } from "@/lib/types";
+import { AVATARS, COLORS, DEFAULT_PERSONA, getSafePersona } from "@/lib/persona";
 
 interface AccountPanelProps {
   email: string;
@@ -14,51 +16,7 @@ interface AccountPanelProps {
   onPersonaChange: (newPersona: PersonaConfig) => void;
 }
 
-const AVATARS = [
-  { label: "Persona 1", src: "/Persona1.svg" },
-  { label: "Persona 2", src: "/Persona2.svg" },
-  { label: "Persona 3", src: "/Persona3.svg" },
-  { label: "Persona 4", src: "/Persona4.svg" },
-  { label: "Persona 5", src: "/Persona5.svg" },
-  { label: "Persona 6", src: "/Persona6.svg" },
-  { label: "Persona 7", src: "/Persona7.svg" },
-  { label: "Persona 8", src: "/Persona8.svg" },
-];
-
-/**
- * SVG fills have been set to flat #555555 mid-grey via set-flat-grey.js.
- * Pipeline: sepia(1) → warm-sepia baseline (~35°) → hue-rotate(Δ) → target colour.
- * Consistent across all personas because the fill is identical in every SVG.
- */
-const COLORS = [
-  {
-    hex: "#C8B8A2",
-    label: "Warm cream",
-    filter: "sepia(1) hue-rotate(-2deg) saturate(0.50) brightness(1.20) contrast(1.05)",
-  },
-  {
-    hex: "#BC8D7A",
-    label: "Rose gold",
-    filter: "sepia(1) hue-rotate(-19deg) saturate(1.10) brightness(0.95) contrast(1.10)",
-  },
-  {
-    hex: "#7E9E8A",
-    label: "Sage green",
-    filter: "sepia(1) hue-rotate(114deg) saturate(0.85) brightness(0.90) contrast(1.10)",
-  },
-  {
-    hex: "#9E8EB4",
-    label: "Lavender",
-    filter: "sepia(1) hue-rotate(231deg) saturate(1.30) brightness(0.88) contrast(1.10)",
-  },
-  {
-    hex: "#6B5B3E",
-    label: "Taupe",
-    filter: "sepia(1) hue-rotate(2deg) saturate(0.65) brightness(0.65) contrast(1.15)",
-  },
-];
-
-const DEFAULT_COLOR = COLORS[1]; // Rose gold
+const DEFAULT_COLOR = COLORS.find(c => c.hex === DEFAULT_PERSONA.color) || COLORS[1]; // Rose gold fallback
 
 /** Compute slider track background for dynamic fill effect */
 function sliderBg(value: number, min: number, max: number) {
@@ -135,7 +93,6 @@ export function AccountPanel({
                 boxShadow: `0 0 0 3px ${activeColor.hex}60, 0 6px 32px rgba(180,150,130,0.18)`,
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={currentAvatar.src}
                 alt={currentAvatar.label}
