@@ -12,7 +12,9 @@ export const JWT_EXPIRY_DAYS = 7;
 // Minimum time to show the processing screen (don't make users wait longer than needed)
 export const PROCESSING_MIN_DURATION_MS = 3600;
 export const COUNT_ANIMATION_DURATION_MS = 1800;
+export const COUNT_UPDATE_DURATION_MS = 600;
 export const CARD_STAGGER_DELAY_MS = 80;
+export const POLL_INTERVAL_MS = 5000;
 
 export const RESOLUTION_PROMPT_WEEKS = 3;
 
