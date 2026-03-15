@@ -178,7 +178,7 @@ class AnonymiserService:
                 {"role": "user", "content": f"Anonymize: {raw_text}"},
             ],
             "stream": False,
-            "reasoning_effort": "none",
+            "think": False,
             "options": self._OPTIONS,
         }
 

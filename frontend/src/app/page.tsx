@@ -20,7 +20,7 @@ import {
   CARD_STAGGER_DELAY_MS,
   DEMO_FUTURE_LETTER,
   inferThemeFromText,
-  RISK_THEMES,
+  API_BASE_URL,
 } from "@/lib/constants";
 import {
   saveThought,
@@ -62,7 +62,7 @@ import {
   getThemeCount,
   ApiError,
 } from "@/lib/api";
-import { THEME_DISPLAY_LABELS } from "@/lib/constants";
+import { THEME_DISPLAY_LABELS, RISK_THEMES } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
 import { findQuietWin, type QuietWin } from "@/lib/quietWins";
 import {
@@ -280,6 +280,27 @@ export default function EchoApp() {
   const [searchAfterCursor, setSearchAfterCursor] = useState<string[] | undefined>(undefined);
   const [hasMoreThoughts, setHasMoreThoughts] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const staggerBaseRef = useRef(0);
+
+  /** Prepend unseen thoughts to the card list. Returns true if any were added. */
+  const injectNewCards = useCallback((incoming: ThoughtResponse[]): boolean => {
+    const fresh = incoming.filter(
+      (t) => !seenThoughtIdsRef.current.has(t.message_id)
+    );
+    if (fresh.length === 0) return false;
+    fresh.forEach((t) => seenThoughtIdsRef.current.add(t.message_id));
+    const freshIds = new Set(fresh.map((t) => t.message_id));
+    setSimilarThoughts((prev: ThoughtResponse[]) => {
+      // Double-guard: filter against prev in case seenThoughtIdsRef drifted
+      const prevIds = new Set(prev.map((t) => t.message_id));
+      const deduped = fresh.filter((t) => !prevIds.has(t.message_id));
+      return deduped.length > 0 ? [...deduped, ...prev] : prev;
+    });
+    setCardsVisible((prev: number) => prev + fresh.length);
+    setNewThoughtIds(freshIds);
+    setTimeout(() => setNewThoughtIds(new Set()), 5000);
+    return true;
+  }, []);
 
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -452,21 +473,6 @@ export default function EchoApp() {
   useEffect(() => {
     if (screen !== "results" || !currentThemeCategory) return;
 
-    /** Prepend unseen thoughts to the card list. Returns true if any were added. */
-    const injectNewCards = (incoming: ThoughtResponse[]): boolean => {
-      const fresh = incoming.filter(
-        (t) => !seenThoughtIdsRef.current.has(t.message_id)
-      );
-      if (fresh.length === 0) return false;
-      fresh.forEach((t) => seenThoughtIdsRef.current.add(t.message_id));
-      const freshIds = new Set(fresh.map((t) => t.message_id));
-      setSimilarThoughts((prev: ThoughtResponse[]) => [...fresh, ...prev]);
-      setCardsVisible((prev: number) => prev + fresh.length);
-      setNewThoughtIds(freshIds);
-      setTimeout(() => setNewThoughtIds(new Set()), 5000);
-      return true;
-    };
-
     const injectFromDemoPool = () => {
       const next = demoLivePoolRef.current.shift();
       if (next) injectNewCards([next]);
@@ -505,7 +511,57 @@ export default function EchoApp() {
 
     const id = setInterval(poll, 15_000);
     return () => clearInterval(id);
-  }, [screen, currentThemeCategory, currentMessageId]);
+  }, [screen, currentThemeCategory, currentMessageId, injectNewCards]);
+
+  /* WebSocket connection for real-time thought stream while on results screen */
+  useEffect(() => {
+    if (screen !== "results" || !currentThemeCategory) return;
+    // Skip WebSocket in demo mode — use demo pool injection from polling instead
+    if (currentMessageId?.startsWith("demo-")) return;
+
+    const wsUrl = API_BASE_URL
+      .replace(/^http/, "ws")
+      .replace(/\/api\/v1$/, "") + `/api/v1/thoughts/ws/${currentThemeCategory}`;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    function connect() {
+      if (closed) return;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string);
+          if (data.type === "new_thought") {
+            injectNewCards([data.thought as ThoughtResponse]);
+            setLiveMatchCount((prev) => prev + 1);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (!closed) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [screen, currentThemeCategory, currentMessageId, injectNewCards]);
 
   const refreshHistory = useCallback(() => {
     getThoughtHistory().then(setThoughtHistory);
@@ -524,8 +580,12 @@ export default function EchoApp() {
   useEffect(() => {
     if (!countAnimDone || similarThoughts.length === 0) return;
 
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 0; i < similarThoughts.length; i++) {
+    const base = staggerBaseRef.current;
+    const newCount = similarThoughts.length - base;
+    if (newCount <= 0) return;
+
+    const timers: NodeJS.Timeout[] = [];
+    for (let i = 0; i < newCount; i++) {
       timers.push(
         setTimeout(
           () => setCardsVisible((v: number) => v + 1),
@@ -533,6 +593,7 @@ export default function EchoApp() {
         )
       );
     }
+    staggerBaseRef.current = similarThoughts.length;
     return () => timers.forEach(clearTimeout);
   }, [countAnimDone, similarThoughts.length]);
 
@@ -574,8 +635,15 @@ export default function EchoApp() {
       setLiveMatchCount(initialCount);
       setResultsDataMode(initialMode);
       setNewThoughtIds(new Set());
-      seenThoughtIdsRef.current = new Set(initialThoughts.map((t) => t.message_id));
-      demoLivePoolRef.current = [...LIVE_DEMO_POOL];
+      const deduped = Array.from(
+        new Map(initialThoughts.map((t) => [t.message_id, t])).values()
+      );
+      seenThoughtIdsRef.current = new Set(deduped.map((t) => t.message_id));
+      // Use theme-filtered demo thoughts so fallback cards are always on-topic
+      const themeDemoPool = (DEMO_TOPIC_THOUGHTS[themeCategory] ?? LIVE_DEMO_POOL.filter((t) => t.theme_category === themeCategory)).filter(
+        (t) => !seenThoughtIdsRef.current.has(t.message_id)
+      );
+      demoLivePoolRef.current = [...themeDemoPool];
 
       const [lettersResult, anchorsResult, statsResult] = await Promise.allSettled([
         getFutureLettersForTheme(themeCategory),
@@ -599,6 +667,11 @@ export default function EchoApp() {
       }
       refreshSavedAnchorIds();
 
+      // Set count + thoughts in the same batch as setScreen("results") so
+      // CountReveal always mounts with the correct targetCount (not 0).
+      staggerBaseRef.current = 0;
+      setSimilarThoughts(deduped);
+      setMatchCount(initialCount);
       setCardsVisible(0);
       setCountAnimDone(false);
       setScreen("results");
@@ -981,14 +1054,8 @@ export default function EchoApp() {
                 Others on {topicTheme.label}
               </h1>
             </div>
-            <div className="mb-3">
-              <DataModeBadge
-                mode={topicDataMode}
-                liveLabel="Live topic"
-                demoLabel="Demo topic"
-                testId="topic-data-mode"
-              />
-            </div>
+
+
             {topicTotal > 0 && (
               <p className="mb-4 text-[13px] font-light text-echo-text-muted">
                 {topicTotal} {topicTotal === 1 ? "thought" : "thoughts"} in this space
@@ -1054,16 +1121,7 @@ export default function EchoApp() {
               onAnimationComplete={() => setCountAnimDone(true)}
             />
 
-            {countAnimDone && resultsDataMode && (
-              <div className="mb-3 px-4">
-                <DataModeBadge
-                  mode={resultsDataMode}
-                  liveLabel="Live results"
-                  demoLabel="Demo results"
-                  testId="results-data-mode"
-                />
-              </div>
-            )}
+
 
             {hasSupportSection && (
               <div className="mb-3 px-4">
@@ -1120,7 +1178,7 @@ export default function EchoApp() {
             {/* Advice-first toggle — filter to cards with resolutions */}
             {countAnimDone && (
               <div className="mb-3 px-4">
-                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                <div className="rounded-[18px] bg-white dark:bg-[#2C2825] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[14px] font-normal text-echo-text">
                       Show only what helped
@@ -1149,7 +1207,7 @@ export default function EchoApp() {
 
             {countAnimDone && adviceFirstOnly && visibleResultThoughts.length === 0 && (
               <div className="mb-4 px-4">
-                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                <div className="rounded-[18px] bg-white dark:bg-[#2C2825] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
                   <p className="text-[14px] font-normal text-echo-text">
                     No one in this space has shared what helped yet.
                   </p>
