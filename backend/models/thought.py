@@ -25,6 +25,16 @@ Only the anonymized + humanized output is stored in Elasticsearch.
 from pydantic import BaseModel, Field, field_validator
 
 
+class PersonaConfig(BaseModel):
+    """
+    User's chosen avatar configuration.
+    """
+
+    color: str = Field(..., description="Hex color code for the avatar background")
+    face: int = Field(..., description="Index of the chosen face")
+    accessory: int = Field(..., description="Index of the chosen accessory")
+
+
 class ThoughtSubmitRequest(BaseModel):
     """
     Request body for POST /api/v1/thoughts.
@@ -38,6 +48,9 @@ class ThoughtSubmitRequest(BaseModel):
         min_length=1,
         max_length=1000,
         description="Raw user thought text. NEVER persisted. Anonymized immediately.",
+    )
+    persona: PersonaConfig | None = Field(
+        None, description="User's chosen persona at the time of submission"
     )
 
     @field_validator("text")
@@ -72,6 +85,9 @@ class ThoughtResponse(BaseModel):
         None,
         description="Elasticsearch similarity score (0-1). Used for match strength labels.",
     )
+    persona: PersonaConfig | None = Field(
+        None, description="Persona of the user who submitted this thought"
+    )
 
 
 class ThoughtSubmitResult(BaseModel):
@@ -95,6 +111,9 @@ class ThoughtSubmitResult(BaseModel):
     )
     similar_thoughts: list[ThoughtResponse] = Field(
         ..., description="First page of similar thoughts (10-20 items)"
+    )
+    persona: PersonaConfig | None = Field(
+        None, description="Persona that was stored with the submission"
     )
     search_after: list | None = Field(
         None,

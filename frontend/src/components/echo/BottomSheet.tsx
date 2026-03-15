@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 import type { ThoughtResponse } from "@/lib/types";
+import { AVATARS, COLORS, getDeterministicPersona, getSafePersona } from "@/lib/persona";
 
 interface BottomSheetProps {
   thought: ThoughtResponse | null;
@@ -71,9 +72,24 @@ export function BottomSheet({
               <X size={18} />
             </button>
 
-            <h3 className="mb-3.5 font-serif text-[17px] font-normal text-echo-text">
-              What helped
-            </h3>
+            <div className="mb-5 flex items-center gap-3">
+              <div 
+                className="h-12 w-12 shrink-0 rounded-full flex items-center justify-center bg-echo-bg-warm"
+                style={{
+                  boxShadow: `0 2px 8px ${COLORS.find(c => c.hex === getSafePersona(thought.persona || getDeterministicPersona(thought.message_id)).color)?.hex || "#000"}30`
+                }}
+              >
+                <img 
+                  src={AVATARS[getSafePersona(thought.persona || getDeterministicPersona(thought.message_id)).face]?.src} 
+                  alt="Persona" 
+                  className="h-8 w-8 object-contain"
+                  style={{ filter: COLORS.find(c => c.hex === getSafePersona(thought.persona || getDeterministicPersona(thought.message_id)).color)?.filter }}
+                />
+              </div>
+              <h3 className="font-serif text-[18px] font-normal text-echo-text">
+                What helped
+              </h3>
+            </div>
 
             <p className="mb-4.5 text-[14.5px] font-light leading-[1.75] text-echo-text">
               {resolutionText ?? "We couldn't load what helped this time."}

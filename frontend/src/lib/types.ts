@@ -6,6 +6,7 @@ export interface ThoughtResponse {
   resolution_text?: string;
   /** Elastic similarity score (0-1). Used for match strength labels. */
   similarity_score?: number;
+  persona?: PersonaConfig;
 }
 
 export interface ThoughtSubmitResult {
@@ -14,6 +15,7 @@ export interface ThoughtSubmitResult {
   theme_category: string;
   match_count: number;
   similar_thoughts: ThoughtResponse[];
+  persona?: PersonaConfig;
   search_after?: string[];
 }
 
@@ -35,6 +37,7 @@ export interface LocalThought {
   future_letter?: string;
   /** Number of people who felt something like this (from search at submit time). */
   match_count?: number;
+  persona?: PersonaConfig;
 }
 
 export interface FutureLetter {
@@ -110,3 +113,9 @@ export type AppScreen =
   | "about"
   | "privacy"
   | "admin";
+
+export interface PersonaConfig {
+  color: string;
+  face: number;
+  accessory: number;
+}

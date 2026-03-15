@@ -12,8 +12,9 @@
  * On first authenticated read of legacy plaintext data, we re-encrypt in place.
  */
 
-import type { LocalThought, FutureLetter, PresenceLevel, SavedAnchor } from "./types";
+import type { LocalThought, FutureLetter, PresenceLevel, SavedAnchor, PersonaConfig } from "./types";
 import { JWT_KEY, RESOLUTION_PROMPT_WEEKS, PRESENCE_THRESHOLDS, PROMPT_COOLDOWN_DAYS } from "./constants";
+import { DEFAULT_PERSONA, getSafePersona } from "./persona";
 import { getKey, encrypt, decrypt } from "./crypto";
 
 const THOUGHTS_KEY = "echo_thoughts";
@@ -23,6 +24,9 @@ const SAVED_ANCHORS_KEY = "echo_saved_anchors";
 const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
 const ADMIN_STATUS_KEY = "echo_is_admin";
+const PERSONA_KEY = "echo_persona";
+const DELETED_IDS_KEY = "echo_deleted_ids";
+
 /** Shape stored for encrypted blobs */
 interface EncryptedBlob {
   v: 1;
@@ -87,7 +91,8 @@ export async function saveThought(
   rawText: string,
   themeCategory: string,
   matchCount?: number,
-  anonymisedText?: string
+  anonymisedText?: string,
+  persona?: PersonaConfig
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
@@ -98,6 +103,7 @@ export async function saveThought(
     timestamp: Date.now(),
     is_resolved: false,
     match_count: matchCount,
+    persona,
   });
   await writeThoughts(thoughts);
 }
@@ -181,6 +187,25 @@ export function setNotificationOptIn(enabled: boolean): void {
   localStorage.setItem(NOTIFICATION_OPT_IN_KEY, enabled ? "true" : "false");
 }
 
+/* ── Persona Customization ── */
+
+export function getPersona(): PersonaConfig {
+  if (typeof window === "undefined") return DEFAULT_PERSONA;
+  const raw = localStorage.getItem(PERSONA_KEY);
+  if (!raw) return DEFAULT_PERSONA;
+  try {
+    const parsed = JSON.parse(raw);
+    return getSafePersona(parsed);
+  } catch {
+    return DEFAULT_PERSONA;
+  }
+}
+
+export function setPersona(config: PersonaConfig): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PERSONA_KEY, JSON.stringify(config));
+}
+
 /* ── Delayed prompt helpers ── */
 
 /**
@@ -250,6 +275,7 @@ export function clearAllData(): void {
   localStorage.removeItem(NOTIFICATION_OPT_IN_KEY);
   localStorage.removeItem(LAST_PROMPT_DATE_KEY);
   localStorage.removeItem(ADMIN_STATUS_KEY);
+  localStorage.removeItem(PERSONA_KEY);
 }
 
 /* ── Admin status (sync — simple boolean flag) ── */

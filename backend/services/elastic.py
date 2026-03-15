@@ -70,6 +70,13 @@ _THOUGHTS_INDEX_MAPPING = {
             },
             "timestamp_week": {"type": "keyword"},
             "has_resolution": {"type": "boolean"},
+            "persona": {
+                "properties": {
+                    "color": {"type": "keyword"},
+                    "face": {"type": "integer"},
+                    "accessory": {"type": "integer"}
+                }
+            },
         }
     }
 }
@@ -171,6 +178,7 @@ async def index_thought(
     humanised_text: str,
     theme_category: str,
     sentiment_vector: list[float],
+    persona: dict | None = None,
 ) -> bool:
     """
     Index a humanized thought in Elasticsearch.
@@ -201,6 +209,7 @@ async def index_thought(
         "sentiment_vector": sentiment_vector,
         "timestamp_week": timestamp_week,
         "has_resolution": False,
+        "persona": persona,
     }
 
     try:
@@ -310,7 +319,7 @@ async def search_similar_thoughts(
             {"message_id": {"order": "asc"}},
         ],
         "size": limit,
-        "_source": ["message_id", "humanised_text", "theme_category", "has_resolution"],
+        "_source": ["message_id", "humanised_text", "theme_category", "has_resolution", "persona"],
         "track_total_hits": True,
     }
 
@@ -337,6 +346,7 @@ async def search_similar_thoughts(
                 "theme_category": source["theme_category"],
                 "has_resolution": source.get("has_resolution", False),
                 "similarity_score": float(score) if score is not None else None,
+                "persona": source.get("persona"),
             })
 
         next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None
@@ -365,7 +375,7 @@ async def search_thoughts_by_theme(
         "query": {"term": {"theme_category": theme_category}},
         "sort": [{"message_id": {"order": "asc"}}],
         "size": limit,
-        "_source": ["message_id", "humanised_text", "theme_category", "has_resolution"],
+        "_source": ["message_id", "humanised_text", "theme_category", "has_resolution", "persona"],
         "track_total_hits": True,
     }
     if search_after is not None:
@@ -387,6 +397,7 @@ async def search_thoughts_by_theme(
                 "humanised_text": source["humanised_text"],
                 "theme_category": source["theme_category"],
                 "has_resolution": source.get("has_resolution", False),
+                "persona": source.get("persona"),
             })
         next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None
         return {"thoughts": thoughts, "total": total, "search_after": next_cursor}
@@ -651,6 +662,7 @@ async def get_thought_by_id(message_id: str) -> dict[str, Any] | None:
             "theme_category": source["theme_category"],
             "sentiment_vector": vec,
             "has_resolution": source.get("has_resolution", False),
+            "persona": source.get("persona"),
         }
     except Exception as exc:
         logger.warning(f"Thought {message_id} not found or retrieval failed: {exc}")
