@@ -50,6 +50,7 @@ def _make_thought_doc(
         "theme_category": theme_category,
         "sentiment_vector": SAMPLE_VECTOR,
         "has_resolution": False,
+        "persona": {"color": "#BC8D7A", "face": 0, "accessory": 0},
     }
 
 
@@ -77,6 +78,7 @@ def _make_sample_thoughts(count: int = 2) -> list[dict]:
             "theme_category": SAMPLE_THEME,
             "has_resolution": False,
             "resolution_text": None,
+            "persona": {"color": "#BC8D7A", "face": i % 8, "accessory": 0},
         }
         for i in range(count)
     ]
@@ -468,6 +470,7 @@ class TestGetSimilarThoughtsPrivacy:
             "has_resolution",
             "resolution_text",
             "similarity_score",
+            "persona",
         }
         sample_thoughts = _make_sample_thoughts(1)
         thought_doc = _make_thought_doc()
