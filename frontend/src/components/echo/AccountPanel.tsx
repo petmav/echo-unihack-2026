@@ -26,48 +26,34 @@ const AVATARS = [
 ];
 
 /**
- * Color palette entries.
- * Every filter starts with grayscale(1) sepia(1) to normalise ALL SVGs
- * to the same warm-sepia baseline regardless of their original colours.
- * hue-rotate() then swings that baseline to the target palette colour,
- * ensuring 100% consistent tinting across all 8 personas.
- */
-/**
- * SVG fills are now pure greyscale (perceptual luma only).
- * Pipeline: sepia(1) maps greyscale → deterministic warm-sepia baseline (~35°).
- *           hue-rotate(Δ) swings to target hue.  Δ = target_hue − 35°.
- *           saturate / brightness match the swatch's chroma and lightness.
- * No grayscale() step needed — SVGs are already single-channel.
+ * SVG fills have been set to flat #555555 mid-grey via set-flat-grey.js.
+ * Pipeline: sepia(1) → warm-sepia baseline (~35°) → hue-rotate(Δ) → target colour.
+ * Consistent across all personas because the fill is identical in every SVG.
  */
 const COLORS = [
   {
     hex: "#C8B8A2",
     label: "Warm cream",
-    // ~33° → Δ = -2°. Very desaturated, light.
     filter: "sepia(1) hue-rotate(-2deg) saturate(0.50) brightness(1.20) contrast(1.05)",
   },
   {
     hex: "#BC8D7A",
     label: "Rose gold",
-    // ~16° → Δ = -19°.
     filter: "sepia(1) hue-rotate(-19deg) saturate(1.10) brightness(0.95) contrast(1.10)",
   },
   {
     hex: "#7E9E8A",
     label: "Sage green",
-    // ~149° → Δ = +114°.
     filter: "sepia(1) hue-rotate(114deg) saturate(0.85) brightness(0.90) contrast(1.10)",
   },
   {
     hex: "#9E8EB4",
     label: "Lavender",
-    // ~266° → Δ = +231°.
     filter: "sepia(1) hue-rotate(231deg) saturate(1.30) brightness(0.88) contrast(1.10)",
   },
   {
     hex: "#6B5B3E",
     label: "Taupe",
-    // ~37° → Δ = +2°. Dark and desaturated.
     filter: "sepia(1) hue-rotate(2deg) saturate(0.65) brightness(0.65) contrast(1.15)",
   },
 ];
@@ -95,7 +81,6 @@ export function AccountPanel({
     Math.min(persona.face ?? 0, AVATARS.length - 1)
   );
 
-  // Find saved color object, fall back to rose gold
   const savedColor =
     COLORS.find((c) => c.hex === (persona.color ?? "")) ?? DEFAULT_COLOR;
   const [activeColor, setActiveColor] = useState(savedColor);
@@ -117,11 +102,8 @@ export function AccountPanel({
 
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-      {/* ── Header ── */}
-      <div
-        className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl"
-        style={{ background: "rgba(250, 247, 242, 0.88)" }}
-      >
+      {/* Header */}
+      <div className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl" style={{ background: "var(--echo-header-blur)" }}>
         <button
           onClick={onBack}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-echo-text transition-colors active:bg-black/5"
@@ -135,7 +117,7 @@ export function AccountPanel({
       </div>
 
       <div className="mx-auto w-full max-w-xl px-4 pb-10">
-        {/* ── Avatar customizer card ── */}
+        {/* Avatar customiser card */}
         <div className="mb-6 overflow-hidden rounded-3xl bg-white p-6 shadow-[0_4px_24px_rgba(44,40,37,0.08)]">
           <p className="mb-6 text-center text-[12px] font-semibold uppercase tracking-widest text-[#9E8A78]">
             Customize Your Avatar
@@ -181,7 +163,7 @@ export function AccountPanel({
                 />
               </div>
 
-              {/* Accent color swatches */}
+              {/* Tone swatches */}
               <div>
                 <label className="mb-2 block text-[12px] font-medium text-[#9E8A78]">
                   Tone
@@ -207,7 +189,7 @@ export function AccountPanel({
             </div>
           </div>
 
-          {/* ── Avatar navigator ── */}
+          {/* Avatar navigator */}
           <div className="mt-6 flex items-center justify-between gap-3">
             <button
               onClick={() => handleNav(-1)}
@@ -292,7 +274,7 @@ export function AccountPanel({
           </p>
         </div>
 
-        {/* ── Account info card ── */}
+        {/* Account info card */}
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
           <div className="flex items-center justify-between border-b border-black/5 px-4 py-4 text-sm text-echo-text">
             <span className="font-normal">Email</span>
@@ -301,21 +283,19 @@ export function AccountPanel({
             </span>
           </div>
 
-          <div className="flex items-center justify-between border-b border-black/5 px-4 py-4 text-sm text-echo-text">
+          <div className="flex items-center justify-between border-b border-border px-4.5 py-4 text-sm text-echo-text">
             <span className="font-normal">Delayed prompts</span>
             <button
               onClick={() => onToggleNotifications(!notificationsEnabled)}
-              className={`relative h-[26px] w-[44px] rounded-full border-none transition-colors ${
-                notificationsEnabled ? "bg-echo-accent" : "bg-[#D0CBC5]"
-              }`}
+              className={`relative h-[26px] w-[44px] rounded-full border-none transition-colors ${notificationsEnabled ? "bg-echo-accent" : "bg-echo-toggle-off"
+                }`}
               role="switch"
               aria-checked={notificationsEnabled}
               aria-label="Toggle delayed prompts"
             >
               <div
-                className={`absolute top-[3px] h-5 w-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.12)] transition-[left] ${
-                  notificationsEnabled ? "left-[21px]" : "left-[3px]"
-                }`}
+                className={`absolute top-[3px] h-5 w-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.12)] transition-[left] ${notificationsEnabled ? "left-[21px]" : "left-[3px]"
+                  }`}
               />
             </button>
           </div>
@@ -341,13 +321,13 @@ export function AccountPanel({
         {!showConfirm ? (
           <button
             onClick={() => setShowConfirm(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-[15px] font-sans text-sm font-medium text-echo-red shadow-[0_1px_12px_rgba(44,40,37,0.05)] active:opacity-70"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-echo-card py-[15px] font-sans text-sm font-medium text-echo-red shadow-[0_1px_12px_rgba(44,40,37,0.05)] active:opacity-70"
           >
             <Trash2 size={18} />
             Delete account
           </button>
         ) : (
-          <div className="rounded-2xl bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+          <div className="rounded-2xl bg-echo-card p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
             <p className="mb-3 text-center text-sm font-normal text-echo-text">
               This will permanently delete your account and clear all local
               data.

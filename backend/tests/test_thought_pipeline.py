@@ -398,14 +398,26 @@ class TestGetThemeAggregates:
         for item in data:
             assert "theme" in item
             assert "count" in item
+            assert "resolution_count" in item
+            assert "resolution_rate" in item
             assert isinstance(item["count"], int)
             assert item["count"] > 0
 
     def test_returns_elastic_data_when_available(self, client):
         """Aggregates endpoint returns live Elastic data when available."""
         live_data = [
-            {"theme": "anxiety", "count": 312},
-            {"theme": "work_stress", "count": 201},
+            {
+                "theme": "anxiety",
+                "count": 312,
+                "resolution_count": 63,
+                "resolution_rate": 20,
+            },
+            {
+                "theme": "work_stress",
+                "count": 201,
+                "resolution_count": 41,
+                "resolution_rate": 20,
+            },
         ]
         with patch(
             "routers.thoughts.elastic.get_aggregates",

@@ -9,7 +9,7 @@ export const CARDS_PER_PAGE = 15;
 export const JWT_KEY = "echo_jwt";
 export const JWT_EXPIRY_DAYS = 7;
 
-// 3 phrases × 1200ms cycle = 3600ms = exactly 1 full phrase rotation
+// Minimum time to show the processing screen (don't make users wait longer than needed)
 export const PROCESSING_MIN_DURATION_MS = 3600;
 export const COUNT_ANIMATION_DURATION_MS = 1800;
 export const CARD_STAGGER_DELAY_MS = 80;
@@ -23,6 +23,7 @@ export const RESOLUTION_PROMPT_WEEKS = 3;
 export const PROMPT_COOLDOWN_DAYS = 7;
 
 export const PROCESSING_PHRASES = [
+  "mapping connections...",
   "finding your people...",
   "you're not alone in this...",
   "others have been here too...",
@@ -44,6 +45,24 @@ export const PRESENCE_THRESHOLDS = [
   { min: 200, level: 3 as const },
   { min: 500, level: 4 as const },
 ];
+
+/**
+ * Elastic similarity score bands for match strength labels.
+ * Cosine similarity is normalized to 0–1 in Elasticsearch.
+ */
+export const MATCH_STRENGTH_BANDS = [
+  { min: 0.9, label: "very close" as const },
+  { min: 0.75, label: "close" as const },
+  { min: 0.5, label: "same space" as const },
+] as const;
+
+export function getMatchStrengthLabel(score: number | undefined): string | null {
+  if (score == null || score < MATCH_STRENGTH_BANDS[2].min) return null;
+  for (const band of MATCH_STRENGTH_BANDS) {
+    if (score >= band.min) return band.label;
+  }
+  return null;
+}
 
 /**
  * Risk-related theme categories that trigger the safety resource

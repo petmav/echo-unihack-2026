@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 
 import type { ThoughtResponse } from "@/lib/types";
+import { getMatchStrengthLabel } from "@/lib/constants";
 
 interface ThoughtCardProps {
   thought: ThoughtResponse;
@@ -23,14 +24,15 @@ export function ThoughtCard({
   onTap,
 }: ThoughtCardProps) {
   const hasResolution = thought.has_resolution;
+  const matchStrength = getMatchStrengthLabel(thought.similarity_score);
 
   return (
     <motion.div
       layout
-      className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] sm:p-5 touch-manipulation ${
+      className={`mb-2.5 rounded-[18px] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)] sm:p-5 touch-manipulation ${
         hasResolution
           ? "cursor-pointer border border-echo-highlight-border bg-echo-highlight active:scale-[0.985] min-h-[44px]"
-          : "bg-white"
+          : "bg-echo-card"
       }${isNew ? " ring-1 ring-echo-accent/20" : ""}`}
       initial={isNew ? { opacity: 0, y: -20, scale: 0.97 } : { opacity: 0, y: 14 }}
       animate={
@@ -58,6 +60,11 @@ export function ThoughtCard({
           : undefined
       }
     >
+      {matchStrength && (
+        <span className="mb-2 inline-flex rounded-full bg-echo-highlight px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-[0.18em] text-echo-text-muted">
+          {matchStrength}
+        </span>
+      )}
       <p className="text-[14px] font-light leading-[1.7] text-echo-text sm:text-[14.5px]">
         {thought.humanised_text}
       </p>
@@ -130,7 +137,8 @@ export function ThoughtCardList({
       {onLoadMore && (
         <>
           {isLoadingMore && (
-            <div className="flex justify-center py-6">
+            <div className="flex justify-center py-6" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading more thoughts</span>
               <div className="flex gap-1.5">
                 {[0, 1, 2].map((i) => (
                   <span

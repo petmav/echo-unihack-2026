@@ -21,8 +21,11 @@ with no way to link them to users.
 """
 
 import logging
+import time
 from datetime import date
 from typing import Any
+
+import numpy as np
 
 from elasticsearch import AsyncElasticsearch, TransportError
 
@@ -32,6 +35,15 @@ logger = logging.getLogger("echo")
 
 # Global Elasticsearch client (initialized on startup)
 _es_client: AsyncElasticsearch | None = None
+
+# In-memory graph cache — recomputed on first request, then incrementally
+# updated as new thoughts are indexed (no full recompute needed).
+# Cache expires after _GRAPH_CACHE_TTL_SECONDS to pick up new data.
+_graph_cache: dict[str, Any] | None = None
+_graph_cache_params: tuple | None = None
+_graph_cache_vectors: list[list[float]] = []
+_graph_cache_time: float = 0.0
+_GRAPH_CACHE_TTL_SECONDS = 30  # rebuild from Elastic every 30 seconds
 
 # Index mapping for echo-resolutions
 _RESOLUTIONS_INDEX_MAPPING = {
@@ -197,11 +209,62 @@ async def index_thought(
             index=config.ELASTIC_THOUGHTS_INDEX,
             id=message_id,
             document=document,
+            refresh="true",
         )
+        # Invalidate graph cache so the next /graph request picks up
+        # the new thought immediately from Elastic.
+        invalidate_graph_cache()
         return True
     except TransportError as exc:
         logger.error(f"Failed to index thought {message_id}: {exc}")
         return False
+
+
+def invalidate_graph_cache() -> None:
+    """Clear the cached graph so the next request recomputes it."""
+    global _graph_cache, _graph_cache_params, _graph_cache_vectors, _graph_cache_time
+    _graph_cache = None
+    _graph_cache_params = None
+    _graph_cache_vectors = []
+    _graph_cache_time = 0.0
+
+
+
+async def delete_thought(message_id: str) -> bool:
+    """
+    Delete a thought and its resolution from Elasticsearch.
+
+    Args:
+        message_id: UUID of the thought to delete.
+
+    Returns:
+        True if the thought was deleted (or didn't exist).
+    """
+    if _es_client is None:
+        logger.error("Elasticsearch client not initialized")
+        return False
+
+    try:
+        await _es_client.delete(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            id=message_id,
+            refresh="true",
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to delete thought {message_id} (may not exist): {exc}")
+
+    # Best-effort: also remove any linked resolution
+    try:
+        await _es_client.delete(
+            index=config.ELASTIC_RESOLUTIONS_INDEX,
+            id=message_id,
+            refresh="true",
+        )
+    except Exception:
+        pass  # resolution may not exist
+
+    invalidate_graph_cache()
+    return True
 
 
 async def search_similar_thoughts(
@@ -268,11 +331,13 @@ async def search_similar_thoughts(
         thoughts = []
         for hit in hits:
             source = hit["_source"]
+            score = hit.get("_score")
             thoughts.append({
                 "message_id": source["message_id"],
                 "humanised_text": source["humanised_text"],
                 "theme_category": source["theme_category"],
                 "has_resolution": source.get("has_resolution", False),
+                "similarity_score": float(score) if score is not None else None,
             })
 
         next_cursor = hits[-1]["sort"] if hits and len(hits) == limit else None
@@ -362,7 +427,8 @@ async def get_aggregates() -> list[dict[str, Any]]:
     Get weekly aggregate counts for all theme categories in the current ISO week.
 
     Returns:
-        List of dicts with keys 'theme' (str) and 'count' (int), one per theme
+        List of dicts with keys 'theme' (str), 'count' (int),
+        'resolution_count' (int), and 'resolution_rate' (int), one per theme
         that has at least one thought indexed this week. Returns empty list if
         Elasticsearch is unavailable or an error occurs.
 
@@ -389,7 +455,14 @@ async def get_aggregates() -> list[dict[str, Any]]:
                 "terms": {
                     "field": "theme_category",
                     "size": 100,
-                }
+                },
+                "aggs": {
+                    "resolved": {
+                        "filter": {
+                            "term": {"has_resolution": True}
+                        }
+                    }
+                },
             }
         },
     }
@@ -400,10 +473,74 @@ async def get_aggregates() -> list[dict[str, Any]]:
             body=query_body,
         )
         buckets = response.get("aggregations", {}).get("themes", {}).get("buckets", [])
-        return [{"theme": bucket["key"], "count": bucket["doc_count"]} for bucket in buckets]
+        return [
+            {
+                "theme": bucket["key"],
+                "count": bucket["doc_count"],
+                "resolution_count": int(bucket.get("resolved", {}).get("doc_count", 0)),
+                "resolution_rate": (
+                    round(
+                        (int(bucket.get("resolved", {}).get("doc_count", 0)) / bucket["doc_count"]) * 100
+                    )
+                    if bucket["doc_count"] > 0
+                    else 0
+                ),
+            }
+            for bucket in buckets
+        ]
     except Exception as exc:
         logger.error(f"Failed to get theme aggregates for week {current_week}: {exc}")
         return []
+
+
+async def get_total_theme_resolution_stats(theme_category: str) -> dict[str, int]:
+    """
+    Get all-time anonymous stats for a theme, including shared-resolution counts.
+
+    Args:
+        theme_category: Theme to aggregate (e.g., "work_stress").
+
+    Returns:
+        Dict with count, resolution_count, and resolution_rate. Returns zeros
+        if Elasticsearch is unavailable or an error occurs.
+    """
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized; returning zero theme stats")
+        return {"count": 0, "resolution_count": 0, "resolution_rate": 0}
+
+    query_body: dict[str, Any] = {
+        "size": 0,
+        "query": {
+            "term": {"theme_category": theme_category}
+        },
+        "aggs": {
+            "resolved": {
+                "filter": {
+                    "term": {"has_resolution": True}
+                }
+            }
+        },
+    }
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body=query_body,
+        )
+        total_value = response.get("hits", {}).get("total", 0)
+        total = total_value["value"] if isinstance(total_value, dict) else int(total_value)
+        resolution_count = int(
+            response.get("aggregations", {}).get("resolved", {}).get("doc_count", 0)
+        )
+        resolution_rate = round((resolution_count / total) * 100) if total > 0 else 0
+        return {
+            "count": total,
+            "resolution_count": resolution_count,
+            "resolution_rate": resolution_rate,
+        }
+    except Exception as exc:
+        logger.error(f"Failed to get total theme resolution stats for {theme_category}: {exc}")
+        return {"count": 0, "resolution_count": 0, "resolution_rate": 0}
 
 
 async def get_thought_by_id(message_id: str) -> dict[str, Any] | None:
@@ -599,6 +736,152 @@ async def get_total_theme_count(theme_category: str) -> int:
     except Exception as exc:
         logger.error(f"Failed to get total theme count for {theme_category}: {exc}")
         return 0
+
+
+async def get_graph_data(
+    weeks: int = 4,
+    max_nodes: int = 200,
+    similarity_threshold: float = 0.55,
+) -> dict[str, Any]:
+    """
+    Fetch recent thoughts and compute edges via vector cosine similarity
+    for the graph visualization.
+
+    Results are cached in memory and only recomputed when a new thought
+    is indexed (via invalidate_graph_cache).
+
+    Args:
+        weeks: Number of ISO weeks to look back from the current week.
+        max_nodes: Maximum number of thought nodes to return.
+        similarity_threshold: Minimum cosine similarity for an edge (0.0–1.0).
+
+    Returns:
+        Dict with:
+        - nodes: list of {message_id, humanised_text, theme_category,
+                          timestamp_week, has_resolution}
+        - edges: list of {source, target, similarity}
+
+    PRIVACY: Returns only anonymized/humanized content. No user IDs.
+    """
+    global _graph_cache, _graph_cache_params, _graph_cache_time
+
+    params = (weeks, max_nodes, similarity_threshold)
+    cache_age = time.monotonic() - _graph_cache_time
+    if _graph_cache is not None and _graph_cache_params == params and cache_age < _GRAPH_CACHE_TTL_SECONDS:
+        return _graph_cache
+
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized; returning empty graph")
+        return {"nodes": [], "edges": []}
+
+    today = date.today()
+    iso = today.isocalendar()
+    week_keys = []
+    for offset in range(weeks):
+        w = iso[1] - offset
+        y = iso[0]
+        if w < 1:
+            y -= 1
+            w += 52
+        week_keys.append(f"{y}-W{w:02d}")
+
+    # Fetch recent thoughts
+    query_body: dict[str, Any] = {
+        "size": max_nodes,
+        "query": {
+            "terms": {"timestamp_week": week_keys}
+        },
+        "sort": [{"timestamp_week": "desc"}, {"_doc": "desc"}],
+        "fields": ["sentiment_vector"],
+        "_source": ["message_id", "humanised_text", "theme_category",
+                     "timestamp_week", "has_resolution"],
+    }
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body=query_body,
+        )
+    except Exception as exc:
+        logger.error(f"Failed to fetch graph data: {exc}")
+        return {"nodes": [], "edges": []}
+
+    hits = response["hits"]["hits"]
+    nodes = []
+    vectors: list[list[float]] = []
+
+    for hit in hits:
+        src = hit["_source"]
+        vec = hit.get("fields", {}).get("sentiment_vector")
+        if vec and isinstance(vec, list) and len(vec) > 0:
+            # Elastic sometimes wraps in an extra list
+            actual_vec = vec[0] if isinstance(vec[0], list) else vec
+            vectors.append(actual_vec)
+        else:
+            vectors.append([])
+        nodes.append({
+            "message_id": src["message_id"],
+            "humanised_text": src["humanised_text"],
+            "theme_category": src["theme_category"],
+            "timestamp_week": src.get("timestamp_week", week_keys[0]),
+            "has_resolution": src.get("has_resolution", False),
+        })
+
+    # Compute edges via cosine similarity — numpy matrix multiply
+    # (vectors are unit-normalised, so dot product = cosine similarity)
+    edges = []
+    valid_indices = [i for i, v in enumerate(vectors) if v]
+    if valid_indices:
+        mat = np.array([vectors[i] for i in valid_indices], dtype=np.float32)
+        sim_matrix = mat @ mat.T
+        # Extract upper triangle pairs above threshold
+        edge_set: set[tuple[int, int]] = set()
+        ii, jj = np.where(np.triu(sim_matrix, k=1) >= similarity_threshold)
+        for idx in range(len(ii)):
+            edge_set.add((int(ii[idx]), int(jj[idx])))
+
+        # Ensure every node gets at least 2 edges by adding its top
+        # nearest neighbours even if below the global threshold.
+        # This prevents isolated nodes in the constellation.
+        min_edges_per_node = 2
+        n_valid = len(valid_indices)
+        if n_valid > 1:
+            # Count edges per valid-index position
+            edge_counts: dict[int, int] = {i: 0 for i in range(n_valid)}
+            for ri, rj in edge_set:
+                edge_counts[ri] = edge_counts.get(ri, 0) + 1
+                edge_counts[rj] = edge_counts.get(rj, 0) + 1
+
+            for ri in range(n_valid):
+                if edge_counts.get(ri, 0) >= min_edges_per_node:
+                    continue
+                # Find top-k most similar neighbours (excluding self)
+                sims = sim_matrix[ri].copy()
+                sims[ri] = -1  # exclude self
+                top_k = int(np.minimum(min_edges_per_node, n_valid - 1))
+                top_indices = np.argpartition(-sims, top_k)[:top_k]
+                for rj in top_indices:
+                    rj = int(rj)
+                    pair = (min(ri, rj), max(ri, rj))
+                    if pair not in edge_set:
+                        edge_set.add(pair)
+                        edge_counts[ri] = edge_counts.get(ri, 0) + 1
+                        edge_counts[rj] = edge_counts.get(rj, 0) + 1
+
+        for ri, rj in edge_set:
+            ni, nj = valid_indices[ri], valid_indices[rj]
+            edges.append({
+                "source": nodes[ni]["message_id"],
+                "target": nodes[nj]["message_id"],
+                "similarity": round(float(sim_matrix[ri, rj]), 4),
+            })
+
+    result = {"nodes": nodes, "edges": edges}
+    _graph_cache = result
+    _graph_cache_params = params
+    _graph_cache_vectors = vectors
+    _graph_cache_time = time.monotonic()
+    return result
 
 
 async def get_theme_count(theme_category: str) -> int:

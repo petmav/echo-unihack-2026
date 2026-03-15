@@ -41,6 +41,7 @@ function seedThoughtHistoryEntries(
     theme_category: string;
     timestamp: number;
     is_resolved: boolean;
+    resolution_timestamp?: number;
     resolution_text?: string;
   }>
 ) {
@@ -309,7 +310,43 @@ test.describe("Saved anchors", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   G. "Quiet wins" — local-only reflection banner
+   G. Per-theme resolution aggregates
+   ═══════════════════════════════════════════════ */
+
+test.describe("Per-theme resolution aggregates", () => {
+  test("shows anonymous what-helped aggregates above the results cards", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("theme-resolution-aggregate-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("What helped in this space");
+    await expect(banner).toContainText("shared what helped");
+    await expect(banner).toContainText("% of similar thoughts");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   H. "Quiet wins" — local-only reflection banner
    ═══════════════════════════════════════════════ */
 
 test.describe("Quiet wins", () => {
@@ -374,7 +411,73 @@ test.describe("Quiet wins", () => {
 });
 
 /* ═══════════════════════════════════════════════
-   H. Local emotion trends
+   I. Recurrence pattern
+   ═══════════════════════════════════════════════ */
+
+test.describe("Recurrence pattern", () => {
+  test("shows a local recurrence banner when the same theme keeps returning", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "recurrence-self-worth-1",
+        raw_text: "I keep feeling like I'm not enough",
+        theme_category: "self_worth",
+        timestamp: now - 2 * dayMs,
+        is_resolved: false,
+      },
+      {
+        message_id: "recurrence-self-worth-2",
+        raw_text: "I spiral about my own worth again",
+        theme_category: "self_worth",
+        timestamp: now - 9 * dayMs,
+        is_resolved: true,
+        resolution_text: "I slowed down and checked the facts.",
+      },
+      {
+        message_id: "recurrence-older",
+        raw_text: "Work has been loud in my head",
+        theme_category: "work_stress",
+        timestamp: now - 20 * dayMs,
+        is_resolved: false,
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Share what" }).click();
+    await page
+      .getByPlaceholder("What's weighing on you right now?")
+      .fill("I feel worthless again");
+    await page.getByRole("button", { name: "Submit thought" }).click();
+
+    await expect(
+      page.getByText("people have felt something like this")
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const banner = page.getByTestId("recurrence-pattern-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("A returning pattern");
+    await expect(banner).toContainText("3 times");
+    await expect(banner).toContainText("14 days");
+    await expect(banner).toContainText("2 days ago");
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   J. Local emotion trends
    ═══════════════════════════════════════════════ */
 
 test.describe("Emotion trends", () => {
@@ -401,6 +504,7 @@ test.describe("Emotion trends", () => {
         theme_category: "self_worth",
         timestamp: now - 3 * dayMs,
         is_resolved: true,
+        resolution_timestamp: now - dayMs,
         resolution_text: "I slowed down and asked for help.",
       },
       {
@@ -416,6 +520,7 @@ test.describe("Emotion trends", () => {
         theme_category: "relationship_loss",
         timestamp: now - 40 * dayMs,
         is_resolved: true,
+        resolution_timestamp: now - 5 * dayMs,
         resolution_text: "I stopped pretending I was over it.",
       },
     ]);
@@ -441,6 +546,10 @@ test.describe("Emotion trends", () => {
     await expect(page.getByTestId("trend-dominant-theme")).toContainText(
       "Self-worth"
     );
+    await page.getByTestId("trend-flow-help-toggle").click();
+    await expect(page.getByTestId("trend-flow-help")).toContainText(
+      "each column groups thoughts into one day"
+    );
 
     await page.getByTestId("trend-range-monthly").click();
     await expect(page.getByTestId("trend-period-label")).toHaveText(
@@ -453,6 +562,65 @@ test.describe("Emotion trends", () => {
       "This year"
     );
     await expect(page.getByText("Relationship loss")).toBeVisible();
+  });
+
+  test("shows a local resolution timeline for resolved thoughts", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await setupLoggedIn(page);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await seedThoughtHistoryEntries(page, [
+      {
+        message_id: "timeline-self-worth",
+        raw_text: "I keep shrinking around everyone else",
+        theme_category: "self_worth",
+        timestamp: now - 6 * dayMs,
+        is_resolved: true,
+        resolution_timestamp: now - 3 * dayMs,
+        resolution_text: "I let someone reflect me back to myself.",
+      },
+      {
+        message_id: "timeline-work",
+        raw_text: "Work keeps swallowing all my energy",
+        theme_category: "work_stress",
+        timestamp: now - 20 * dayMs,
+        is_resolved: true,
+        resolution_timestamp: now - 8 * dayMs,
+        resolution_text: "I finally asked for space and support.",
+      },
+      {
+        message_id: "timeline-unresolved",
+        raw_text: "My chest still tightens before every meeting",
+        theme_category: "anxiety",
+        timestamp: now - 2 * dayMs,
+        is_resolved: false,
+      },
+    ]);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("tap to share what's on your mind")
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.waitForTimeout(400);
+    await page.getByText("Trends").click();
+    await page.waitForTimeout(500);
+
+    const timeline = page.getByTestId("resolution-timeline");
+    await expect(timeline).toBeVisible();
+    await expect(timeline).toContainText("Resolution timeline");
+    await expect(timeline).toContainText("Average shift");
+    await expect(page.getByTestId("resolution-timeline-item").first()).toContainText(
+      "Self-worth"
+    );
+    await expect(timeline).toContainText("Shared what helped 3 days later.");
+    await expect(timeline).toContainText("Tracked");
   });
 });
 

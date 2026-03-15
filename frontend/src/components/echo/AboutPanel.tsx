@@ -14,7 +14,7 @@ export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl" style={{ background: "rgba(250, 247, 242, 0.88)" }}>
+      <div className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl" style={{ background: "var(--echo-header-blur)" }}>
         <button
           onClick={onBack}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-echo-text transition-colors active:bg-black/5"
@@ -38,7 +38,7 @@ export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
           </p>
         </div>
 
-        <div className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+        <div className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
           <h3 className="mb-2 text-sm font-medium text-echo-text">
             How Echo works
           </h3>
@@ -49,13 +49,14 @@ export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
           </p>
         </div>
 
-        <div className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+        <div className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
           <h3 className="mb-2 text-sm font-medium text-echo-text">
             Privacy by design
           </h3>
           <p className="text-[13.5px] font-light leading-relaxed text-echo-text-soft">
-            Your raw words never leave your device. The server only sees
-            anonymised emotions — no names, no details, no trace.
+            Your raw words are never stored. They are anonymised in real time
+            and immediately discarded — the server only keeps anonymised
+            emotions, with no names, no details, and no trace back to you.
           </p>
           {onNavigate && (
             <button
@@ -67,7 +68,7 @@ export function AboutPanel({ onBack, onNavigate }: AboutPanelProps) {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+        <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
           <h3 className="mb-2 text-sm font-medium text-echo-text">
             Built for UNIHACK 2026
           </h3>

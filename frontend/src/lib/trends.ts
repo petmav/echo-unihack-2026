@@ -6,6 +6,14 @@ export interface TrendThought {
   is_resolved: boolean;
 }
 
+export interface ResolutionTimelineThought {
+  message_id: string;
+  theme_category: string;
+  timestamp: number;
+  is_resolved: boolean;
+  resolution_timestamp?: number;
+}
+
 export interface TrendBucket {
   key: string;
   label: string;
@@ -33,6 +41,21 @@ export interface TrendSnapshot {
   topThemes: TrendThemeSummary[];
   dominantTheme: TrendThemeSummary | null;
   risingTheme: TrendThemeSummary | null;
+}
+
+export interface ResolutionTimelineItem {
+  messageId: string;
+  theme: string;
+  submittedAt: number;
+  resolvedAt: number;
+  elapsedMs: number;
+}
+
+export interface ResolutionTimelineSummary {
+  items: ResolutionTimelineItem[];
+  trackedResolvedCount: number;
+  legacyResolvedCount: number;
+  averageResolutionMs: number | null;
 }
 
 interface BucketDefinition {
@@ -314,5 +337,46 @@ export function buildTrendSnapshot(
     topThemes,
     dominantTheme: topThemes[0] ?? null,
     risingTheme,
+  };
+}
+
+export function buildResolutionTimeline(
+  thoughts: ResolutionTimelineThought[],
+  limit: number = 4
+): ResolutionTimelineSummary {
+  const trackedItems = thoughts
+    .filter(
+      (thought) =>
+        thought.is_resolved && typeof thought.resolution_timestamp === "number"
+    )
+    .map((thought) => {
+      const resolvedAt = thought.resolution_timestamp as number;
+
+      return {
+        messageId: thought.message_id,
+        theme: thought.theme_category,
+        submittedAt: thought.timestamp,
+        resolvedAt,
+        elapsedMs: Math.max(0, resolvedAt - thought.timestamp),
+      };
+    })
+    .sort((left, right) => right.resolvedAt - left.resolvedAt);
+
+  const legacyResolvedCount = thoughts.filter(
+    (thought) =>
+      thought.is_resolved && typeof thought.resolution_timestamp !== "number"
+  ).length;
+
+  const totalElapsedMs = trackedItems.reduce(
+    (sum, item) => sum + item.elapsedMs,
+    0
+  );
+
+  return {
+    items: trackedItems.slice(0, limit),
+    trackedResolvedCount: trackedItems.length,
+    legacyResolvedCount,
+    averageResolutionMs:
+      trackedItems.length > 0 ? totalElapsedMs / trackedItems.length : null,
   };
 }

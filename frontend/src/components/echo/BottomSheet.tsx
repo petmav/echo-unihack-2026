@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
 import type { ThoughtResponse } from "@/lib/types";
 
@@ -19,14 +21,22 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const resolutionText = thought?.resolution_text?.trim();
 
+  useEffect(() => {
+    if (!thought) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [thought, onClose]);
+
   return (
     <AnimatePresence>
       {thought && (
         <>
           {/* Backdrop */}
           <motion.div
-            className="absolute inset-0 z-100"
-            style={{ background: "rgba(44, 40, 37, 0.25)" }}
+            className="absolute inset-0 z-100 bg-black/25"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -37,7 +47,7 @@ export function BottomSheet({
 
           {/* Sheet */}
           <motion.div
-            className="absolute bottom-0 left-1/2 z-101 w-full max-w-xl -translate-x-1/2 max-h-[65%] overflow-y-auto rounded-t-3xl bg-white px-6 pb-12 pt-4"
+            className="absolute bottom-0 left-1/2 z-101 w-full max-w-xl -translate-x-1/2 max-h-[65%] overflow-y-auto rounded-t-3xl bg-echo-card px-6 pb-12 pt-4"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -51,6 +61,15 @@ export function BottomSheet({
           >
             {/* Handle */}
             <div className="mx-auto mb-5 h-1 w-9 rounded-full bg-echo-text-muted opacity-35" />
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-echo-text-soft transition-colors active:bg-black/5"
+              aria-label="Close sheet"
+            >
+              <X size={18} />
+            </button>
 
             <h3 className="mb-3.5 font-serif text-[17px] font-normal text-echo-text">
               What helped

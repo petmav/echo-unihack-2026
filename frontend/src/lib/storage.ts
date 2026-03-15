@@ -24,6 +24,7 @@ const NOTIFICATION_OPT_IN_KEY = "echo_notification_opt_in";
 const LAST_PROMPT_DATE_KEY = "echo_last_prompt_date";
 const ADMIN_STATUS_KEY = "echo_is_admin";
 const PERSONA_KEY = "echo_persona";
+const DELETED_IDS_KEY = "echo_deleted_ids";
 
 /** Shape stored for encrypted blobs */
 interface EncryptedBlob {
@@ -88,12 +89,14 @@ export async function saveThought(
   messageId: string,
   rawText: string,
   themeCategory: string,
-  matchCount?: number
+  matchCount?: number,
+  anonymisedText?: string
 ): Promise<void> {
   const thoughts = await readThoughts();
   thoughts.unshift({
     message_id: messageId,
     raw_text: rawText,
+    anonymised_text: anonymisedText,
     theme_category: themeCategory,
     timestamp: Date.now(),
     is_resolved: false,
@@ -114,6 +117,8 @@ export async function resolveThought(
   const index = thoughts.findIndex((t) => t.message_id === messageId);
   if (index === -1) return;
   thoughts[index].is_resolved = true;
+  thoughts[index].resolution_timestamp =
+    thoughts[index].resolution_timestamp ?? Date.now();
   thoughts[index].resolution_text = resolutionText;
   await writeThoughts(thoughts);
 }

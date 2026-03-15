@@ -42,7 +42,7 @@ export function AuthScreen({ onAuth, isLoading, error }: AuthScreenProps) {
             placeholder="Email"
             required
             autoComplete="email"
-            className="w-full rounded-[14px] border border-[#E0D8D0] bg-white px-4.5 py-[15px] font-sans text-[15px] font-light text-echo-text outline-none transition-colors placeholder:text-echo-text-muted focus:border-echo-accent"
+            className="w-full rounded-[14px] border border-border bg-echo-card px-4.5 py-[15px] font-sans text-[15px] font-light text-echo-text outline-none transition-colors placeholder:text-echo-text-muted focus:border-echo-accent"
           />
         </div>
 
@@ -56,7 +56,7 @@ export function AuthScreen({ onAuth, isLoading, error }: AuthScreenProps) {
             autoComplete={
               mode === "login" ? "current-password" : "new-password"
             }
-            className="w-full rounded-[14px] border border-[#E0D8D0] bg-white px-4.5 py-[15px] font-sans text-[15px] font-light text-echo-text outline-none transition-colors placeholder:text-echo-text-muted focus:border-echo-accent"
+            className="w-full rounded-[14px] border border-border bg-echo-card px-4.5 py-[15px] font-sans text-[15px] font-light text-echo-text outline-none transition-colors placeholder:text-echo-text-muted focus:border-echo-accent"
           />
         </div>
 
@@ -109,7 +109,7 @@ export function AuthScreen({ onAuth, isLoading, error }: AuthScreenProps) {
           <p className="text-xs font-light leading-relaxed text-echo-text-soft">
             No names. No profiles. Just an email.
             <br />
-            Your thoughts never leave your device.
+            Your thoughts are never stored.
           </p>
         </div>
       </form>

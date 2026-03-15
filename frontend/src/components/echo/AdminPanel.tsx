@@ -100,7 +100,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                 className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left transition-all active:scale-[0.98] ${
                   mode === "ollama"
                     ? "bg-echo-accent/10 ring-1 ring-echo-accent/30"
-                    : "bg-white shadow-[0_1px_4px_rgba(44,40,37,0.07)] hover:bg-echo-bg-warm"
+                    : "bg-echo-card shadow-[0_1px_4px_rgba(44,40,37,0.07)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.15)] hover:bg-echo-bg-warm"
                 } ${switching ? "opacity-60" : ""}`}
               >
                 <div
@@ -128,7 +128,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                 className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left transition-all active:scale-[0.98] ${
                   mode === "nanogpt"
                     ? "bg-echo-accent/10 ring-1 ring-echo-accent/30"
-                    : "bg-white shadow-[0_1px_4px_rgba(44,40,37,0.07)] hover:bg-echo-bg-warm"
+                    : "bg-echo-card shadow-[0_1px_4px_rgba(44,40,37,0.07)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.15)] hover:bg-echo-bg-warm"
                 } ${switching ? "opacity-60" : ""}`}
               >
                 <div
