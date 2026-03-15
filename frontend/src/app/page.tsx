@@ -1237,14 +1237,6 @@ export default function EchoApp() {
               >
                 {presenceCount} others breathing in this space this week
               </p>
-              <div className="mt-2 animate-[fadeIn_1.8s_ease_1.35s_both]">
-                <DataModeBadge
-                  mode={presenceDataMode}
-                  liveLabel="Live presence"
-                  demoLabel="Demo estimate"
-                  testId="presence-data-mode"
-                />
-              </div>
             </>
           )}
         </motion.div>
