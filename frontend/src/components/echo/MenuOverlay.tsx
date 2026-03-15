@@ -13,11 +13,11 @@ import {
   Waypoints,
   Sun,
   Moon,
+  CalendarDays,
 } from "lucide-react";
 
 import type { AppScreen } from "@/lib/types";
 
-import { useTheme } from "@/lib/theme";
 import { EchoLogoSmall } from "./EchoLogo";
 
 interface MenuItem {
@@ -36,6 +36,12 @@ const MENU_ITEMS: MenuItem[] = [
   },
   { id: "graph", label: "Constellation", icon: <Waypoints size={22} />, path: "/constellation" },
   { id: "trends", label: "Trends", icon: <TrendingUp size={22} />, path: "/trends" },
+  {
+    id: "weeklyThemes",
+    label: "Week's themes",
+    icon: <CalendarDays size={22} />,
+    path: "/weekly-themes",
+  },
   { id: "account", label: "Account", icon: <User size={22} />, path: "/account" },
   { id: "about", label: "About Echo", icon: <Info size={22} />, path: "/about" },
 ];
@@ -53,8 +59,6 @@ export function MenuOverlay({
   mode = "fullscreen",
   isAdmin = false,
 }: MenuOverlayProps) {
-  const { theme, toggleTheme } = useTheme();
-
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -144,19 +148,12 @@ export function MenuOverlay({
             ))}
           </nav>
 
-          <div className="flex items-center justify-between px-5 pb-6 pt-4">
+          <div className="px-5 pb-6 pt-4">
             <span className="text-xs font-light leading-snug text-echo-text-muted">
               Built at UNIHACK 2026
               <br />
               Your feelings, held with care.
             </span>
-            <button
-              onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-echo-text-soft transition-colors hover:bg-echo-bg-warm active:scale-[0.92]"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
           </div>
         </motion.div>
       </>
@@ -221,13 +218,6 @@ export function MenuOverlay({
           <br />
           Your feelings, held with care.
         </span>
-        <button
-          onClick={toggleTheme}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-echo-text-soft transition-colors active:bg-echo-bg-warm active:scale-[0.92]"
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
       </div>
     </motion.div>
   );

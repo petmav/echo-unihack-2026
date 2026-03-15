@@ -7,7 +7,6 @@ import { Send, X, Mic, MicOff } from "lucide-react";
 
 import { MAX_THOUGHT_LENGTH } from "@/lib/constants";
 import { useTheme } from "@/lib/theme";
-import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 
 interface ThoughtInputProps {
