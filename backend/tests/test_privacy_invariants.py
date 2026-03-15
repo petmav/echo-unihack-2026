@@ -208,6 +208,7 @@ class TestNoRawTextInElasticDocuments:
             "sentiment_vector",
             "timestamp_week",
             "has_resolution",
+            "persona",
         }
         extra_fields = set(document.keys()) - allowed_fields
         assert not extra_fields, (
