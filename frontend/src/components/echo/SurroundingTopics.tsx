@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { SURROUNDING_TOPICS } from "@/lib/constants";
@@ -131,10 +131,6 @@ export function SurroundingTopics({
       seq: nextSeq(),
     }));
   });
-
-  // Track which topic/position indices are currently displayed
-  const slotsRef = useRef(slots);
-  slotsRef.current = slots;
 
   useEffect(() => {
     const interval = setInterval(() => {

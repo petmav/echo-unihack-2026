@@ -135,6 +135,7 @@ export function ConstellationCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startTime = useRef(0);
   const animRef = useRef(0);
+  const drawRef = useRef<(now: number) => void>(() => {});
 
   const draw = useCallback(
     (now: number) => {
@@ -220,13 +221,17 @@ export function ConstellationCanvas({
         ctx.fill();
       }
 
-      animRef.current = requestAnimationFrame(draw);
+      animRef.current = requestAnimationFrame((t) => drawRef.current(t));
     },
     [data, width, height]
   );
 
   useEffect(() => {
-    animRef.current = requestAnimationFrame(draw);
+    drawRef.current = draw;
+  }, [draw]);
+
+  useEffect(() => {
+    animRef.current = requestAnimationFrame((t) => drawRef.current(t));
     return () => cancelAnimationFrame(animRef.current);
   }, [draw]);
 
