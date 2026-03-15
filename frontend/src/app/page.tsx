@@ -62,7 +62,7 @@ import {
   getThemeCount,
   ApiError,
 } from "@/lib/api";
-import { THEME_DISPLAY_LABELS } from "@/lib/constants";
+import { THEME_DISPLAY_LABELS, RISK_THEMES } from "@/lib/constants";
 import { useDeviceType } from "@/lib/hooks";
 import { findQuietWin, type QuietWin } from "@/lib/quietWins";
 import {
@@ -1052,14 +1052,8 @@ export default function EchoApp() {
                 Others on {topicTheme.label}
               </h1>
             </div>
-            <div className="mb-3">
-              <DataModeBadge
-                mode={topicDataMode}
-                liveLabel="Live topic"
-                demoLabel="Demo topic"
-                testId="topic-data-mode"
-              />
-            </div>
+
+
             {topicTotal > 0 && (
               <p className="mb-4 text-[13px] font-light text-echo-text-muted">
                 {topicTotal} {topicTotal === 1 ? "thought" : "thoughts"} in this space
@@ -1125,16 +1119,7 @@ export default function EchoApp() {
               onAnimationComplete={() => setCountAnimDone(true)}
             />
 
-            {countAnimDone && resultsDataMode && (
-              <div className="mb-3 px-4">
-                <DataModeBadge
-                  mode={resultsDataMode}
-                  liveLabel="Live results"
-                  demoLabel="Demo results"
-                  testId="results-data-mode"
-                />
-              </div>
-            )}
+
 
             {hasSupportSection && (
               <div className="mb-3 px-4">
@@ -1191,7 +1176,7 @@ export default function EchoApp() {
             {/* Advice-first toggle — filter to cards with resolutions */}
             {countAnimDone && (
               <div className="mb-3 px-4">
-                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                <div className="rounded-[18px] bg-white dark:bg-[#2C2825] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[14px] font-normal text-echo-text">
                       Show only what helped
@@ -1220,7 +1205,7 @@ export default function EchoApp() {
 
             {countAnimDone && adviceFirstOnly && visibleResultThoughts.length === 0 && (
               <div className="mb-4 px-4">
-                <div className="rounded-[18px] bg-white p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+                <div className="rounded-[18px] bg-white dark:bg-[#2C2825] p-4 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
                   <p className="text-[14px] font-normal text-echo-text">
                     No one in this space has shared what helped yet.
                   </p>
