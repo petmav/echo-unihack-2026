@@ -38,7 +38,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "trends", label: "Trends", icon: <TrendingUp size={22} />, path: "/trends" },
   {
     id: "weeklyThemes",
-    label: "Week's themes",
+    label: "This week's themes",
     icon: <CalendarDays size={22} />,
     path: "/weekly-themes",
   },

@@ -132,7 +132,7 @@ export function WeeklyThemesPanel({
           <ChevronLeft size={22} />
         </button>
         <h1 className="text-base font-light tracking-wide text-echo-text sm:text-lg">
-          Week&apos;s themes
+          This week&apos;s themes
         </h1>
       </div>
 
