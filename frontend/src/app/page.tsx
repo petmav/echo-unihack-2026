@@ -477,33 +477,31 @@ export default function EchoApp() {
     };
 
     const poll = async () => {
-      // 1. Update live count — always increment so the demo always feels live
+      // 1. Update live count from API
       try {
         const result = await getThemeCount(currentThemeCategory);
         setThemeResolutionStats(result);
         setResultsDataMode(result.isDemo ? "demo" : "live");
-        setLiveMatchCount((prev: number) =>
-          result.count > prev ? result.count : prev + Math.floor(Math.random() * 3) + 1
-        );
+        if (result.count > 0) {
+          setLiveMatchCount((prev: number) =>
+            result.count > prev ? result.count : prev
+          );
+        }
       } catch {
         setThemeResolutionStats((prev) =>
           prev ?? getDemoThemeResolutionSummary(currentThemeCategory)
         );
         setResultsDataMode("demo");
-        setLiveMatchCount((prev: number) => prev + Math.floor(Math.random() * 3) + 1);
       }
 
-      // 2. Fetch new cards from API; if nothing new, fall back to demo pool
+      // 2. Fetch new cards from API (no demo pool fallback)
       if (currentMessageId) {
         try {
           const result = await getSimilarThoughts(currentMessageId);
-          const added = injectNewCards(result.thoughts);
-          if (!added) injectFromDemoPool();
+          injectNewCards(result.thoughts);
         } catch {
-          injectFromDemoPool();
+          // API unavailable — don't inject fake cards
         }
-      } else {
-        injectFromDemoPool();
       }
     };
 
@@ -726,7 +724,11 @@ export default function EchoApp() {
     setIsLoadingMore(true);
     try {
       const result = await getSimilarThoughts(currentMessageId, searchAfterCursor);
-      setSimilarThoughts((prev) => [...prev, ...result.thoughts]);
+      setSimilarThoughts((prev) => {
+        const existingIds = new Set(prev.map((t) => t.message_id));
+        const fresh = result.thoughts.filter((t) => !existingIds.has(t.message_id));
+        return [...prev, ...fresh];
+      });
       setSearchAfterCursor(result.search_after);
       setHasMoreThoughts(result.search_after != null);
     } catch (err) {
@@ -1216,6 +1218,15 @@ export default function EchoApp() {
               </div>
             )}
 
+            {countAnimDone && visibleResultThoughts.length === 0 && (
+              <div className="px-4 py-10 text-center">
+                <p className="text-[14px] font-light text-echo-text-soft">
+                  {adviceFirstOnly
+                    ? "No one has shared what helped yet in this set. Turn off the filter to see all thoughts."
+                    : "No similar thoughts yet."}
+                </p>
+              </div>
+            )}
             {countAnimDone && visibleResultThoughts.length > 0 && (
               <ThoughtCardList
                 thoughts={visibleResultThoughts}
@@ -1227,31 +1238,6 @@ export default function EchoApp() {
                 isLoadingMore={isLoadingMore}
               />
             )}
-            {countAnimDone && (() => {
-              const displayedThoughts = adviceFirstOnly ? similarThoughts.filter((t) => t.has_resolution) : similarThoughts;
-              return (
-                <>
-                  {displayedThoughts.length === 0 && (
-                    <div className="px-4 py-10 text-center">
-                      <p className="text-[14px] font-light text-echo-text-soft">
-                        {adviceFirstOnly
-                          ? "No one has shared what helped yet in this set. Turn off the filter to see all thoughts."
-                          : "No similar thoughts yet."}
-                      </p>
-                    </div>
-                  )}
-                  <ThoughtCardList
-                    thoughts={displayedThoughts}
-                    visibleCount={cardsVisible}
-                    newThoughtIds={newThoughtIds}
-                    onCardTap={handleCardTap}
-                    onLoadMore={loadMoreThoughts}
-                    hasMore={hasMoreThoughts}
-                    isLoadingMore={isLoadingMore}
-                  />
-                </>
-              );
-            })()}
           </div>
 
           {/* FAB to return home */}
