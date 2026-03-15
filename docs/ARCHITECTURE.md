@@ -212,6 +212,8 @@ Response: [{ "theme": "work_stress", "count": 342 }, ...]
 
 The client maps the count for the user's most recent theme to a presence level (0–4), which adjusts the logo's visual parameters. No user IDs are involved — this is purely aggregate data.
 
+The same aggregates endpoint powers the **"Week's themes"** panel (hamburger menu). That panel shows a donut chart and column chart of the top 5 themes for the current week, plus a tappable list of all themes. Tapping a theme navigates to the "Others on [topic]" flow.
+
 ---
 
 ## "Future You" — Local-Only Letters

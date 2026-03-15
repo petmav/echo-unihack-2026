@@ -163,9 +163,10 @@ When the theme classification indicates risk-related categories (self-harm, cris
 10. Tap a card → bottom sheet slides up showing the verbatim "what helped" text
 
 ### Navigation
-- Hamburger (top-left) → history panel slides in
+- Hamburger (top-left) → menu: Past thoughts, Constellation, Trends, Week's themes, Account, About
 - History panel: each entry shows truncated raw thought (local), resolve (✓) button, "what helped?" expandable field
 - Resolved entries visually marked (muted, checkmark)
+- Week's themes: anonymous weekly aggregates (donut + column charts), tap theme to browse thoughts
 - Settings: account info (email only), notification opt-in for delayed prompts, delete account
 
 ### Auth
@@ -184,7 +185,8 @@ frontend/
     components/
       ui/                 → Primitives (Button, Card, BottomSheet, etc.)
       echo/               → Echo-specific components (EchoLogo, ThoughtInput,
-                            ThoughtCard, SurroundingTopics, CountReveal, HistoryPanel)
+                            ThoughtCard, SurroundingTopics, CountReveal, HistoryPanel,
+                            WeeklyThemesPanel)
     lib/
       api.ts              → All backend fetch calls — single source of truth
       storage.ts          → localStorage helpers (raw thoughts, history, trends)

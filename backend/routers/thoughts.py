@@ -528,3 +528,35 @@ async def get_theme_aggregates(response: Response):
         response.headers["X-Echo-Demo"] = "true"
         return _DEMO_AGGREGATES
     return aggregates
+
+
+_DEMO_AGGREGATES_MONTHLY: list[dict] = [
+    {"theme": "work_stress", "count": 2847, "resolution_count": 586, "resolution_rate": 21},
+    {"theme": "anxiety", "count": 2134, "resolution_count": 420, "resolution_rate": 20},
+    {"theme": "loneliness", "count": 1721, "resolution_count": 399, "resolution_rate": 23},
+    {"theme": "relationship_conflict", "count": 1678, "resolution_count": 401, "resolution_rate": 24},
+    {"theme": "self_worth", "count": 1592, "resolution_count": 394, "resolution_rate": 25},
+    {"theme": "grief", "count": 987, "resolution_count": 149, "resolution_rate": 15},
+    {"theme": "family_pressure", "count": 853, "resolution_count": 156, "resolution_rate": 18},
+    {"theme": "burnout", "count": 819, "resolution_count": 139, "resolution_rate": 17},
+    {"theme": "fear_of_failure", "count": 684, "resolution_count": 135, "resolution_rate": 20},
+    {"theme": "social_anxiety", "count": 561, "resolution_count": 137, "resolution_rate": 24},
+]
+
+
+@router.get("/aggregates/monthly", response_model=list[ThemeAggregateResponse])
+async def get_theme_aggregates_monthly(response: Response):
+    """
+    Get aggregate counts per theme across the last 4 weeks.
+
+    Used for "Community trends" — shows which themes are most shared.
+    Falls back to demo data if Elasticsearch is unavailable or returns no results.
+
+    PRIVACY: Aggregate counts only, no user IDs, no individual tracking.
+    """
+    response.headers["Cache-Control"] = "public, max-age=1800, stale-while-revalidate=3600"
+    aggregates = await elastic.get_aggregates_monthly()
+    if not aggregates:
+        response.headers["X-Echo-Demo"] = "true"
+        return _DEMO_AGGREGATES_MONTHLY
+    return aggregates

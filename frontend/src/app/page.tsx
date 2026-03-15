@@ -83,6 +83,7 @@ import { AboutPanel } from "@/components/echo/AboutPanel";
 import { PrivacyPanel } from "@/components/echo/PrivacyPanel";
 import { AdminPanel } from "@/components/echo/AdminPanel";
 import { MenuOverlay } from "@/components/echo/MenuOverlay";
+import { WeeklyThemesPanel } from "@/components/echo/WeeklyThemesPanel";
 import { HamburgerButton } from "@/components/echo/HamburgerButton";
 import { OnboardingScreen } from "@/components/echo/OnboardingScreen";
 import { AuthScreen } from "@/components/echo/AuthScreen";
@@ -102,6 +103,7 @@ const SCREEN_TO_PATH: Partial<Record<AppScreen, string>> = {
   thoughts: "/thoughts",
   graph: "/constellation",
   trends: "/trends",
+  weeklyThemes: "/weekly-themes",
   account: "/account",
   about: "/about",
   privacy: "/privacy",
@@ -926,7 +928,7 @@ export default function EchoApp() {
       futureLetterMatch != null);
 
   const isMainScreen = screen === "home" || screen === "results" || screen === "topic";
-  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "graph", "account", "about", "privacy", "admin"];
+  const PANEL_SCREENS: AppScreen[] = ["thoughts", "trends", "weeklyThemes", "graph", "account", "about", "privacy", "admin"];
   const isPanel = PANEL_SCREENS.includes(screen);
   const showTopBar = isMainScreen || (isPanel && screen !== "graph");
 
@@ -1275,6 +1277,25 @@ export default function EchoApp() {
             transition={PANEL_TRANSITION}
           >
             <TrendsPanel thoughts={thoughtHistory} onBack={handleBackToHome} />
+          </motion.div>
+        )}
+
+        {screen === "weeklyThemes" && (
+          <motion.div
+            key="weeklyThemes"
+            className="absolute inset-0 z-40 flex flex-col bg-echo-bg"
+            variants={PANEL_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={PANEL_TRANSITION}
+          >
+            <WeeklyThemesPanel
+              onBack={handleBackToHome}
+              onThemeSelect={(themeKey) => {
+                handleTopicOpen(themeKey);
+              }}
+            />
           </motion.div>
         )}
 

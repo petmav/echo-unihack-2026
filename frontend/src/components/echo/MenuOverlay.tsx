@@ -13,6 +13,7 @@ import {
   Waypoints,
   Sun,
   Moon,
+  CalendarDays,
 } from "lucide-react";
 
 import type { AppScreen } from "@/lib/types";
@@ -36,6 +37,12 @@ const MENU_ITEMS: MenuItem[] = [
   },
   { id: "graph", label: "Constellation", icon: <Waypoints size={22} />, path: "/constellation" },
   { id: "trends", label: "Trends", icon: <TrendingUp size={22} />, path: "/trends" },
+  {
+    id: "weeklyThemes",
+    label: "Week's themes",
+    icon: <CalendarDays size={22} />,
+    path: "/weekly-themes",
+  },
   { id: "account", label: "Account", icon: <User size={22} />, path: "/account" },
   { id: "about", label: "About Echo", icon: <Info size={22} />, path: "/about" },
 ];
