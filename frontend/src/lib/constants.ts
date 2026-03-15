@@ -230,6 +230,7 @@ export const THEME_DISPLAY_LABELS: Record<string, string> = {
   fear_of_failure: "fear of failure",
   social_anxiety: "social anxiety",
   comparison: "comparison",
+  falling_behind: "falling behind",
   professional_worth: "professional worth",
   relationship_loss: "relationship loss",
   other: "other",
@@ -248,4 +249,5 @@ export const SURROUNDING_TOPICS: { themeKey: string; label: string }[] = [
   { themeKey: "fear_of_failure", label: "fear of failure" },
   { themeKey: "social_anxiety", label: "social anxiety" },
   { themeKey: "comparison", label: "comparison" },
+  { themeKey: "falling_behind", label: "falling behind" },
 ];

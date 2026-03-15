@@ -164,7 +164,6 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 
 ---
 
-<<<<<<< HEAD
 ## Advice-First Toggle ("Show only what helped")
 
 **What**: On the results screen, a block card above the thought cards contains a switch labelled *"Show only what helped"*. When enabled, the list filters to only show cards that have an attached resolution.
@@ -175,18 +174,11 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 
 ## History Panel — Match Count
 
-**What**: Each past thought stores the match count from when it was submitted (e.g. "N people have felt something like this"). Displayed in the history panel.
-
-**How to test**: Submit a thought → open History (hamburger) → the new entry shows the match count below the thought text.
-=======
-## History Panel — Match Count
-
 **What**: Each past thought stores the match count from when it was submitted (e.g. "2 people have felt something like this"). This number is saved to localStorage with the thought and displayed in the history panel.
 
 **How to test**: Submit a thought → open History (hamburger) → the new entry shows the match count below the thought text. In demo mode, the count is 847. With the backend, it reflects the actual Elasticsearch match total.
 
 **Storage**: `match_count` is an optional field on `LocalThought` in `echo_thoughts`. Legacy thoughts without it simply omit the line.
->>>>>>> main
 
 ---
 
@@ -203,8 +195,5 @@ npx playwright test e2e/new-features.spec.ts --project=desktop
 | Safety banner absent for safe themes | `new-features.spec.ts` | Banner does NOT appear for `self_worth` |
 | Risk theme constants | `new-features.spec.ts` | All 7 risk themes are defined |
 | Surrounding topics / Topic exploration | (manual or new spec) | Bubbles clickable; topic screen loads thoughts |
-<<<<<<< HEAD
 | Advice-first toggle | (manual) | Toggle filters to cards with "what helped" |
-=======
->>>>>>> main
 | History match count | (manual) | Past thoughts show "N people have felt something like this" |

@@ -23,7 +23,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from config import config
-from database import init_db
+from database import Account, SessionLocal, init_db
 from middleware.cors import get_cors_middleware
 from middleware.logging import get_logging_config, setup_application_logging
 from middleware.request_size import add_request_size_middleware
@@ -31,6 +31,38 @@ from routers import account, admin, auth, resolution, thoughts
 from routers.admin import api_router as admin_api_router
 from routers.admin import init_admin
 from services.elastic import close_elasticsearch, init_elasticsearch
+
+
+DEMO_EMAIL = "demo@echo.app"
+DEMO_PASSWORD = "echo2026"
+
+
+def _seed_demo_account(logger: logging.Logger) -> None:
+    """Create the demo account if it doesn't already exist. Idempotent."""
+    from services.auth import hash_password
+
+    db = SessionLocal()
+    try:
+        existing = db.query(Account).filter(Account.email == DEMO_EMAIL).first()
+        if existing is not None:
+            logger.info(f"Demo account already exists: {DEMO_EMAIL}")
+            return
+
+        import uuid
+
+        account = Account(
+            id=str(uuid.uuid4()),
+            email=DEMO_EMAIL,
+            password_hash=hash_password(DEMO_PASSWORD),
+        )
+        db.add(account)
+        db.commit()
+        logger.info(f"Seeded demo account: {DEMO_EMAIL}")
+    except Exception as exc:
+        db.rollback()
+        logger.warning(f"Could not seed demo account: {exc}")
+    finally:
+        db.close()
 
 
 # Application lifecycle management
@@ -66,6 +98,9 @@ async def lifespan(app: FastAPI):
 
     # Initialize database tables (accounts, message_themes)
     init_db()
+
+    # Seed demo account (idempotent — skips if already exists)
+    _seed_demo_account(logger)
 
     # Initialize Elasticsearch
     await init_elasticsearch()

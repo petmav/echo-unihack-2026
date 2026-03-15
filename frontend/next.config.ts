@@ -10,8 +10,20 @@ const output = process.env.NEXT_OUTPUT === 'export'
   ? 'standalone'
   : undefined;
 
+const backendUrl = process.env.BACKEND_URL || "";
+
 const nextConfig: NextConfig = {
   output,
+  ...(backendUrl && output !== "export"
+    ? {
+        rewrites: async () => [
+          {
+            source: "/api/v1/:path*",
+            destination: `${backendUrl}/api/v1/:path*`,
+          },
+        ],
+      }
+    : {}),
 };
 
 export default nextConfig;

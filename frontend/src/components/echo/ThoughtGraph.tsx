@@ -424,6 +424,8 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
   const [edgeCount, setEdgeCount] = useState(0);
   const [selectedNode, setSelectedNode] = useState<SimNode | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(300);
+  const [connectedForDetail, setConnectedForDetail] = useState<{ node: SimNode; similarity: number }[]>([]);
 
   // Smooth animated zoom/pan targets
   const targetZoomRef = useRef(1);
@@ -621,6 +623,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
   }, []);
 
   /* ── Render loop ── */
+  const renderRef = useRef<() => void>(() => {});
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -802,8 +805,31 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    animFrameRef.current = requestAnimationFrame(render);
+    animFrameRef.current = requestAnimationFrame(() => renderRef.current());
   }, [tick]);
+
+  useEffect(() => {
+    renderRef.current = render;
+  }, [render]);
+
+  useEffect(() => {
+    if (!selectedNode) {
+      queueMicrotask(() => setConnectedForDetail([]));
+      return;
+    }
+    const edges = edgesRef.current;
+    const nodes = nodesRef.current;
+    const connected = edges
+      .filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)
+      .map((e) => {
+        const otherId = e.source === selectedNode.id ? e.target : e.source;
+        const other = nodes.find((n) => n.id === otherId);
+        return other ? { node: other, similarity: e.similarity } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.similarity - a!.similarity) as { node: SimNode; similarity: number }[];
+    queueMicrotask(() => setConnectedForDetail(connected));
+  }, [selectedNode]);
 
   /* ── Canvas sizing ── */
   const resizeCanvas = useCallback(() => {
@@ -812,6 +838,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
     if (!canvas || !container) return;
     const rect = container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
+    setContainerWidth(rect.width);
     // Use CSS pixels for simulation coordinates (no DPR scaling —
     // keeps physics consistent across displays)
     canvas.width = rect.width;
@@ -960,6 +987,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
     preSelectViewRef.current = null;
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- event required by onPointerUp signature
   const handlePointerUp = useCallback((_e: React.PointerEvent) => {
     const wasDragging = !!dragRef.current;
 
@@ -1048,7 +1076,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
     const raf = requestAnimationFrame(() => {
       resizeCanvas();
       initGraph();
-      animFrameRef.current = requestAnimationFrame(render);
+      animFrameRef.current = requestAnimationFrame(() => renderRef.current());
     });
 
     const onResize = () => resizeCanvas();
@@ -1166,7 +1194,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
           <motion.div
             className="pointer-events-none absolute z-20 max-w-65 rounded-xl border-2 border-echo-graph-overlay-border bg-echo-graph-overlay-bg px-3.5 py-2.5 shadow-xl"
             style={{
-              left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 300) - 280),
+              left: Math.min(tooltipPos.x + 14, containerWidth - 280),
               top: Math.max(tooltipPos.y - 60, 8),
             }}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -1200,19 +1228,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
 
         {/* Selected node detail card */}
         <AnimatePresence>
-          {selectedNode && (() => {
-            // Find connected nodes
-            const connected = edgesRef.current
-              .filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)
-              .map((e) => {
-                const otherId = e.source === selectedNode.id ? e.target : e.source;
-                const other = nodesRef.current.find((n) => n.id === otherId);
-                return other ? { node: other, similarity: e.similarity } : null;
-              })
-              .filter(Boolean)
-              .sort((a, b) => b!.similarity - a!.similarity) as { node: SimNode; similarity: number }[];
-
-            return (
+          {selectedNode && (
               <motion.div
                 key="detail-card"
                 className="absolute right-3 top-3 bottom-3 z-30 flex w-[320px] flex-col rounded-2xl border-2 border-echo-graph-overlay-border bg-echo-graph-overlay-bg shadow-2xl"
@@ -1221,44 +1237,8 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
                 exit={{ opacity: 0, x: 40 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
               >
-                {/* Card header */}
-                <div className="flex items-start gap-2.5 px-5 pt-5 pb-3">
-                  <div
-                    className="mt-1 h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: selectedNode.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-echo-graph-overlay-muted">
-                        {selectedNode.theme.replace(/_/g, " ")}
-                      </span>
-                      {selectedNode.isUser && (
-                        <span className="rounded-full bg-echo-accent/15 px-2 py-0.5 text-[9px] font-bold text-echo-accent">
-                          you
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-[14px] font-normal leading-snug text-echo-graph-overlay-text">
-                      {selectedNode.fullText}
-                    </p>
-                    {selectedNode.hasResolution && (
-                      <div className="mt-3">
-                        <p className="text-[11px] font-semibold text-emerald-600">
-                          ✓ resolved
-                        </p>
-                        {selectedNode.resolutionText && (
-                          <div className="mt-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30 px-3.5 py-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700/70 dark:text-emerald-400/70 mb-1.5">
-                              What helped
-                            </p>
-                            <p className="text-[12px] leading-relaxed text-emerald-900/80 dark:text-emerald-200/80">
-                              {selectedNode.resolutionText}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                {/* Close button — pinned top-right */}
+                <div className="flex justify-end px-4 pt-4 pb-0">
                   <button
                     onClick={() => selectNode(null)}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-echo-graph-overlay-muted transition-colors hover:bg-echo-graph-overlay-hover-btn"
@@ -1267,18 +1247,54 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
                   </button>
                 </div>
 
-                {/* Divider */}
-                <div className="mx-5 h-px bg-echo-graph-overlay-divider" />
+                {/* Scrollable content: thought + what helped + connected thoughts */}
+                <div className="flex-1 overflow-y-auto px-5 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: selectedNode.color }}
+                    />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-echo-graph-overlay-muted">
+                      {selectedNode.theme.replace(/_/g, " ")}
+                    </span>
+                    {selectedNode.isUser && (
+                      <span className="rounded-full bg-echo-accent/15 px-2 py-0.5 text-[9px] font-bold text-echo-accent">
+                        you
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[14px] font-normal leading-snug text-echo-graph-overlay-text">
+                    {selectedNode.fullText}
+                  </p>
+                  {selectedNode.hasResolution && (
+                    <div className="mt-3">
+                      <p className="text-[11px] font-semibold text-emerald-600">
+                        ✓ resolved
+                      </p>
+                      {selectedNode.resolutionText && (
+                        <div className="mt-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30 px-3.5 py-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700/70 dark:text-emerald-400/70 mb-1.5">
+                            What helped
+                          </p>
+                          <p className="text-[12px] leading-relaxed text-emerald-900/80 dark:text-emerald-200/80">
+                            {selectedNode.resolutionText}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {/* Connected thoughts */}
-                <div className="flex-1 overflow-y-auto px-5 pt-3 pb-4">
-                  {connected.length > 0 ? (
+                  {/* Divider */}
+                  <div className="my-3 h-px bg-echo-graph-overlay-divider" />
+
+                  {/* Connected thoughts */}
+                  {connectedForDetail.length > 0 ? (
                     <div className="rounded-xl border border-echo-graph-overlay-divider bg-echo-graph-overlay-card-bg p-4">
                       <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-echo-graph-overlay-muted">
                         Connected thoughts
                       </p>
                       <div className="flex flex-col gap-0.5">
-                        {connected.map(({ node: cn, similarity }) => (
+                        {connectedForDetail.map(({ node: cn, similarity }) => (
                           <button
                             key={cn.id}
                             className="flex items-start gap-2.5 rounded-xl p-2.5 text-left transition-colors hover:bg-echo-graph-overlay-hover cursor-pointer"
@@ -1307,8 +1323,7 @@ export function ThoughtGraph({ onBack }: ThoughtGraphProps) {
                   )}
                 </div>
               </motion.div>
-            );
-          })()}
+          )}
         </AnimatePresence>
 
         {/* Empty state */}

@@ -15,6 +15,7 @@
 - Suggested max ~280 characters (a thought, not an essay)
 - Character count shown when approaching limit
 - Submit on tap of send button or keyboard submit
+- **Voice input**: A microphone button is available alongside the text input. Uses the Web Speech Recognition API (`frontend/src/hooks/useSpeechRecognition.ts`) to transcribe speech to text client-side. The transcription runs entirely in the browser — no audio is sent to any server. Falls back gracefully on unsupported browsers.
 
 **Processing state**: After submission, the input bubble collapses back and the breathing animation resumes. Overlay text cycles slowly through (≈2.8s per phrase):
 - *"finding your people..."*
@@ -366,6 +367,21 @@ No tutorial overlay, no tooltips. The app should be self-evident.
 **Privacy**: Same as main thought flow — only anonymised/humanised thoughts are returned. No user linkage.
 
 **Mobile**: 44px minimum touch targets on bubbles, safe-area padding, `touch-action: manipulation` for responsive taps.
+
+---
+
+### 16. "Week's Themes" — Anonymous Weekly Theme Aggregates
+
+**What**: A dedicated panel accessible from the hamburger menu (*"Week's themes"*) that shows anonymous weekly theme aggregates. Users can see which emotional themes others shared most this week and tap any theme to explore thoughts in that space.
+
+**Data source**: `GET /api/v1/thoughts/aggregates` returns per-theme weekly counts (same as "Breathing With Others"). Falls back to demo data if backend is unavailable.
+
+**What the user sees**:
+- **Theme share** — donut chart showing the top 5 themes by proportion, with percentage labels in each segment and total count in the centre
+- **Count by theme** — column chart for the top 5 themes with horizontal count labels
+- **Tappable list** — full list of themes with counts and resolution stats; tap to open "Others on [topic]" and browse thoughts
+
+**Privacy**: Aggregate-only. No user IDs. Same data as the breathing animation — purely anonymous counts per theme per week.
 
 ---
 

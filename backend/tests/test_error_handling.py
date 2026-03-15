@@ -525,19 +525,22 @@ class TestElasticsearchFallback:
         """
         PRIVACY: Even in Elasticsearch fallback scenarios, raw thought text
         must not appear in the response (it should never have been stored).
+
+        Uses raw_input and mock outputs with no overlapping tokens (>4 chars)
+        so _assert_no_raw_text_in_response can verify no raw content leaks.
         """
-        raw_input = "My uncle Robert at Apple Inc treats me terribly"
+        raw_input = "My uncle Robert at Apple Inc causes me great distress"
 
         with (
             patch(
                 "routers.thoughts.anonymiser_service.anonymize_text",
                 new_callable=AsyncMock,
-                return_value="[person] at [company] treats me terribly",
+                return_value="[person] at [company] makes me feel awful",
             ),
             patch(
                 "routers.thoughts.ai.humanize_and_classify",
                 new_callable=AsyncMock,
-                return_value=("Someone in my family treats me with consistent disrespect.", "family_tension"),
+                return_value=("Someone in my family makes me feel consistently awful.", "family_tension"),
             ),
             patch(
                 "routers.thoughts.embeddings.embed",

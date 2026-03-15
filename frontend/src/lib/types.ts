@@ -107,6 +107,7 @@ export type AppScreen =
   | "topic"
   | "thoughts"
   | "trends"
+  | "weeklyThemes"
   | "graph"
   | "account"
   | "about"

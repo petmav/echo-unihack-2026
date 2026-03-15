@@ -22,11 +22,10 @@ with no way to link them to users.
 
 import logging
 import time
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
-
 from elasticsearch import AsyncElasticsearch, TransportError
 
 from config import config
@@ -504,6 +503,75 @@ async def get_aggregates() -> list[dict[str, Any]]:
         return []
 
 
+def _last_n_weeks(n: int) -> list[str]:
+    """Return list of ISO week strings for the last n weeks (including current)."""
+    weeks: list[str] = []
+    d = date.today()
+    for _ in range(n):
+        iso = d.isocalendar()
+        weeks.append(f"{iso[0]}-W{iso[1]:02d}")
+        d -= timedelta(days=7)
+    return weeks
+
+
+async def get_aggregates_monthly() -> list[dict[str, Any]]:
+    """
+    Get aggregate counts for all theme categories across the last 4 weeks.
+
+    Returns:
+        List of dicts with keys 'theme' (str), 'count' (int),
+        'resolution_count' (int), and 'resolution_rate' (int). Same shape as
+        get_aggregates but scoped to last month.
+    """
+    if _es_client is None:
+        logger.warning("Elasticsearch client not initialized; returning empty aggregates")
+        return []
+
+    week_keys = _last_n_weeks(4)
+
+    query_body: dict[str, Any] = {
+        "size": 0,
+        "query": {
+            "terms": {"timestamp_week": week_keys}
+        },
+        "aggs": {
+            "themes": {
+                "terms": {"field": "theme_category", "size": 100},
+                "aggs": {
+                    "resolved": {
+                        "filter": {"term": {"has_resolution": True}}
+                    }
+                },
+            }
+        },
+    }
+
+    try:
+        response = await _es_client.search(
+            index=config.ELASTIC_THOUGHTS_INDEX,
+            body=query_body,
+        )
+        buckets = response.get("aggregations", {}).get("themes", {}).get("buckets", [])
+        return [
+            {
+                "theme": bucket["key"],
+                "count": bucket["doc_count"],
+                "resolution_count": int(bucket.get("resolved", {}).get("doc_count", 0)),
+                "resolution_rate": (
+                    round(
+                        (int(bucket.get("resolved", {}).get("doc_count", 0)) / bucket["doc_count"]) * 100
+                    )
+                    if bucket["doc_count"] > 0
+                    else 0
+                ),
+            }
+            for bucket in buckets
+        ]
+    except Exception as exc:
+        logger.error(f"Failed to get monthly theme aggregates: {exc}")
+        return []
+
+
 async def get_total_theme_resolution_stats(theme_category: str) -> dict[str, int]:
     """
     Get all-time anonymous stats for a theme, including shared-resolution counts.
@@ -859,7 +927,7 @@ async def get_graph_data(
         n_valid = len(valid_indices)
         if n_valid > 1:
             # Count edges per valid-index position
-            edge_counts: dict[int, int] = {i: 0 for i in range(n_valid)}
+            edge_counts: dict[int, int] = dict.fromkeys(range(n_valid), 0)
             for ri, rj in edge_set:
                 edge_counts[ri] = edge_counts.get(ri, 0) + 1
                 edge_counts[rj] = edge_counts.get(rj, 0) + 1
