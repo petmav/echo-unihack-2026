@@ -29,6 +29,18 @@ const X_STEP = (X_END - X_START) / (NUM_PTS - 1);
 
 // Wave layers: offset from centre, stroke width, opacity
 // Mirrored pairs so they never cross (same shape, just offset ± from centre)
+// Pre-computed static organic wave shape — used when animate=false so the
+// logo renders a visible wave instead of invisible sub-pixel flat lines.
+const STATIC_OFFSETS = Array.from({ length: NUM_PTS }, (_, i) => {
+  const t = i / (NUM_PTS - 1);
+  const env = Math.pow(Math.sin(t * Math.PI), 0.8);
+  const wave =
+    Math.sin(t * 7.3  + 1.0) * 0.50 +
+    Math.sin(t * 13.1 + 2.5) * 0.25 +
+    Math.sin(t * 21.7 + 4.0) * 0.15;
+  return wave * 55 * env;
+});
+
 const WAVE_LAYERS = [
   { offset: 0,   sw: 4,   op: 0.95 },
   { offset: 20,  sw: 3,   op: 0.75 },
@@ -111,14 +123,15 @@ export function EchoLogo({
 
   useEffect(() => {
     if (!animate) {
-      // Flat lines when idle
+      // Static organic wave shape when idle — flat lines are sub-pixel at small sizes
       const svg = svgRef.current;
       if (svg) {
         const paths = svg.querySelectorAll<SVGPathElement>("[data-wave]");
         paths.forEach((pathEl: SVGPathElement) => {
           const offset = Number(pathEl.dataset.offset);
-          const flat = new Array(NUM_PTS).fill(0);
-          pathEl.setAttribute("d", buildPathFromOffsets(flat, CY + offset));
+          const dampen = 1 - Math.abs(offset) / 200;
+          const layerOffsets = STATIC_OFFSETS.map((v) => v * dampen);
+          pathEl.setAttribute("d", buildPathFromOffsets(layerOffsets, CY + offset));
         });
       }
       return;
@@ -160,9 +173,6 @@ export function EchoLogo({
     animRef.current = requestAnimationFrame(updateWaves);
     return () => cancelAnimationFrame(animRef.current);
   }, [animate, generateTargets]);
-
-  // Initial flat paths
-  const flatPath = buildPathFromOffsets(new Array(NUM_PTS).fill(0), CY);
 
   return (
     <motion.div
@@ -207,19 +217,27 @@ export function EchoLogo({
 
         <circle cx={CY} cy={CY} r="200" fill={`url(#echo-glow-${uid})`} />
 
-        {WAVE_LAYERS.map((layer, i) => (
-          <path
-            key={i}
-            data-wave=""
-            data-offset={layer.offset}
-            d={flatPath}
-            stroke={`url(#echo-wave-${uid})`}
-            strokeWidth={layer.sw}
-            strokeLinecap="round"
-            fill="none"
-            opacity={layer.op}
-          />
-        ))}
+        {WAVE_LAYERS.map((layer, i) => {
+          // When not animating, pre-render the static organic shape so the logo
+          // is visible immediately (before the useEffect fires).
+          const dampen = 1 - Math.abs(layer.offset) / 200;
+          const initialPath = animate
+            ? buildPathFromOffsets(new Array(NUM_PTS).fill(0), CY)
+            : buildPathFromOffsets(STATIC_OFFSETS.map((v) => v * dampen), CY + layer.offset);
+          return (
+            <path
+              key={i}
+              data-wave=""
+              data-offset={layer.offset}
+              d={initialPath}
+              stroke={`url(#echo-wave-${uid})`}
+              strokeWidth={layer.sw}
+              strokeLinecap="round"
+              fill="none"
+              opacity={layer.op}
+            />
+          );
+        })}
       </svg>
     </motion.div>
   );

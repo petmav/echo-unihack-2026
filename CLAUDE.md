@@ -66,6 +66,7 @@ POST /api/v1/thoughts  (raw text in HTTPS request body only)
 | Anonymised + humanised thoughts | Elastic | Zero account linkage |
 | "What helped" text | Elastic (after SLM pass) | Stored and shown verbatim |
 | "Future You" letters | Device only (localStorage) | Never uploaded, keyed by theme |
+| Saved Anchors (advice bookmarks) | Device only (localStorage) | Anonymised advice saved locally, keyed by theme |
 | Theme aggregate counts | Elastic (anonymous) | No user IDs, weekly aggregates only |
 
 ### Breach impact analysis
@@ -180,37 +181,76 @@ When the theme classification indicates risk-related categories (self-harm, cris
 ```
 frontend/
   src/
-    app/                  → Next.js App Router pages
+    app/
+      layout.tsx          → Root layout + ErrorBoundary
+      page.tsx            → Main app page (all screens: home, results, panels)
+      globals.css         → Tailwind directives
     components/
-      ui/                 → Primitives (Button, Card, BottomSheet, etc.)
-      echo/               → Echo-specific components (EchoLogo, ThoughtInput,
-                            ThoughtCard, SurroundingTopics, CountReveal, HistoryPanel)
+      ui/                 → Primitives (Button, Card, Input, Dialog, Sheet, ScrollArea)
+      echo/               → Echo-specific components (23 files):
+                            EchoLogo, ThoughtInput, ThoughtCard, CountReveal,
+                            ProcessingScreen, HistoryPanel, AuthScreen,
+                            OnboardingScreen, FutureYouBanner, SafetyBanner,
+                            QuietWinBanner, RecurrencePatternBanner,
+                            SavedAnchorsBanner, ThemeResolutionAggregateBanner,
+                            SurroundingTopics, BottomSheet, MenuOverlay,
+                            TrendsPanel, AdminPanel, AccountPanel, PrivacyPanel,
+                            ThoughtGraph
     lib/
       api.ts              → All backend fetch calls — single source of truth
       storage.ts          → localStorage helpers (raw thoughts, history, trends)
                             Raw thought text only ever touches this file
+      crypto.ts           → AES-GCM encryption (Web Crypto API)
+      types.ts            → TypeScript interfaces for all data shapes
+      constants.ts        → Theme lists, presence thresholds, risk patterns
+      hooks.ts            → Custom React hooks
+      theme.tsx           → Emotional themes config
+      trends.ts           → Local trend computation
+      quietWins.ts        → Quiet wins detection logic
+      recurrencePattern.ts → Recurrence pattern detection
+      utils.ts            → Utility functions
+    hooks/
+      useSpeechRecognition.ts → Voice input via Web Speech API
+    e2e/
+      new-features.spec.ts → Playwright E2E tests
 backend/
+  main.py                 → FastAPI app entry point + lifespan handler
+  config.py               → Pydantic environment config
+  database.py             → SQLAlchemy models (Account, MessageTheme) + sessions
+  seed_elastic.py         → Demo data seeder for Elasticsearch
+  seed_data.py            → Pre-written demo content
   routers/
-    thoughts.py           → POST /thoughts, GET /thoughts/similar
+    thoughts.py           → POST /thoughts, GET /similar, /aggregates, /seed-for-theme, /by-theme
     auth.py               → POST /auth/register, /auth/login, /auth/refresh
     resolution.py         → POST /resolution (what helped), GET /resolution/{id}
     account.py            → GET/DELETE /account
+    admin.py              → Admin dashboard HTML + API endpoints
   services/
     anonymiser.py         → Qwen3.5-0.8B via Ollama — ALWAYS CALLED FIRST
     ai.py                 → NanoGPT API — ONLY called after anonymiser
     elastic.py            → All Elasticsearch operations
+    embeddings.py         → Sentence transformer embeddings (all-MiniLM-L6-v2)
     auth.py               → JWT creation/validation, bcrypt hashing
+  middleware/
+    cors.py               → CORS configuration
+    logging.py            → Custom logging — NEVER logs request bodies
+    rate_limit.py         → Per-account + per-IP throttling
+    request_size.py       → Request body size limit (10KB)
   models/
     thought.py            → Pydantic schemas for thought pipeline
     auth.py               → Pydantic schemas for auth
     resolution.py         → Pydantic schemas for what-helped flow
+    anonymiser.py         → Pydantic schemas for anonymisation
+  tests/                  → Comprehensive pytest suite (399 tests)
 infra/
-  docker-compose.yml
+  docker-compose.yml      → 5 services: postgres, ollama, elasticsearch, backend, frontend
 docs/
   ARCHITECTURE.md         → Full system architecture and data flow
   PRIVACY_SPEC.md         → Privacy model, breach analysis, compliance notes
+  FEATURE_SPEC.md         → Complete feature specification (15 features)
   PITCH_TEMPLATE.md       → Demo script and submission checklist
-  FEATURE_SPEC.md         → Complete feature specification
+  START.md                → Getting started guide (setup, env vars, Docker, troubleshooting)
+  TEST.md                 → Testing & demo mode guide
 ```
 
 ---
@@ -241,14 +281,14 @@ cd backend && uvicorn main:app --reload     # http://localhost:8000
 - Components: primitives in `components/ui/`, Echo-specific in `components/echo/`
 - Raw thought text is ONLY handled inside `frontend/src/lib/storage.ts`
 - The anonymiser service is ALWAYS the first service called for any user-generated text
-- Claude is ALWAYS called after the anonymiser, never before
+- NanoGPT is ALWAYS called after the anonymiser, never before
 - Mobile-first CSS — design at 375px, enhance upward
 - All Elastic operations go through `services/elastic.py` only
 
 ---
 
 ## Prizes We're Targeting
-1. **AI Solutions Prize (Quantium)** — three-stage AI pipeline: SLM anonymisation, Claude humanisation, Elastic vector semantic retrieval
+1. **AI Solutions Prize (Quantium)** — three-stage AI pipeline: SLM anonymisation, NanoGPT humanisation, Elastic vector semantic retrieval
 2. **Best Use of Elastic Technology** — vector similarity search, sentiment clustering, `search_after` pagination, real-time aggregate counts, theme-level co-presence
 3. **Social Impact Prize** — mental health, ambient solidarity, zero clinical gatekeeping, accessible to anyone, built-in safety guardrails
 4. **Best Design** — breathing animation influenced by co-presence, count reveal, card scroll, Future You letters, the logo-tap bubble interaction
@@ -267,3 +307,18 @@ cd backend && uvicorn main:app --reload     # http://localhost:8000
 Don't open with the app. Open with: *"Has anyone here had a thought they were too ashamed to say out loud?"* Pause. Then open the laptop.
 
 The count reveal is the money shot — make sure Elastic is seeded with enough data before judging begins.
+
+---
+
+## Documentation Reference
+
+For detailed information beyond this context file, see:
+
+| Document | Path | Contents |
+|----------|------|----------|
+| Architecture | `docs/ARCHITECTURE.md` | Full system architecture, sequence diagrams, Elastic schema, middleware stack, Capacitor/APK build, CI/CD |
+| Privacy Spec | `docs/PRIVACY_SPEC.md` | Privacy model, data inventory, breach analysis (4 scenarios), feature privacy implications, compliance notes |
+| Feature Spec | `docs/FEATURE_SPEC.md` | Complete specification for all 15 features, placement ordering, cut-if-time-poor list |
+| Getting Started | `docs/START.md` | Setup guide: Docker Compose, env vars, running without Docker, seeding, tests, troubleshooting |
+| Testing & Demo | `docs/TEST.md` | Demo mode behaviour, feature-by-feature test instructions, Playwright test inventory |
+| Pitch Template | `docs/PITCH_TEMPLATE.md` | Demo script (3 min), submission checklist, prize targeting, third-party API list |
