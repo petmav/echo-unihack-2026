@@ -54,7 +54,7 @@ class Config(BaseSettings):
 
     # Ollama SLM for anonymization
     OLLAMA_HOST: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "anonymizer"
+    OLLAMA_MODEL: str = "qwen3.5:0.8b"
 
     # Database configuration
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/echo"
@@ -70,6 +70,7 @@ class Config(BaseSettings):
         "http://192.9.165.173:8000",
         "https://localhost",
         "capacitor://localhost",
+        "http://localhost",
     ]
 
     # Admin access — email address that receives the admin flag on login

@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Echo',
   webDir: 'out',
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
   },
   android: {
     allowMixedContent: true,

@@ -12,8 +12,11 @@ import hashlib
 import json
 import logging
 import uuid
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+logger = logging.getLogger("echo")
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import config
@@ -34,6 +37,61 @@ from services.ai import ClaudeAPIError, ClaudeRateLimitError
 
 logger = logging.getLogger("echo")
 router = APIRouter(prefix="/thoughts", tags=["thoughts"])
+
+
+class _ThemeConnectionManager:
+    """Manages WebSocket connections grouped by theme for real-time broadcasting."""
+
+    def __init__(self) -> None:
+        self._connections: defaultdict[str, list[WebSocket]] = defaultdict(list)
+
+    async def connect(self, websocket: WebSocket, theme: str) -> None:
+        await websocket.accept()
+        self._connections[theme].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, theme: str) -> None:
+        try:
+            self._connections[theme].remove(websocket)
+        except ValueError:
+            pass
+
+    async def broadcast(self, theme: str, payload: dict) -> None:
+        """Broadcast payload to all theme subscribers; silently prunes dead connections."""
+        sockets = list(self._connections.get(theme, []))
+        dead: list[WebSocket] = []
+        for ws in sockets:
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws, theme)
+
+
+_manager = _ThemeConnectionManager()
+
+
+@router.websocket("/ws/{theme}")
+async def thought_stream(websocket: WebSocket, theme: str) -> None:
+    """
+    WebSocket endpoint — streams new thoughts for a theme in real time.
+
+    Clients receive:
+        {"type": "new_thought", "thought": {message_id, humanised_text,
+          theme_category, has_resolution}}
+
+    PRIVACY: Only broadcasts anonymised/humanised data. No user identifiers.
+    """
+    await _manager.connect(websocket, theme)
+    try:
+        while True:
+            # Keep-alive: echo any text the client sends (e.g. ping)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _manager.disconnect(websocket, theme)
+
 
 _THOUGHTS_RATE_LIMIT_MAX = config.RATE_LIMIT_THOUGHTS_PER_HOUR
 _THOUGHTS_RATE_LIMIT_WINDOW = 3600  # seconds
@@ -179,6 +237,23 @@ async def submit_thought(
         if not isinstance(search_outcome, Exception)
         else {"thoughts": [], "total": 0, "search_after": None}
     )
+
+    # Broadcast new thought to WebSocket subscribers (non-fatal, fire-and-forget)
+    if not isinstance(index_outcome, Exception):
+        asyncio.create_task(
+            _manager.broadcast(
+                theme_category,
+                {
+                    "type": "new_thought",
+                    "thought": {
+                        "message_id": message_id,
+                        "humanised_text": humanised_text,
+                        "theme_category": theme_category,
+                        "has_resolution": False,
+                    },
+                },
+            )
+        )
 
     similar_thoughts = [
         ThoughtResponse(
