@@ -439,7 +439,10 @@ def _connect() -> Elasticsearch | None:
 
     print(f"Connecting to local Elasticsearch at {config.ELASTIC_HOST}...")
     try:
-        client = Elasticsearch(config.ELASTIC_HOST, request_timeout=30)
+        kwargs: dict = {"hosts": [config.ELASTIC_HOST], "request_timeout": 30}
+        if config.ELASTIC_API_KEY:
+            kwargs["api_key"] = config.ELASTIC_API_KEY
+        client = Elasticsearch(**kwargs)
         info = client.info()
         print(f"Connected to local cluster: {info['cluster_name']}")
         return client

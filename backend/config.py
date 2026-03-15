@@ -71,6 +71,7 @@ class Config(BaseSettings):
         "https://localhost",
         "capacitor://localhost",
         "http://localhost",
+        "https://frontend-mauve-one-57.vercel.app",
     ]
 
     # Admin access — email address that receives the admin flag on login

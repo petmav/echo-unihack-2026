@@ -47,6 +47,7 @@ VALID_THEMES: list[str] = [
     "low_self_esteem",
     "identity_confusion",
     "perfectionism",
+    "falling_behind",
     # Anxiety & mood
     "general_anxiety",
     "social_anxiety",
