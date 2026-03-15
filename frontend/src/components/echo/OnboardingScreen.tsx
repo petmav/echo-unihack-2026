@@ -20,7 +20,7 @@ const STEPS: OnboardingStep[] = [
   {
     title: "Your words\nstay yours",
     description:
-      "Your thoughts never leave your device. We only ever see the emotion, never the details.",
+      "Your thoughts are never stored. We anonymise them in real time and only ever keep the emotion, never the details.",
   },
   {
     title: "Sometimes it\nhelps to know",

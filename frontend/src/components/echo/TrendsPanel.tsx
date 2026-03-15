@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, Shield, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, CircleHelp, Clock3, Shield, TrendingUp } from "lucide-react";
 
 import type { LocalThought } from "@/lib/types";
 import {
+  buildResolutionTimeline,
   buildTrendSnapshot,
   type TrendRange,
   type TrendThemeSummary,
@@ -100,8 +102,75 @@ function formatMomentum(theme: TrendThemeSummary | null, range: TrendRange): str
   return `Same as ${comparisonLabel}`;
 }
 
+function formatEntryCount(count: number): string {
+  return `${count} ${count === 1 ? "entry" : "entries"}`;
+}
+
+function formatResolutionDuration(elapsedMs: number): string {
+  const elapsedDays = Math.max(0, Math.round(elapsedMs / (1000 * 60 * 60 * 24)));
+
+  if (elapsedDays === 0) {
+    return "the same day";
+  }
+
+  if (elapsedDays === 1) {
+    return "1 day later";
+  }
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays} days later`;
+  }
+
+  if (elapsedDays < 30) {
+    const weeks = Math.round(elapsedDays / 7);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} later`;
+  }
+
+  const months = Math.round(elapsedDays / 30);
+  return `${months} ${months === 1 ? "month" : "months"} later`;
+}
+
+function formatResolutionDurationCompact(elapsedMs: number): string {
+  const elapsedDays = Math.max(0, Math.round(elapsedMs / (1000 * 60 * 60 * 24)));
+
+  if (elapsedDays === 0) {
+    return "same day";
+  }
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays}d`;
+  }
+
+  if (elapsedDays < 30) {
+    return `${Math.round(elapsedDays / 7)}w`;
+  }
+
+  return `${Math.round(elapsedDays / 30)}mo`;
+}
+
+function formatTimelineDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function getFlowUnitLabel(range: TrendRange): string {
+  if (range === "weekly") {
+    return "day";
+  }
+
+  if (range === "monthly") {
+    return "week slice";
+  }
+
+  return "month";
+}
+
 export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const [range, setRange] = useState<TrendRange>("weekly");
+  const [showFlowHelp, setShowFlowHelp] = useState(false);
+  const flowHelpButtonRef = useRef<HTMLButtonElement>(null);
 
   const trendThoughts = useMemo(
     () =>
@@ -161,12 +230,76 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
   const maxBucketTotal = Math.max(1, ...snapshot.buckets.map((bucket) => bucket.total));
   const dominantTheme = snapshot.dominantTheme;
   const risingTheme = snapshot.risingTheme;
+  const resolutionTimeline = useMemo(
+    () =>
+      buildResolutionTimeline(
+        thoughts.map(
+          ({
+            message_id,
+            theme_category,
+            timestamp,
+            is_resolved,
+            resolution_timestamp,
+          }) => ({
+            message_id,
+            theme_category,
+            timestamp,
+            is_resolved,
+            resolution_timestamp,
+          })
+        )
+      ),
+    [thoughts]
+  );
+  const flowUnitLabel = getFlowUnitLabel(range);
+  const peakBucket = useMemo(() => {
+    return snapshot.buckets.reduce<(typeof snapshot.buckets)[number] | null>(
+      (currentPeak, bucket) => {
+        if (!currentPeak || bucket.total > currentPeak.total) {
+          return bucket;
+        }
+        return currentPeak;
+      },
+      null
+    );
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (!showFlowHelp) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (!flowHelpButtonRef.current?.contains(target)) {
+        setShowFlowHelp(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowFlowHelp(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showFlowHelp]);
 
   return (
     <div className="echo-scroll-area flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
       <div
         className="sticky top-0 z-50 flex items-center gap-3 px-5 pb-4 pt-4 backdrop-blur-2xl"
-        style={{ background: "rgba(250, 247, 242, 0.88)" }}
+        style={{ background: "var(--echo-header-blur)" }}
       >
         <button
           onClick={onBack}
@@ -184,7 +317,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
         <div className="mb-3 flex items-center gap-2.5 rounded-xl bg-echo-highlight p-3 text-echo-text-soft">
           <Shield size={18} className="shrink-0" />
           <p className="text-[11.5px] font-light leading-snug">
-            All emotion trends are computed locally on your device.
+            All emotion trends are computed from anonymised data only.
           </p>
         </div>
 
@@ -196,7 +329,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
           </div>
         ) : (
           <>
-            <div className="mb-3 flex rounded-full bg-white p-1 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div className="mb-3 flex rounded-full bg-echo-card p-1 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               {RANGE_OPTIONS.map((option) => {
                 const isActive = option.value === range;
 
@@ -220,8 +353,11 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
             </div>
 
             <div className="mb-3 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
-                <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+              <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
+                <p
+                  className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft"
+                  data-testid="trend-period-label"
+                >
                   {snapshot.periodLabel}
                 </p>
                 <p className="mt-1 font-serif text-4xl font-semibold leading-none text-echo-text">
@@ -232,7 +368,7 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+              <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
                 <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                   Resolved
                 </p>
@@ -247,7 +383,103 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
               </div>
             </div>
 
-            <div className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div
+              className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]"
+              data-testid="resolution-timeline"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+                    Resolution timeline
+                  </p>
+                  <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                    Recent shifts across your local history.
+                  </p>
+                </div>
+
+                <div className="rounded-full bg-echo-highlight p-2.5 text-echo-accent">
+                  <Clock3 size={18} />
+                </div>
+              </div>
+
+              {resolutionTimeline.trackedResolvedCount > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-echo-highlight px-3.5 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-echo-text-soft">
+                      Average shift
+                    </p>
+                    <p className="mt-1 text-[15px] font-normal text-echo-text">
+                      {formatResolutionDuration(
+                        resolutionTimeline.averageResolutionMs ?? 0
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-echo-highlight px-3.5 py-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-echo-text-soft">
+                      Tracked
+                    </p>
+                    <p className="mt-1 text-[15px] font-normal text-echo-text">
+                      {resolutionTimeline.trackedResolvedCount}{" "}
+                      {resolutionTimeline.trackedResolvedCount === 1
+                        ? "resolution"
+                        : "resolutions"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {resolutionTimeline.items.length === 0 ? (
+                <p className="mt-4 text-[13px] font-light leading-relaxed text-echo-text-muted">
+                  Resolve a thought to start tracking how long it takes for something to shift.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  {resolutionTimeline.items.map((item, index) => (
+                    <div
+                      key={item.messageId}
+                      className="relative pl-5"
+                      data-testid="resolution-timeline-item"
+                    >
+                      <span className="absolute left-0 top-2.5 h-2.5 w-2.5 rounded-full bg-echo-accent" />
+                      {index < resolutionTimeline.items.length - 1 && (
+                        <span className="absolute left-[4px] top-5 h-[calc(100%-0.25rem)] w-px bg-echo-highlight-border" />
+                      )}
+
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[13.5px] font-normal text-echo-text">
+                            {formatThemeName(item.theme)}
+                          </p>
+                          <p className="mt-1 text-[12.5px] font-light leading-relaxed text-echo-text-muted">
+                            Shared what helped {formatResolutionDuration(item.elapsedMs)}.
+                          </p>
+                          <p className="mt-1 text-[11.5px] font-light text-echo-text-muted">
+                            Wrote {formatTimelineDate(item.submittedAt)} • Resolved{" "}
+                            {formatTimelineDate(item.resolvedAt)}
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-echo-highlight px-2.5 py-1 text-[11.5px] font-medium text-echo-accent">
+                          {formatResolutionDurationCompact(item.elapsedMs)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {resolutionTimeline.legacyResolvedCount > 0 && (
+                <p className="mt-4 text-[11.5px] font-light leading-relaxed text-echo-text-muted">
+                  {resolutionTimeline.legacyResolvedCount} older{" "}
+                  {resolutionTimeline.legacyResolvedCount === 1
+                    ? "resolved entry was"
+                    : "resolved entries were"}{" "}
+                  saved before timeline tracking started on this device.
+                </p>
+              )}
+            </div>
+
+            <div className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
@@ -285,15 +517,72 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
             </div>
 
             <div
-              className="mb-3 rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]"
+              className="mb-3 rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]"
               data-testid="trend-chart"
             >
-              <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
-                Emotion flow
-              </p>
-              <p className="mt-1 text-[13px] font-light text-echo-text-muted">
-                {snapshot.subtitle}
-              </p>
+              <div className="relative flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
+                    Emotion flow
+                  </p>
+                  <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                    {snapshot.subtitle}
+                  </p>
+                  <p className="mt-1.5 text-[12px] font-light text-echo-text-muted">
+                    {peakBucket && peakBucket.total > 0
+                      ? `Most active ${flowUnitLabel}: ${peakBucket.label}`
+                      : "Tap the help icon to see how this pattern is read."}
+                  </p>
+                </div>
+
+                <button
+                  ref={flowHelpButtonRef}
+                  type="button"
+                  onClick={() => setShowFlowHelp((current) => !current)}
+                  className={`inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full text-echo-accent transition-all duration-200 active:scale-[0.94] ${
+                    showFlowHelp
+                      ? "bg-echo-highlight-border/70 shadow-[0_4px_14px_rgba(44,40,37,0.08)]"
+                      : "bg-echo-highlight"
+                  }`}
+                  aria-expanded={showFlowHelp}
+                  aria-label="Explain emotion flow chart"
+                  data-testid="trend-flow-help-toggle"
+                >
+                  <motion.span
+                    animate={{ rotate: showFlowHelp ? 18 : 0, scale: showFlowHelp ? 1.06 : 1 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                  >
+                    <CircleHelp size={16} />
+                  </motion.span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {showFlowHelp && (
+                    <motion.div
+                      className="absolute right-0 top-11 z-10 w-[min(18rem,calc(100vw-3.75rem))]"
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      data-testid="trend-flow-help"
+                    >
+                      <div className="absolute right-4 top-0 h-3 w-3 -translate-y-1/2 rotate-45 bg-echo-highlight shadow-[0_2px_8px_rgba(44,40,37,0.06)]" />
+                      <div className="rounded-2xl bg-echo-highlight px-3.5 py-3 shadow-[0_10px_28px_rgba(44,40,37,0.08)]">
+                        <p className="text-[12.5px] font-light leading-relaxed text-echo-text-soft">
+                          In {range === "weekly" ? "week" : range === "monthly" ? "month" : "year"} view,
+                          each column groups thoughts into one {flowUnitLabel}. Stacks grow taller when more
+                          thoughts land in that slice, and the colours show which themes made up that total.
+                        </p>
+                        {peakBucket && peakBucket.total > 0 && (
+                          <p className="mt-2 text-[12px] font-light leading-relaxed text-echo-text-muted">
+                            Most active {flowUnitLabel}: {peakBucket.label} with {formatEntryCount(peakBucket.total)}.
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               <div className="mt-5 flex h-[124px] items-end gap-2">
                 {snapshot.buckets.map((bucket) => {
@@ -364,9 +653,12 @@ export function TrendsPanel({ thoughts, onBack }: TrendsPanelProps) {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)]">
+            <div className="rounded-2xl bg-echo-card p-5 shadow-[0_1px_12px_rgba(44,40,37,0.05)] dark:shadow-[0_1px_12px_rgba(0,0,0,0.2)]">
               <p className="text-[13px] font-medium uppercase tracking-wider text-echo-text-soft">
                 Emotion mix
+              </p>
+              <p className="mt-1 text-[13px] font-light text-echo-text-muted">
+                Share of total entries in this period.
               </p>
 
               {snapshot.topThemes.length === 0 ? (

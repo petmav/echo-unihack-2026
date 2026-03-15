@@ -33,7 +33,7 @@ export function FutureLetterInput({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="mt-2.5 flex items-center gap-2 rounded-[10px] bg-[#F2F7F3] p-2.5 text-[12px] font-light text-[#5A7D5E]"
+        className="mt-2.5 flex items-center gap-2 rounded-[10px] bg-echo-future-bg p-2.5 text-[12px] font-light text-echo-future-icon"
       >
         <Mail size={13} />
         <span>Note saved — it&apos;ll find you when you need it.</span>
@@ -50,7 +50,7 @@ export function FutureLetterInput({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsExpanded(true)}
-            className="flex items-center gap-1.5 text-[11.5px] font-light text-[#5A7D5E] transition-colors hover:text-[#3D5940]"
+            className="flex items-center gap-1.5 text-[11.5px] font-light text-echo-future-icon transition-colors hover:text-echo-future-icon-hover"
             data-testid="future-letter-trigger"
           >
             <Mail size={12} />
@@ -68,7 +68,7 @@ export function FutureLetterInput({
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <p className="mb-2 text-[11.5px] font-light italic text-[#5A7D5E]/80">
+            <p className="mb-2 text-[11.5px] font-light italic text-echo-future-icon/80">
               If this feeling comes back, what would you want to remember?
             </p>
             <textarea
@@ -77,7 +77,7 @@ export function FutureLetterInput({
                 setText(e.target.value.slice(0, MAX_FUTURE_LETTER_LENGTH))
               }
               placeholder="Dear future me..."
-              className="w-full min-h-[64px] rounded-xl border border-[#C5D4C8] bg-[#F2F7F3] p-3 font-sans text-[13px] font-light leading-relaxed text-echo-text outline-none resize-none focus:border-[#7BAE7F]"
+              className="w-full min-h-[64px] rounded-xl border border-echo-future-border bg-echo-future-bg p-3 font-sans text-[13px] font-light leading-relaxed text-echo-text outline-none resize-none focus:border-echo-green"
               data-testid="future-letter-textarea"
             />
             <div className="mt-1.5 flex items-center justify-between">
@@ -87,7 +87,7 @@ export function FutureLetterInput({
               <button
                 onClick={handleSave}
                 disabled={!text.trim()}
-                className="flex items-center gap-1.5 rounded-full bg-[#7BAE7F] px-3.5 py-1.5 text-[11.5px] font-medium text-white transition-opacity disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-full bg-echo-future-btn px-3.5 py-1.5 text-[11.5px] font-medium text-white transition-opacity disabled:opacity-40"
                 data-testid="future-letter-save"
               >
                 <Send size={11} />

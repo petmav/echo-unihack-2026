@@ -467,6 +467,7 @@ class TestGetSimilarThoughtsPrivacy:
             "theme_category",
             "has_resolution",
             "resolution_text",
+            "similarity_score",
         }
         sample_thoughts = _make_sample_thoughts(1)
         thought_doc = _make_thought_doc()

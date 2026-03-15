@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # Runtime mode toggle — switched via admin dashboard
 # ---------------------------------------------------------------------------
 
-_anonymiser_mode: str = "nanogpt"  # "ollama" | "nanogpt"
+# Privacy-first default: stay local unless the admin explicitly switches to NanoGPT.
+_anonymiser_mode: str = "ollama"  # "ollama" | "nanogpt"
 
 
 def get_anonymiser_mode() -> str:

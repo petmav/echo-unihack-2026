@@ -18,6 +18,7 @@ import pytest
 import services.elastic as elastic_module
 from services.elastic import (
     get_aggregates,
+    get_total_theme_resolution_stats,
     index_thought,
     search_similar_thoughts,
 )
@@ -352,14 +353,26 @@ class TestGetAggregates:
 
     @pytest.mark.asyncio
     async def test_returns_list_of_theme_count_dicts(self):
-        """get_aggregates must return a list of {theme, count} dicts."""
+        """get_aggregates must return weekly count and resolution stats per theme."""
         mock_response = {
             "aggregations": {
                 "themes": {
                     "buckets": [
-                        {"key": "work_stress", "doc_count": 42},
-                        {"key": "relationships", "doc_count": 17},
-                        {"key": "self_worth", "doc_count": 8},
+                        {
+                            "key": "work_stress",
+                            "doc_count": 42,
+                            "resolved": {"doc_count": 9},
+                        },
+                        {
+                            "key": "relationships",
+                            "doc_count": 17,
+                            "resolved": {"doc_count": 3},
+                        },
+                        {
+                            "key": "self_worth",
+                            "doc_count": 8,
+                            "resolved": {"doc_count": 2},
+                        },
                     ]
                 }
             }
@@ -376,8 +389,12 @@ class TestGetAggregates:
         for item in result:
             assert "theme" in item
             assert "count" in item
+            assert "resolution_count" in item
+            assert "resolution_rate" in item
             assert isinstance(item["theme"], str)
             assert isinstance(item["count"], int)
+            assert isinstance(item["resolution_count"], int)
+            assert isinstance(item["resolution_rate"], int)
 
     @pytest.mark.asyncio
     async def test_returns_correct_values(self):
@@ -386,7 +403,11 @@ class TestGetAggregates:
             "aggregations": {
                 "themes": {
                     "buckets": [
-                        {"key": "anxiety", "doc_count": 99},
+                        {
+                            "key": "anxiety",
+                            "doc_count": 99,
+                            "resolved": {"doc_count": 20},
+                        },
                     ]
                 }
             }
@@ -397,7 +418,14 @@ class TestGetAggregates:
         with patch.object(elastic_module, "_es_client", mock_client):
             result = await get_aggregates()
 
-        assert result == [{"theme": "anxiety", "count": 99}]
+        assert result == [
+            {
+                "theme": "anxiety",
+                "count": 99,
+                "resolution_count": 20,
+                "resolution_rate": 20,
+            }
+        ]
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_client_none(self):
@@ -435,3 +463,41 @@ class TestGetAggregates:
             result = await get_aggregates()
 
         assert result == []
+
+
+class TestGetTotalThemeResolutionStats:
+    """Tests for get_total_theme_resolution_stats()."""
+
+    @pytest.mark.asyncio
+    async def test_returns_count_resolution_count_and_rate(self):
+        mock_client = _make_mock_es_client()
+        mock_client.search.return_value = {
+            "hits": {"total": {"value": 84, "relation": "eq"}},
+            "aggregations": {"resolved": {"doc_count": 21}},
+        }
+
+        with patch.object(elastic_module, "_es_client", mock_client):
+            result = await get_total_theme_resolution_stats(SAMPLE_THEME)
+
+        assert result == {
+            "count": 84,
+            "resolution_count": 21,
+            "resolution_rate": 25,
+        }
+
+    @pytest.mark.asyncio
+    async def test_returns_zeros_when_client_none(self):
+        with patch.object(elastic_module, "_es_client", None):
+            result = await get_total_theme_resolution_stats(SAMPLE_THEME)
+
+        assert result == {"count": 0, "resolution_count": 0, "resolution_rate": 0}
+
+    @pytest.mark.asyncio
+    async def test_returns_zeros_on_error(self):
+        mock_client = _make_mock_es_client()
+        mock_client.search.side_effect = Exception("unexpected error")
+
+        with patch.object(elastic_module, "_es_client", mock_client):
+            result = await get_total_theme_resolution_stats(SAMPLE_THEME)
+
+        assert result == {"count": 0, "resolution_count": 0, "resolution_rate": 0}
