@@ -59,7 +59,6 @@ jobs:
         run: npm run typecheck
       - name: ESLint
         run: npm run lint
-
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
@@ -92,3 +91,4 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
           retention-days: 7
+

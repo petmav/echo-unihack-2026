@@ -31,21 +31,78 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
 
-  --color-echo-bg: #FAF7F2;
-  --color-echo-bg-warm: #F3EBE1;
-  --color-echo-text: #2C2825;
-  --color-echo-text-soft: #7A706A;
-  --color-echo-text-muted: #B5ADA6;
-  --color-echo-accent: #C8856C;
-  --color-echo-accent-dark: #A06B55;
-  --color-echo-accent-soft: #E8C4B4;
-  --color-echo-accent-glow: rgba(200, 133, 108, 0.12);
-  --color-echo-card: #FFFFFF;
-  --color-echo-highlight: #FFF8F0;
-  --color-echo-highlight-border: #EEDCC8;
-  --color-echo-green: #7BAE7F;
-  --color-echo-green-soft: #E8F5E9;
-  --color-echo-red: #C75050;
+  --color-echo-bg: var(--echo-bg);
+  --color-echo-bg-warm: var(--echo-bg-warm);
+  --color-echo-text: var(--echo-text);
+  --color-echo-text-soft: var(--echo-text-soft);
+  --color-echo-text-muted: var(--echo-text-muted);
+  --color-echo-accent: var(--echo-accent);
+  --color-echo-accent-dark: var(--echo-accent-dark);
+  --color-echo-accent-soft: var(--echo-accent-soft);
+  --color-echo-accent-glow: var(--echo-accent-glow);
+  --color-echo-card: var(--echo-card);
+  --color-echo-highlight: var(--echo-highlight);
+  --color-echo-highlight-border: var(--echo-highlight-border);
+  --color-echo-green: var(--echo-green);
+  --color-echo-green-soft: var(--echo-green-soft);
+  --color-echo-red: var(--echo-red);
+
+  --color-echo-safety-bg: var(--echo-safety-bg);
+  --color-echo-safety-border: var(--echo-safety-border);
+  --color-echo-safety-icon: var(--echo-safety-icon);
+  --color-echo-safety-heading: var(--echo-safety-heading);
+  --color-echo-safety-text: var(--echo-safety-text);
+  --color-echo-safety-card-bg: var(--echo-safety-card-bg);
+
+  --color-echo-win-bg: var(--echo-win-bg);
+  --color-echo-win-border: var(--echo-win-border);
+  --color-echo-win-icon-bg: var(--echo-win-icon-bg);
+  --color-echo-win-icon: var(--echo-win-icon);
+  --color-echo-win-heading: var(--echo-win-heading);
+  --color-echo-win-text: var(--echo-win-text);
+
+  --color-echo-future-bg: var(--echo-future-bg);
+  --color-echo-future-border: var(--echo-future-border);
+  --color-echo-future-icon: var(--echo-future-icon);
+  --color-echo-future-icon-hover: var(--echo-future-icon-hover);
+  --color-echo-future-heading: var(--echo-future-heading);
+  --color-echo-future-text: var(--echo-future-text);
+  --color-echo-future-btn: var(--echo-future-btn);
+
+  --color-echo-privacy-green-bg: var(--echo-privacy-green-bg);
+  --color-echo-privacy-green: var(--echo-privacy-green);
+  --color-echo-privacy-blue-bg: var(--echo-privacy-blue-bg);
+  --color-echo-privacy-blue: var(--echo-privacy-blue);
+  --color-echo-privacy-pink-bg: var(--echo-privacy-pink-bg);
+  --color-echo-privacy-pink: var(--echo-privacy-pink);
+  --color-echo-privacy-purple-bg: var(--echo-privacy-purple-bg);
+  --color-echo-privacy-purple: var(--echo-privacy-purple);
+  --color-echo-privacy-orange-bg: var(--echo-privacy-orange-bg);
+  --color-echo-privacy-orange: var(--echo-privacy-orange);
+  --color-echo-privacy-red-bg: var(--echo-privacy-red-bg);
+  --color-echo-privacy-red: var(--echo-privacy-red);
+  --color-echo-privacy-amber: var(--echo-privacy-amber);
+
+  --color-echo-graph-overlay-bg: var(--echo-graph-overlay-bg);
+  --color-echo-graph-overlay-border: var(--echo-graph-overlay-border);
+  --color-echo-graph-overlay-text: var(--echo-graph-overlay-text);
+  --color-echo-graph-overlay-muted: var(--echo-graph-overlay-muted);
+  --color-echo-graph-overlay-divider: var(--echo-graph-overlay-divider);
+  --color-echo-graph-overlay-card-bg: var(--echo-graph-overlay-card-bg);
+  --color-echo-graph-overlay-hover: var(--echo-graph-overlay-hover);
+  --color-echo-graph-overlay-hover-btn: var(--echo-graph-overlay-hover-btn);
+  --color-echo-graph-overlay-link: var(--echo-graph-overlay-link);
+
+  --color-echo-header-blur: var(--echo-header-blur);
+  --color-echo-toggle-off: var(--echo-toggle-off);
+
+  --color-echo-graph-bg: var(--echo-graph-bg);
+  --color-echo-graph-header-from: var(--echo-graph-header-from);
+  --color-echo-graph-header-via: var(--echo-graph-header-via);
+  --color-echo-graph-text: var(--echo-graph-text);
+  --color-echo-graph-text-soft: var(--echo-graph-text-soft);
+  --color-echo-graph-btn-hover: var(--echo-graph-btn-hover);
+  --color-echo-graph-loading: var(--echo-graph-loading);
 }
 
 :root {
@@ -68,6 +125,197 @@
   --input: #E0D8D0;
   --ring: #C8856C;
   --radius: 1rem;
+
+  --echo-bg: #FAF7F2;
+  --echo-bg-warm: #F3EBE1;
+  --echo-text: #2C2825;
+  --echo-text-soft: #7A706A;
+  --echo-text-muted: #B5ADA6;
+  --echo-accent: #C8856C;
+  --echo-accent-dark: #A06B55;
+  --echo-accent-soft: #E8C4B4;
+  --echo-accent-glow: rgba(200, 133, 108, 0.12);
+  --echo-card: #FFFFFF;
+  --echo-highlight: #FFF8F0;
+  --echo-highlight-border: #EEDCC8;
+  --echo-green: #7BAE7F;
+  --echo-green-soft: #E8F5E9;
+  --echo-red: #C75050;
+
+  /* Safety banner */
+  --echo-safety-bg: #FFF5F2;
+  --echo-safety-border: #E8C8C0;
+  --echo-safety-icon: #B5564D;
+  --echo-safety-heading: #7A3B34;
+  --echo-safety-text: #8B5E58;
+  --echo-safety-card-bg: rgba(255, 255, 255, 0.6);
+
+  /* Quiet win banner */
+  --echo-win-bg: #FCF6F1;
+  --echo-win-border: #E3D3C8;
+  --echo-win-icon-bg: #F1DED0;
+  --echo-win-icon: #A96D4F;
+  --echo-win-heading: #7D4D34;
+  --echo-win-text: #865741;
+
+  /* Future you / letter (green tones) */
+  --echo-future-bg: #F2F7F3;
+  --echo-future-border: #C5D4C8;
+  --echo-future-icon: #5A7D5E;
+  --echo-future-icon-hover: #3D5940;
+  --echo-future-heading: #3D5940;
+  --echo-future-text: #4A6B4E;
+  --echo-future-btn: #7BAE7F;
+
+  /* Privacy panel colored badges */
+  --echo-privacy-green-bg: #E8F5E9;
+  --echo-privacy-green: #388E3C;
+  --echo-privacy-blue-bg: #E3F2FD;
+  --echo-privacy-blue: #1976D2;
+  --echo-privacy-pink-bg: #FCE4EC;
+  --echo-privacy-pink: #C2185B;
+  --echo-privacy-purple-bg: #F3E5F5;
+  --echo-privacy-purple: #7B1FA2;
+  --echo-privacy-orange-bg: #FFF3E0;
+  --echo-privacy-orange: #E65100;
+  --echo-privacy-red-bg: #FFEBEE;
+  --echo-privacy-red: #C62828;
+  --echo-privacy-amber: #F57C00;
+
+  /* Graph overlay (tooltip / detail card) */
+  --echo-graph-overlay-bg: #f5f3f0;
+  --echo-graph-overlay-border: #8880a0;
+  --echo-graph-overlay-text: #1a1a2e;
+  --echo-graph-overlay-muted: #5a5470;
+  --echo-graph-overlay-divider: #d5d0c8;
+  --echo-graph-overlay-card-bg: #eae7e2;
+  --echo-graph-overlay-hover: #ddd9d2;
+  --echo-graph-overlay-hover-btn: #e8e5e0;
+  --echo-graph-overlay-link: #6a6488;
+
+  /* Sticky header blur bg */
+  --echo-header-blur: rgba(250, 247, 242, 0.88);
+
+  /* Toggle off state */
+  --echo-toggle-off: #D0CBC5;
+
+  /* Graph canvas */
+  --echo-graph-bg: #F5F0EB;
+  --echo-graph-header-from: #F5F0EB;
+  --echo-graph-header-via: rgba(245, 240, 235, 0.8);
+  --echo-graph-text: #2C2825;
+  --echo-graph-text-soft: #7A706A;
+  --echo-graph-btn-hover: rgba(44, 40, 37, 0.1);
+  --echo-graph-edge: rgba(80, 75, 70, 0.55);
+  --echo-graph-edge-cross: rgba(80, 75, 70, 0.35);
+  --echo-graph-cluster-alpha: 20;
+  --echo-graph-loading: rgba(44, 40, 37, 0.35);
+}
+
+.dark {
+  --background: #1A1816;
+  --foreground: #E8E2DC;
+  --card: #252220;
+  --card-foreground: #E8E2DC;
+  --popover: #252220;
+  --popover-foreground: #E8E2DC;
+  --primary: #D4967E;
+  --primary-foreground: #1A1816;
+  --secondary: #2E2A27;
+  --secondary-foreground: #E8E2DC;
+  --muted: #2E2A27;
+  --muted-foreground: #9A918A;
+  --accent: #D4967E;
+  --accent-foreground: #1A1816;
+  --destructive: #D46060;
+  --border: #3A3533;
+  --input: #3A3533;
+  --ring: #D4967E;
+
+  --echo-bg: #1A1816;
+  --echo-bg-warm: #2E2A27;
+  --echo-text: #E8E2DC;
+  --echo-text-soft: #9A918A;
+  --echo-text-muted: #6A6158;
+  --echo-accent: #D4967E;
+  --echo-accent-dark: #B87D66;
+  --echo-accent-soft: #3D2E28;
+  --echo-accent-glow: rgba(212, 150, 126, 0.15);
+  --echo-card: #252220;
+  --echo-highlight: #2A2420;
+  --echo-highlight-border: #3D3530;
+  --echo-green: #8BC490;
+  --echo-green-soft: #1E2E1F;
+  --echo-red: #D46060;
+
+  /* Safety banner */
+  --echo-safety-bg: #2A1F1D;
+  --echo-safety-border: #4A3530;
+  --echo-safety-icon: #D47A72;
+  --echo-safety-heading: #E8A9A0;
+  --echo-safety-text: #C49088;
+  --echo-safety-card-bg: rgba(255, 255, 255, 0.06);
+
+  /* Quiet win banner */
+  --echo-win-bg: #2A2420;
+  --echo-win-border: #4A3D34;
+  --echo-win-icon-bg: #3D3028;
+  --echo-win-icon: #D4956A;
+  --echo-win-heading: #E8B898;
+  --echo-win-text: #C8A088;
+
+  /* Future you / letter (green tones) */
+  --echo-future-bg: #1E2820;
+  --echo-future-border: #344038;
+  --echo-future-icon: #8BC490;
+  --echo-future-icon-hover: #A8D8AC;
+  --echo-future-heading: #A8D8AC;
+  --echo-future-text: #8BBC90;
+  --echo-future-btn: #6A9E6E;
+
+  /* Privacy panel colored badges */
+  --echo-privacy-green-bg: #1E2E1F;
+  --echo-privacy-green: #6BCB70;
+  --echo-privacy-blue-bg: #1A2838;
+  --echo-privacy-blue: #64A8E0;
+  --echo-privacy-pink-bg: #2E1A22;
+  --echo-privacy-pink: #E06098;
+  --echo-privacy-purple-bg: #2A1E30;
+  --echo-privacy-purple: #B080D0;
+  --echo-privacy-orange-bg: #2E2418;
+  --echo-privacy-orange: #E89050;
+  --echo-privacy-red-bg: #2E1A1A;
+  --echo-privacy-red: #E06060;
+  --echo-privacy-amber: #E8A050;
+
+  /* Graph overlay (tooltip / detail card) */
+  --echo-graph-overlay-bg: #252220;
+  --echo-graph-overlay-border: #5A5470;
+  --echo-graph-overlay-text: #E8E2DC;
+  --echo-graph-overlay-muted: #9A90B0;
+  --echo-graph-overlay-divider: #3A3533;
+  --echo-graph-overlay-card-bg: #2E2A27;
+  --echo-graph-overlay-hover: #3A3533;
+  --echo-graph-overlay-hover-btn: #3A3533;
+  --echo-graph-overlay-link: #A098C0;
+
+  /* Sticky header blur bg */
+  --echo-header-blur: rgba(26, 24, 22, 0.88);
+
+  /* Toggle off state */
+  --echo-toggle-off: #4A4540;
+
+  /* Graph canvas */
+  --echo-graph-bg: #1a1a2e;
+  --echo-graph-header-from: #1a1a2e;
+  --echo-graph-header-via: rgba(26, 26, 46, 0.8);
+  --echo-graph-text: #FFFFFF;
+  --echo-graph-text-soft: #FFFFFF;
+  --echo-graph-btn-hover: rgba(255, 255, 255, 0.15);
+  --echo-graph-edge: rgba(200, 200, 220, 0.15);
+  --echo-graph-edge-cross: rgba(200, 200, 220, 0.06);
+  --echo-graph-cluster-alpha: 18;
+  --echo-graph-loading: rgba(255, 255, 255, 0.4);
 }
 
 .touch-manipulation {
@@ -103,6 +351,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    touch-action: pan-x pan-y;
+    overscroll-behavior: none;
   }
   html {
     @apply font-sans;
@@ -110,6 +360,7 @@
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+    touch-action: pan-x pan-y;
   }
 }
 
