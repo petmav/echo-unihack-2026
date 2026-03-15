@@ -11,8 +11,6 @@ import {
   Settings,
   X,
   Waypoints,
-  Sun,
-  Moon,
   CalendarDays,
 } from "lucide-react";
 

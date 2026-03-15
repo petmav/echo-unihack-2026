@@ -93,7 +93,6 @@ import { QuietWinBanner } from "@/components/echo/QuietWinBanner";
 import { RecurrencePatternBanner } from "@/components/echo/RecurrencePatternBanner";
 import { SavedAnchorsBanner } from "@/components/echo/SavedAnchorsBanner";
 import { ThemeResolutionAggregateBanner } from "@/components/echo/ThemeResolutionAggregateBanner";
-import { DataModeBadge } from "@/components/echo/DataModeBadge";
 import { DelayedPromptSheet } from "@/components/echo/DelayedPromptSheet";
 import { SurroundingTopics } from "@/components/echo/SurroundingTopics";
 import { ThoughtGraph } from "@/components/echo/ThoughtGraph";
@@ -318,7 +317,7 @@ export default function EchoApp() {
     useState<RecurrencePattern | null>(null);
   const [themeResolutionStats, setThemeResolutionStats] =
     useState<ThemeCountSummary | null>(null);
-  const [resultsDataMode, setResultsDataMode] = useState<"live" | "demo" | null>(null);
+  const [, setResultsDataMode] = useState<"live" | "demo" | null>(null);
   const [savedAnchors, setSavedAnchors] = useState<SavedAnchor[]>([]);
   const [savedAnchorIds, setSavedAnchorIds] = useState<Set<string>>(new Set());
 
@@ -329,7 +328,7 @@ export default function EchoApp() {
   const [topicSearchAfter, setTopicSearchAfter] = useState<string[] | undefined>(undefined);
   const [topicHasMore, setTopicHasMore] = useState(false);
   const [topicLoading, setTopicLoading] = useState(false);
-  const [topicDataMode, setTopicDataMode] = useState<"live" | "demo">("live");
+  const [, setTopicDataMode] = useState<"live" | "demo">("live");
   const [topicCardsVisible, setTopicCardsVisible] = useState(0);
   const [adviceFirstOnly, setAdviceFirstOnly] = useState(false);
 
@@ -472,11 +471,6 @@ export default function EchoApp() {
   /* Poll for live count + new cards while the results screen is open */
   useEffect(() => {
     if (screen !== "results" || !currentThemeCategory) return;
-
-    const injectFromDemoPool = () => {
-      const next = demoLivePoolRef.current.shift();
-      if (next) injectNewCards([next]);
-    };
 
     const poll = async () => {
       // 1. Update live count from API
