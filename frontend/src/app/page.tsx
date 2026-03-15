@@ -675,7 +675,7 @@ export default function EchoApp() {
 
     try {
       const safePersona = getSafePersona(persona);
-      
+
       const result = await submitThought(rawText, safePersona);
       await saveThought(result.message_id, rawText, result.theme_category, result.match_count, result.anonymised_text, safePersona);
       setMatchCount(result.match_count);
@@ -1186,20 +1186,11 @@ export default function EchoApp() {
                       Show only what helped
                     </span>
                     <button
-<<<<<<< HEAD
                       onClick={() => setAdviceFirstOnly((v) => !v)}
                       className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${adviceFirstOnly
                         ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
                         : "bg-echo-text-muted/30"
                         }`}
-=======
-                      onClick={() => setAdviceFirstOnly((v: boolean) => !v)}
-                      className={`relative h-[28px] w-[52px] shrink-0 rounded-full border-0 transition-colors duration-200 ease-out touch-manipulation ${
-                        adviceFirstOnly
-                          ? "bg-echo-accent shadow-[0_0_0_2px_rgba(200,133,108,0.25)]"
-                          : "bg-echo-text-muted/30"
-                      }`}
->>>>>>> main
                       role="switch"
                       aria-checked={adviceFirstOnly}
                       aria-label="Show only cards with what helped"

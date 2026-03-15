@@ -20,16 +20,16 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from config import config
 from database import Account, SessionLocal, init_db
 from middleware.cors import get_cors_middleware
-from middleware.logging import get_logging_config, setup_application_logging
+from middleware.logging import setup_application_logging, get_logging_config
 from middleware.request_size import add_request_size_middleware
 from routers import account, admin, auth, resolution, thoughts
-from routers.admin import api_router as admin_api_router
-from routers.admin import init_admin
+from routers.admin import api_router as admin_api_router, init_admin
 from services.elastic import close_elasticsearch, init_elasticsearch
 
 
@@ -199,11 +199,8 @@ async def not_found_handler(request, exc):
     )
 
 
-from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
-    import logging
-
     logger = logging.getLogger("echo")
     logger.error(f"422 Validation Error on {request.url}: {exc.errors()}")
     return JSONResponse(
